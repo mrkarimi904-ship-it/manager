@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model camera {
+  id                          String      @id @default(uuid())
+  url                         String      @unique()
+  username                    String
+  password                    String
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  camera_info                 camera_info[]
+}
+
+model camera_info {
+  id                          String        @id @default(uuid())
+  camera_id                   String
+  key                         String
+  value                       String
+  camera                      camera @relation(fields: [camera_id], references: [id])
+  camera_service_camera_info  camera_service_camera_info[]
+}
+
+model camera_service {
+  id                          String        @id @default(uuid())
+  url                         String
+  port_from                   String
+  port_to                     String
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  camera_service_camera_info  camera_service_camera_info[]
+}
+
+model camera_service_camera_info {
+  id                          String        @id @default(uuid())
+  camera_service_id           String
+  camera_info_id              String
+  port                        String
+  camera_service              camera_service @relation(fields: [camera_service_id], references: [id])
+  camera_info                 camera_info @relation(fields: [camera_info_id], references: [id])
+}
+
