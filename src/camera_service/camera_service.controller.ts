@@ -17,6 +17,11 @@ export class CameraServiceController {
     return this.cameraServiceService.getAll();
   }
 
+  @Get('/available')
+  async getAvailable(): Promise<generalResponse> {
+    return this.cameraServiceService.getAvailable();
+  }
+
   @Get(':id')
   async getSingle(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
     return this.cameraServiceService.getSingle(id);

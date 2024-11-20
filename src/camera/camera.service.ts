@@ -2,24 +2,34 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 
 import { DbService } from 'src/db/db.service';
 import { HttpService } from '@nestjs/axios';
+import { CameraServiceService } from 'src/camera_service/camera_service.service';
 
 import * as dtos from './camera.dtos';
 
 import { generalResponse } from 'src/app.consts';
+import { RecorderService } from 'src/recorder/recorder.service';
+import { LiveService } from 'src/live/live.service';
 
 @Injectable()
 export class CameraService {
-  constructor(private db: DbService, private readonly axios: HttpService) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private cameraservice: CameraServiceService, private recorderservice: RecorderService, private liveService: LiveService) {}
 
   async getAll(): Promise<generalResponse> {
-    const temp: dtos.cameraDto[] = await this.db.camera.findMany({ include: { camera_info: { select: { key: true, value: true } } } });
+    const temp: dtos.cameraDto[] = await this.db.camera.findMany({ include: { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } } } });
     const response: generalResponse = { status: true, data: temp, error: null, msg: null };
     return response;
   }
 
   async getSingle(id: string): Promise<generalResponse> {
-    const temp: dtos.cameraDto = await this.db.camera.findUnique({ where: { id: id }, include: { camera_info: { select: { key: true, value: true } } } });
+    const temp: dtos.cameraDto = await this.db.camera.findUnique({ where: { id: id }, include: { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } } } });
     const response: generalResponse = { status: true, data: temp, error: null, msg: null };
+    return response;
+  }
+
+  async getHealth(id: string): Promise<generalResponse> {
+    const temp: dtos.cameraDto = await this.db.camera.findUnique({ where: { id: id }});
+    const health = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera', temp);
+    const response: generalResponse = { status: true, data: health.data, error: null, msg: null };
     return response;
   }
 
@@ -31,6 +41,7 @@ export class CameraService {
 
   async postPre(body: dtos.postPreCameraDto): Promise<generalResponse> {
     // get profiles from onvif service
+    console.log(body)
     const onvif_response = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body);
     if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
       const profiles = [];
@@ -67,14 +78,19 @@ export class CameraService {
 
   async postSingle(body: dtos.postCameraDto): Promise<generalResponse> {
     // get profiles from onvif service
-    const onvif_response = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body);
+    const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', body)]);
     if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
+      // get profile rtsp data
       const high = onvif_response.data.filter(x => x.token === body.profile_high).map(x => { return x.stream?.rtsp })
-      // todo : validate
+      if (high.length < 1) { return { status: false, data: null, error: 'error_adding_camera', msg: 'High profile is not valid' }; }
       const low = onvif_response.data.filter(x => x.token === body.profile_low).map(x => { return x.stream?.rtsp })
-      // todo: validate
+      if (low.length < 1) { return { status: false, data: null, error: 'error_adding_camera', msg: 'Low profile is not valid' }; }
       // camera service
-      // todo : check for camera service limitations
+      const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
+      if (!cameraserviceID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera serive available' }; }
+      // get ptz info
+      const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
+      const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
       // add camera to db
       try {
         const temp: dtos.cameraDto = await this.db.camera.create({
@@ -93,12 +109,21 @@ export class CameraService {
                 { key: 'profile_low', value: body.profile_low },
                 { key: 'profile_low_rtsp', value: low[0] },
                 { key: 'profile_high', value: body.profile_high },
-                { key: 'profile_high_rtsp', value: high[0] }
+                { key: 'profile_high_rtsp', value: high[0] },
+                { key: 'ptz_pan_tilt', value: ptzPanTilt ? 'true' : 'false' },
+                { key: 'ptz_zoom', value: ptzZoom? 'true' : 'false' }
               ]
             }
           }});
-          // todo : call camera service
-          // todo : call recorder
+        // add info to camera service
+        await this.db.camera_service_camera.createMany({ data: [
+          { camera_service_id: cameraserviceID, camera_id: temp.id, type: 'live', port: 0, status: false },
+          { camera_service_id: cameraserviceID, camera_id: temp.id, type: 'record', port: 0, status: false },
+        ] })
+        // start live
+        this.liveService.start({ cameraId: temp.id })
+        // start recorder
+        this.recorderservice.start({ cameraId: temp.id })
         // generate response
         const response: generalResponse = { status: true, data: temp, error: null, msg: null };
         return response;
@@ -113,8 +138,13 @@ export class CameraService {
   }
 
   async deleteSingle(id: string): Promise<generalResponse> {
+    // stop live
+    await this.liveService.stop({ cameraId: id })
+    // stop recorder
+    await this.recorderservice.stop({ cameraId: id })
     // delete related data from info table
     await this.db.camera_info.deleteMany({ where: { camera_id: id } });
+    await this.db.camera_service_camera.deleteMany({ where: { camera_id: id } });
     // delete camera
     const temp: dtos.cameraDto = await this.db.camera.delete({ where: { id: id } });
     // generate response

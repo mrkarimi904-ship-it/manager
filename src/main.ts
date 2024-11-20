@@ -1,7 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import * as fs from 'fs';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -15,13 +17,18 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('VMS Manager')
     .setDescription('The VMS Manager API')
-    .setVersion('1.0')
+    .setVersion('1.19')
+    .addBearerAuth()
+    .addServer('/')
+    .addServer('/manager/')
+    .addServer('/test_manager/')
     .build();
   const document = SwaggerModule.createDocument(app, config);
+  fs.writeFileSync("./client/swagger.json", JSON.stringify(document));
   SwaggerModule.setup('', app, document);
 
   app.enableCors({ origin: true, credentials: true });
 
-  await app.listen(3000);
+  await app.listen(3001);
 }
 bootstrap();

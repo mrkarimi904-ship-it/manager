@@ -22,6 +22,10 @@ export class cameraServiceDto {
 export class postCameraServiceDto {
   @IsString()
   @ApiProperty()
+  id: string;
+
+  @IsString()
+  @ApiProperty()
   url: string;
 
   @IsString()
@@ -31,4 +35,8 @@ export class postCameraServiceDto {
   @IsString()
   @ApiProperty()
   port_to: string;
+
+  @IsString()
+  @ApiProperty()
+  swagger_port: string;
 }

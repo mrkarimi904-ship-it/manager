@@ -7,6 +7,74 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model account {
+  id                          String      @id @default(uuid())
+  username                    String      @unique()
+  password                    String
+  expired                     Boolean     @default(false)
+  expire_at                   DateTime?
+  expireInterval              Int         @default(30)
+  mustchangepassword          Boolean     @default(false)
+  firstname                   String
+  lastname                    String
+  description                 String
+  isSuperAdmin                Boolean     @default(false)
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  account_group               account_group[]
+  account_tokens              account_tokens[]
+}
+
+model groups {
+  id                          String      @id @default(uuid())
+  name                        String      @unique()
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  group_roles                 group_roles[]
+  account_group               account_group[]
+}
+
+model roles {
+  id                          String      @id @default(uuid())
+  name                        String      @unique()
+  description                 String
+  default                     Boolean     @default(true)
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  group_roles                 group_roles[]
+}
+
+model group_roles {
+  id                          String        @id @default(uuid())
+  group_id                    String
+  role_id                     String
+  value                       Int           @default(0)
+  created_at                  DateTime      @default(now())
+  updated_at                  DateTime      @updatedAt()
+  roles                       roles @relation(fields: [role_id], references: [id])
+  groups                      groups @relation(fields: [group_id], references: [id])
+}
+
+model account_group {
+  id                          String        @id @default(uuid())
+  account_id                  String
+  group_id                    String
+  created_at                  DateTime      @default(now())
+  updated_at                  DateTime      @updatedAt()
+  account                     account @relation(fields: [account_id], references: [id])
+  groups                      groups @relation(fields: [group_id], references: [id])
+}
+
+model account_tokens {
+  id                          String        @id @default(uuid())
+  account_id                  String
+  token                       String
+  expiration                  DateTime
+  created_at                  DateTime      @default(now())
+  updated_at                  DateTime      @updatedAt()
+  account                     account @relation(fields: [account_id], references: [id])
+}
+
 model camera {
   id                          String      @id @default(uuid())
   url                         String      @unique()
@@ -15,6 +83,8 @@ model camera {
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
   camera_info                 camera_info[]
+  camera_service_camera       camera_service_camera[]
+  camera_recorder_camera      camera_recorder_camera[]
 }
 
 model camera_info {
@@ -23,25 +93,54 @@ model camera_info {
   key                         String
   value                       String
   camera                      camera @relation(fields: [camera_id], references: [id])
-  camera_service_camera_info  camera_service_camera_info[]
 }
 
 model camera_service {
   id                          String        @id @default(uuid())
-  url                         String
+  url                         String        @unique()
+  port                        String
   port_from                   String
   port_to                     String
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
-  camera_service_camera_info  camera_service_camera_info[]
+  camera_service_camera       camera_service_camera[]
 }
 
-model camera_service_camera_info {
+model camera_service_camera {
   id                          String        @id @default(uuid())
   camera_service_id           String
-  camera_info_id              String
-  port                        String
+  camera_id                   String
+  type                        String
+  port                        Int
+  status                      Boolean
+  state                       String @default("none")
   camera_service              camera_service @relation(fields: [camera_service_id], references: [id])
-  camera_info                 camera_info @relation(fields: [camera_info_id], references: [id])
+  camera                      camera @relation(fields: [camera_id], references: [id])
 }
 
+model camera_recorder {
+  id                          String        @id @default(uuid())
+  url                         String        @unique()
+  port                        String
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  camera_recorder_camera       camera_recorder_camera[]
+}
+
+model camera_recorder_camera {
+  id                          String        @id @default(uuid())
+  camera_recorder_id          String
+  camera_id                   String
+  status                      Boolean
+  state                       String @default("none")
+  camera_recorder             camera_recorder @relation(fields: [camera_recorder_id], references: [id])
+  camera                      camera @relation(fields: [camera_id], references: [id])
+}
+
+model camera_playback {
+  id                          String        @id @default(uuid())
+  url                         String        @unique()
+  port                        String
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+}

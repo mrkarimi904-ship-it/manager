@@ -22,6 +22,11 @@ export class CameraController {
     return this.cameraService.getSingle(id);
   }
 
+  @Get(':id/health')
+  async getHealth(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.cameraService.getHealth(id);
+  }
+
   @Put(':id')
   async putSingle(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Body() body: dtos.postCameraDto): Promise<generalResponse> {
     return this.cameraService.putSingle(id, body);
