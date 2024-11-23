@@ -14,20 +14,56 @@ import { LiveService } from 'src/live/live.service';
 export class CameraService {
   constructor(private db: DbService, private readonly axios: HttpService, private cameraservice: CameraServiceService, private recorderservice: RecorderService, private liveService: LiveService) {}
 
-  async getAll(): Promise<generalResponse> {
-    const temp: dtos.cameraDto[] = await this.db.camera.findMany({ include: { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } } } });
+  async getAll(user, query: dtos.cameraSearchQuery): Promise<generalResponse> {
+    try {
+      // limit query if user is not superadmin
+      if (user.isSuperAdmin !== true) { query.userId = user.id; query.userFilter = 'Include' }
+      // create where
+      const skip: number = (parseInt(query.pageIndex) - 1) * parseInt(query.pageSize)
+      const take: number = parseInt(query.pageSize)
+      const where = {}
+      if (query.search) { where['camera_info'] = { some: { key: { equals: 'name' }, value: { contains: query.search, mode: 'insensitive' } } } }
+      if (query.userId && query.userFilter === 'Include') { where['camera_account'] = { some: { account_id: { equals: query.userId } } } }
+      if (query.userId && query.userFilter === 'Exclude') { where['camera_account'] = { none: { account_id: { equals: query.userId } } } }
+      const include = { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } } }
+      // run query
+      const [total, temp] = await this.db.$transaction([
+        this.db.camera.count({ where }),
+        this.db.camera.findMany({ where, skip, take, include })
+      ])
+      const response: generalResponse = { status: true, data: { total, data: temp }, error: null, msg: null };
+      return response;
+    } catch (error) {
+      return { status: false, data: null, error: error, msg: error.message };
+    }
+
+  }
+
+  async getSingle(user, id: string): Promise<generalResponse> {
+    // prepare where
+    const where = { id: id }
+    // check if user is limited
+    if (user.isSuperAdmin !== true) { where['camera_account'] = { some: { account_id: { equals: user.id } } } }
+    // db include
+    const include = { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } } }
+    // get results
+    const temp: dtos.cameraDto = await this.db.camera.findUnique({ where , include });
+    // check resuts
+    if (!temp) { return { status: false, data: null, error: null, msg: null }; }
     const response: generalResponse = { status: true, data: temp, error: null, msg: null };
     return response;
   }
 
-  async getSingle(id: string): Promise<generalResponse> {
-    const temp: dtos.cameraDto = await this.db.camera.findUnique({ where: { id: id }, include: { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } } } });
-    const response: generalResponse = { status: true, data: temp, error: null, msg: null };
-    return response;
-  }
-
-  async getHealth(id: string): Promise<generalResponse> {
-    const temp: dtos.cameraDto = await this.db.camera.findUnique({ where: { id: id }});
+  async getHealth(user, id: string): Promise<generalResponse> {
+    // prepare where
+    const where = { id: id }
+    // check if user is limited
+    if (user.isSuperAdmin !== true) { where['camera_account'] = { some: { account_id: { equals: user.id } } } }
+    // get results
+    const temp: dtos.cameraDto = await this.db.camera.findUnique({ where });
+    // check resuts
+    if (!temp) { return { status: false, data: null, error: null, msg: null }; }
+    // get health
     const health = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera', temp);
     const response: generalResponse = { status: true, data: health.data, error: null, msg: null };
     return response;
@@ -121,9 +157,9 @@ export class CameraService {
           { camera_service_id: cameraserviceID, camera_id: temp.id, type: 'record', port: 0, status: false },
         ] })
         // start live
-        this.liveService.start({ cameraId: temp.id })
+        this.liveService.start({ isSuperAdmin: true }, { cameraId: temp.id })
         // start recorder
-        this.recorderservice.start({ cameraId: temp.id })
+        this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp.id })
         // generate response
         const response: generalResponse = { status: true, data: temp, error: null, msg: null };
         return response;
@@ -137,14 +173,25 @@ export class CameraService {
     }
   }
 
-  async deleteSingle(id: string): Promise<generalResponse> {
+  async deleteSingle(user, id: string): Promise<generalResponse> {
+    // prepare where
+    const where = { id: id }
+    // check if user is limited
+    if (user.isSuperAdmin !== true) { where['camera_account'] = { some: { account_id: { equals: user.id } } } }
+    // get results
+    const camOk: dtos.cameraDto = await this.db.camera.findUnique({ where });
+    // check resuts
+    if (!camOk) { return { status: false, data: null, error: null, msg: null }; }
     // stop live
-    await this.liveService.stop({ cameraId: id })
+    await this.liveService.stop({ isSuperAdmin: true }, { cameraId: id })
     // stop recorder
-    await this.recorderservice.stop({ cameraId: id })
-    // delete related data from info table
-    await this.db.camera_info.deleteMany({ where: { camera_id: id } });
-    await this.db.camera_service_camera.deleteMany({ where: { camera_id: id } });
+    await this.recorderservice.stop({ isSuperAdmin: true }, { cameraId: id })
+    // delete related data from other tables
+    await this.db.$transaction([
+      this.db.camera_account.deleteMany({ where: { camera_id: id } }),
+      this.db.camera_info.deleteMany({ where: { camera_id: id } }),
+      this.db.camera_service_camera.deleteMany({ where: { camera_id: id } })
+    ])
     // delete camera
     const temp: dtos.cameraDto = await this.db.camera.delete({ where: { id: id } });
     // generate response

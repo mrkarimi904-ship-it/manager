@@ -78,20 +78,29 @@ export class CameraServiceService {
     return result;
   }
 
-  // @Cron('* */3 * * * *')
+  // @Cron('0 */5 * * * *')
   async handleCron() {
-    console.debug('try scanning cameraservices ...');
-    this.db.camera_service_camera.updateMany({ where: {}, data: { state: 'loading ...' } })
-    const camerasService = await this.db.camera_service.findMany({ include: { camera_service_camera: true } });
-    camerasService.forEach(async element => {
-      const cameraServiceId = element.id;
-      const cameraServiceUrl = element.url;
-      const cameraServicePort = element.port;
-      const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
-      const results = await this.axios.axiosRef.get(uurl)
-      results.data.data.forEach(elm => {
-        this.db.camera_service_camera.updateMany({ where: { camera_service_id: cameraServiceId, camera_id: elm.cameraId, port: elm.port }, data: { state: elm.state } })
+    try {
+      console.debug('scanning cameraservices ...', new Date().toString());
+      this.db.camera_service_camera.updateMany({ where: {}, data: { state: 'loading ...' } })
+      const camerasService = await this.db.camera_service.findMany({ include: { camera_service_camera: true } });
+      camerasService.forEach(async element => {
+        const cameraServiceId = element.id;
+        const cameraServiceUrl = element.url;
+        const cameraServicePort = element.port;
+        const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
+        const results = await this.axios.axiosRef.get(uurl)
+        results.data.data.forEach(async elm => {
+          if (elm.subscribers === 0) {
+            await this.axios.axiosRef.post(uurl + '/remove', { url: elm.rtspUrl, id: elm.cameraId })
+            await this.db.camera_service_camera.updateMany({ where: { camera_service_id: cameraServiceId, camera_id: elm.cameraId, port: elm.port }, data: { status: false, port: 0, state: 'none' } })
+          } else {
+            await this.db.camera_service_camera.updateMany({ where: { camera_service_id: cameraServiceId, camera_id: elm.cameraId, port: elm.port }, data: { state: elm.subscribers.toString() } })
+          }
+        });
       });
-    });
+    } catch (error) {
+      console.log('error scanning cameraservices', error)
+    }
   }
 }

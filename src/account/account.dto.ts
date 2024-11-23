@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MinLength, IsBoolean, IsInt } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, IsBoolean, IsInt, IsOptional } from 'class-validator';
 import { ApiProperty } from "@nestjs/swagger";
 
 export class signUpDto {
@@ -39,8 +39,6 @@ export class signUpDto {
   @ApiProperty()
   @IsBoolean()
   isSuperAdmin: boolean = false;
-
-
 }
 
 export class singInDto {
@@ -53,4 +51,48 @@ export class singInDto {
   @IsNotEmpty()
   @MinLength(4)
   password: string;
+}
+
+export class editDto {
+  @IsOptional()
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(4)
+  password: string;
+
+  @IsOptional()
+  @ApiProperty()
+  @IsBoolean()
+  expired: boolean = false;
+
+  @IsOptional()
+  @ApiProperty()
+  @IsInt()
+  expireInterval: number = 30;
+
+  @IsOptional()
+  @ApiProperty()
+  @IsBoolean()
+  mustchangepassword: boolean = false;
+
+  @IsOptional()
+  @ApiProperty()
+  @IsString()
+  firstname: string;
+
+  @IsOptional()
+  @ApiProperty()
+  @IsString()
+  lastname: string;
+
+  @IsOptional()
+  @ApiProperty()
+  @IsString()
+  description: string;
+
+  @IsOptional()
+  @ApiProperty()
+  @IsBoolean()
+  isSuperAdmin: boolean = false;
 }

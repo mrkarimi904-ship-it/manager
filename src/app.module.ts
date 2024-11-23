@@ -28,7 +28,7 @@ import { accountInterceptor } from './account/account.interceptor';
       rootPath: join(__dirname, '..', 'client'),
       serveRoot: '/static'
     }),
-    ConfigModule.forRoot(), DbModule, AccountModule, CameraModule, CameraServiceModule, LiveModule, RecorderModule, CameraRecorderModule, CameraPlaybackModule],
+    ConfigModule.forRoot(), DbModule, AccountModule, CameraModule, LiveModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule],
   controllers: [AppController],
   providers: [
     AppService,

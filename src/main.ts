@@ -17,11 +17,10 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('VMS Manager')
     .setDescription('The VMS Manager API')
-    .setVersion('1.19')
+    .setVersion('1.23')
     .addBearerAuth()
-    .addServer('/')
-    .addServer('/manager/')
     .addServer('/test_manager/')
+    .addServer('/')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   fs.writeFileSync("./client/swagger.json", JSON.stringify(document));

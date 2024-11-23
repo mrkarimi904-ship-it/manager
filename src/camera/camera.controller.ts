@@ -1,49 +1,66 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 
 import { CameraService } from './camera.service';
 
 import * as dtos from './camera.dtos';
 import { generalResponse } from 'src/app.consts';
 
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { AccountRoles, User } from 'src/account/account.decorator';
+import { accountGaurd } from 'src/account/account.gaurd';
 
+@ApiBearerAuth()
 @ApiTags('camera')
 @Controller('camera')
 export class CameraController {
   constructor(private readonly cameraService: CameraService) {}
 
   @Get()
-  async getAll(): Promise<generalResponse> {
-    return this.cameraService.getAll();
+  @AccountRoles('camera_list')
+  @UseGuards(accountGaurd)
+  async getAll(@User() user, @Query() query: dtos.cameraSearchQuery): Promise<generalResponse> {
+    return this.cameraService.getAll(user, query);
   }
 
   @Get(':id')
-  async getSingle(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
-    return this.cameraService.getSingle(id);
+  @AccountRoles('camera_list')
+  @UseGuards(accountGaurd)
+  async getSingle(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.cameraService.getSingle(user, id);
   }
 
   @Get(':id/health')
-  async getHealth(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
-    return this.cameraService.getHealth(id);
+  @AccountRoles('camera_list')
+  @UseGuards(accountGaurd)
+  async getHealth(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.cameraService.getHealth(user, id);
   }
 
   @Put(':id')
-  async putSingle(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Body() body: dtos.postCameraDto): Promise<generalResponse> {
+  @AccountRoles('camera_edit')
+  @UseGuards(accountGaurd)
+  async putSingle(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Body() body: dtos.postCameraDto): Promise<generalResponse> {
     return this.cameraService.putSingle(id, body);
   }
 
   @Post('/pre_register')
+  @AccountRoles('camera_add')
+  @UseGuards(accountGaurd)
   async postPre(@Body() body: dtos.postPreCameraDto): Promise<generalResponse> {
     return this.cameraService.postPre(body);
   }
 
   @Post()
+  @AccountRoles('camera_add')
+  @UseGuards(accountGaurd)
   async postSingle(@Body() body: dtos.postCameraDto): Promise<generalResponse> {
     return this.cameraService.postSingle(body);
   }
 
   @Delete(':id')
-  async deleteSingle(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
-    return this.cameraService.deleteSingle(id);
+  @AccountRoles('camera_delete')
+  @UseGuards(accountGaurd)
+  async deleteSingle(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.cameraService.deleteSingle(user, id);
   }
 }

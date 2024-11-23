@@ -1,5 +1,5 @@
-import { IsString, IsEnum } from 'class-validator';
-import { ApiProperty } from "@nestjs/swagger";
+import { IsString, IsEnum, IsNumber, IsOptional } from 'class-validator';
+import { ApiParam, ApiProperty, ApiQuery, getSchemaPath } from "@nestjs/swagger";
 
 enum cameraTypeDto {
   UNKNOWN,
@@ -91,4 +91,51 @@ export class postCameraDto {
   @IsString()
   @ApiProperty()
   map_lng: string;
+}
+
+export class cameraSearchQuery {
+  @ApiProperty({ default: 20, required: false })
+  @IsOptional()
+  @IsString()
+  pageSize?: string;
+
+  @ApiProperty({ default: 1, required: false })
+  @IsOptional()
+  @IsString()
+  pageIndex: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  search: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  userId: string;
+
+  @ApiProperty({ default: 'Exclude', required: false })
+  @IsOptional()
+  @IsString()
+  userFilter: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  userGroupId: string;
+
+  @ApiProperty({ default: 'Exclude', required: false })
+  @IsOptional()
+  @IsString()
+  userGroupFilter: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  cameraGroupId: string;
+
+  @ApiProperty({ default: 'Exclude', required: false })
+  @IsOptional()
+  @IsString()
+  cameraGroupFilter: string;
 }
