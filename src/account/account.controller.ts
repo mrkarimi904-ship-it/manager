@@ -1,8 +1,8 @@
-import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Response, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, Response, UseGuards } from '@nestjs/common';
 
 import { AccountService } from './account.service';
 
-import { editDto, signUpDto, singInDto } from './account.dto';
+import { editDto, PasswordDto, signUpDto, singInDto, accountSearchQuery } from './account.dto';
 
 import { generalResponse } from 'src/app.consts';
 import { AccountRoles, User, Token } from './account.decorator';
@@ -15,18 +15,18 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 
-  @Get()
+  @Get('/me')
   @AccountRoles()
   @UseGuards(accountGaurd)
   getMe(@User() user) {
     return user;
   }
 
-  @Get('all')
+  @Get('')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async allAccounts(): Promise<generalResponse> {
-    return await this.accountService.allAccounts();
+  async allAccounts(@User() user, @Query() query: accountSearchQuery): Promise<generalResponse> {
+    return await this.accountService.allAccounts(user, query);
   }
 
   @Get(':id')
@@ -75,6 +75,11 @@ export class AccountController {
   @Post('/access')
   async signIn(@Body() body: singInDto): Promise<generalResponse> {
     return await this.accountService.signIn(body)
+  }
+
+  @Post('/access/reset')
+  async changePass(@Body() body: PasswordDto): Promise<generalResponse> {
+    return await this.accountService.changePass(body)
   }
 
   @Get('/access/verify')

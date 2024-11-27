@@ -13,7 +13,8 @@ async function main() {
       firstname: 'VMS',
       lastname: 'SuperAdmin',
       description: 'default account',
-      isSuperAdmin: true
+      isSuperAdmin: true,
+      isHidden: true
     }
   })
 

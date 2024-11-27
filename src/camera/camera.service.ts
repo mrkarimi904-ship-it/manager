@@ -19,6 +19,8 @@ export class CameraService {
       // limit query if user is not superadmin
       if (user.isSuperAdmin !== true) { query.userId = user.id; query.userFilter = 'Include' }
       // create where
+      if (!query.pageIndex) { query.pageIndex = "1" }
+      if (!query.pageSize) { query.pageSize = "20" }
       const skip: number = (parseInt(query.pageIndex) - 1) * parseInt(query.pageSize)
       const take: number = parseInt(query.pageSize)
       const where = {}

@@ -18,7 +18,9 @@ model user_accounts {
   firstname                   String
   lastname                    String
   description                 String
+  isActive                    Boolean     @default(true)
   isSuperAdmin                Boolean     @default(false)
+  isHidden                    Boolean     @default(false)
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
   user_account_group          user_account_group[]

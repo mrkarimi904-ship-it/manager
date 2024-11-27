@@ -2,7 +2,7 @@ import { ConflictException, HttpException, Injectable, NotAcceptableException, U
 
 import { DbService } from 'src/db/db.service';
 
-import { editDto, signUpDto, singInDto } from './account.dto';
+import { accountSearchQuery, editDto, PasswordDto, signUpDto, singInDto } from './account.dto';
 
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
@@ -13,12 +13,22 @@ import { generalResponse, hash_secret, jwt_secret } from 'src/app.consts';
 export class AccountService {
   constructor(private db: DbService) {}
 
-  async allAccounts(): Promise<generalResponse> {
-    const accounts = await this.db.user_accounts.findMany({ include: {
-      user_account_group: { select: { user_groups: { select: { id: true, name: true } } } }
-    } });
+  async allAccounts(user, query: accountSearchQuery): Promise<generalResponse> {
+    if (!query.pageIndex) { query.pageIndex = "1" }
+    if (!query.pageSize) { query.pageSize = "20" }
+    const skip: number = (parseInt(query.pageIndex) - 1) * parseInt(query.pageSize)
+    const take: number = parseInt(query.pageSize)
+    const where = { isHidden: false, AND: [] }
+    if (query.search) { where['AND'].push({ OR: [ { username: { contains: query.search, mode: 'insensitive' } }, { firstname: { contains: query.search, mode: 'insensitive' } }, { lastname: { contains: query.search, mode: 'insensitive' } } ] }) }
+    if (query.cameraId && query.cameraFilter === 'Include') { where['AND'].push({ OR : [ { camera_account: { some: { camera_id: { equals: query.cameraId } } } }, { isSuperAdmin: true } ] }) }
+    if (query.cameraId && query.cameraFilter === 'Exclude') { where['camera_account'] = { none: { camera_id: { equals: query.cameraId } } }; where['isSuperAdmin'] = false }
+    const include = { user_account_group: { select: { user_groups: { select: { id: true, name: true } } } } }
+    const [total, temp] = await this.db.$transaction([
+      this.db.user_accounts.count({ where }),
+      this.db.user_accounts.findMany({ where, skip, take, include })
+    ])
     // response
-    const response: generalResponse = { status: true, data: accounts, error: null, msg: null };
+    const response: generalResponse = { status: true, data: { total, data: temp }, error: null, msg: null };
     return response;
   }
 
@@ -88,14 +98,40 @@ export class AccountService {
 
   async signIn(body: singInDto): Promise<generalResponse> {
     // check if user email is valid
-    let account = await this.db.user_accounts.findFirst({ where: { username: body.username } });
+    let account = await this.db.user_accounts.findFirst({ where: { username: body.username, isActive: true } });
     if (!account) { throw new UnauthorizedException(); }
     // check if user password is valid
     const comparePassword = await bcrypt.compare(body.password, account.password);
     if (!comparePassword) { throw new UnauthorizedException(); }
     // check if expired
-    if (account.expire_at < new Date()) {
+    if (account.expire_at !== null && account.expire_at < new Date()) {
       account = await this.db.user_accounts.update({ where: { id : account.id}, data: { expired: true } })
+    }
+    // prepare token
+    account.password = null;
+    const token = jwt.sign(account, jwt_secret, { expiresIn: 24 * 60 * 60 });
+    // save token to db
+    await this.db.user_account_tokens.create({ data: { account_id: account.id, token: token, expiration: new Date(Date.now() + 24*60*60*1000) } })
+    // response
+    const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
+    return response;
+  }
+
+  async changePass(body: PasswordDto): Promise<generalResponse> {
+    // check if user email is valid
+    let account = await this.db.user_accounts.findFirst({ where: { username: body.username, isActive: true } });
+    if (!account) { throw new UnauthorizedException(); }
+    // check if user password is valid
+    const comparePassword = await bcrypt.compare(body.old_password, account.password);
+    if (!comparePassword) { throw new UnauthorizedException(); }
+    // prepare password
+    body.new_password = await bcrypt.hash(body.new_password, hash_secret);
+    // check if expired
+    account = await this.db.user_accounts.update({ where: { id : account.id}, data: { expired: false, expire_at: null, password: body.new_password, mustchangepassword: false } })
+    // assign new expire date if needed
+    if (account.expireInterval !== 0) {
+      const new_expire_date = new Date(new Date().setDate(new Date().getDate() + account.expireInterval)).toISOString()
+      account = await this.db.user_accounts.update({ where: { id : account.id}, data: { expire_at: new_expire_date } })
     }
     // prepare token
     account.password = null;

@@ -96,3 +96,68 @@ export class editDto {
   @IsBoolean()
   isSuperAdmin: boolean = false;
 }
+
+export class PasswordDto {
+  @ApiProperty()
+  @IsString()
+  username: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(4)
+  old_password: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(4)
+  new_password: string;
+}
+
+export class accountSearchQuery {
+  @ApiProperty({ default: 20, required: false })
+  @IsOptional()
+  @IsString()
+  pageSize?: string;
+
+  @ApiProperty({ default: 1, required: false })
+  @IsOptional()
+  @IsString()
+  pageIndex: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  search: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  cameraId: string;
+
+  @ApiProperty({ default: 'Exclude', required: false })
+  @IsOptional()
+  @IsString()
+  cameraFilter: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  userGroupId: string;
+
+  @ApiProperty({ default: 'Exclude', required: false })
+  @IsOptional()
+  @IsString()
+  userGroupFilter: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  cameraGroupId: string;
+
+  @ApiProperty({ default: 'Exclude', required: false })
+  @IsOptional()
+  @IsString()
+  cameraGroupFilter: string;
+}

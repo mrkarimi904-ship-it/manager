@@ -20,6 +20,7 @@ import { CameraPlaybackModule } from './camera_playback/camera_playback.module';
 
 import { AccountModule } from './account/account.module';
 import { accountInterceptor } from './account/account.interceptor';
+import { AssignModule } from './assign/assign.module';
 
 @Module({
   imports: [
@@ -28,7 +29,7 @@ import { accountInterceptor } from './account/account.interceptor';
       rootPath: join(__dirname, '..', 'client'),
       serveRoot: '/static'
     }),
-    ConfigModule.forRoot(), DbModule, AccountModule, CameraModule, LiveModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule],
+    ConfigModule.forRoot(), DbModule, AccountModule, CameraModule, LiveModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule, AssignModule],
   controllers: [AppController],
   providers: [
     AppService,

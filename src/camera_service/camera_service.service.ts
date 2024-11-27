@@ -29,20 +29,24 @@ export class CameraServiceService {
   }
 
   async postSingle(body: dtos.postCameraServiceDto): Promise<generalResponse> {
-    if (parseInt(body.port_to) - parseInt(body.port_from) <= 0 ) { throw new BadRequestException() }
-    const camerasService: dtos.cameraServiceDto = await this.db.camera_service.upsert({ where: { id: body.id}, update: { port_from: body.port_from, port_to: body.port_to, port: body.swagger_port, url: body.url }, create: { url: body.url, port_from: body.port_from, port_to: body.port_to, port: body.swagger_port } })
-    // try to start currently registered cameras
-    const allCameraServices = await this.db.camera_service.findMany()
-    allCameraServices.forEach(async element => {
-      const temp_id = element.id;
-      const allCameras = await this.db.camera_service_camera.findMany({ where: { camera_service_id: temp_id } })
-      allCameras.forEach(element => {
-        if (element.type === 'live') { this.liveService.restart({ cameraId: element.camera_id }) } else { this.recorderservice.restart({ cameraId: element.camera_id }) }
+    try {
+      if (parseInt(body.port_to) - parseInt(body.port_from) <= 0 ) { throw new BadRequestException() }
+      const camerasService: dtos.cameraServiceDto = await this.db.camera_service.upsert({ where: { id: body.id}, update: { port_from: body.port_from, port_to: body.port_to, port: body.swagger_port, url: body.url }, create: { url: body.url, port_from: body.port_from, port_to: body.port_to, port: body.swagger_port } })
+      // try to start currently registered cameras
+      const allCameraServices = await this.db.camera_service.findMany()
+      allCameraServices.forEach(async element => {
+        const temp_id = element.id;
+        const allCameras = await this.db.camera_service_camera.findMany({ where: { camera_service_id: temp_id } })
+        allCameras.forEach(element => {
+          if (element.type === 'live') { this.liveService.restart({ cameraId: element.camera_id }) } else { this.recorderservice.restart({ cameraId: element.camera_id }) }
+        });
       });
-    });
-    // return
-    const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
-    return response;
+      // return
+      const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
+      return response;
+    } catch (error) {
+      return { status: false, data: null, error: error, msg: null };
+    }
   }
 
   async deleteSingle(id: string): Promise<generalResponse> {
@@ -78,8 +82,9 @@ export class CameraServiceService {
     return result;
   }
 
-  // @Cron('0 */5 * * * *')
+  @Cron('0 */5 * * * *')
   async handleCron() {
+    if (process.env.NODE_ENV) { return true }
     try {
       console.debug('scanning cameraservices ...', new Date().toString());
       this.db.camera_service_camera.updateMany({ where: {}, data: { state: 'loading ...' } })
