@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, Respon
 
 import { AccountService } from './account.service';
 
-import { editDto, PasswordDto, signUpDto, singInDto, accountSearchQuery } from './account.dto';
+import { editDto, PasswordDto, signUpDto, singInDto, accountSearchQuery, nameDto, groupSearchQuery } from './account.dto';
 
 import { generalResponse } from 'src/app.consts';
 import { AccountRoles, User, Token } from './account.decorator';
@@ -15,61 +15,75 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 
-  @Get('/me')
+  @Get('')
   @AccountRoles()
   @UseGuards(accountGaurd)
   getMe(@User() user) {
-    return user;
+    return { expired: user.expired, firstname: user.firstname, lastname: user.lastname, mustchangepassword: user.mustchangepassword, username: user.username };
   }
 
-  @Get('')
+  @Get('users')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
   async allAccounts(@User() user, @Query() query: accountSearchQuery): Promise<generalResponse> {
     return await this.accountService.allAccounts(user, query);
   }
 
-  @Get(':id')
+  @Get('users/:id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
   async getAccount(@Param('id') id: string): Promise<generalResponse> {
     return await this.accountService.getAccount(id);
   }
 
-  @Get(':id/tokens')
+  @Get('users/:id/tokens')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
   async getAccountTokens(@Param('id') id: string, @Token() token): Promise<generalResponse> {
     return await this.accountService.getAccountTokens(id, token);
   }
 
-  @Delete(':id/tokens/:tid')
+  @Delete('users/:id/tokens/:token_id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async deleteAccountTokens(@Param('id') id: string, @Param('tid') tid: string): Promise<generalResponse> {
-    return await this.accountService.deleteAccountTokens(id, tid);
+  async deleteAccountTokens(@Param('id') id: string, @Param('token_id') token_id: string): Promise<generalResponse> {
+    return await this.accountService.deleteAccountTokens(id, token_id);
   }
 
-  @Put(':id')
+  @Put('users/:id')
   @AccountRoles('account_edit')
   @UseGuards(accountGaurd)
-  async putAccount(@Body() body: editDto, @Param('id') id: string): Promise<generalResponse> {
-    return await this.accountService.putAccount(id, body);
+  async putAccount(@User() user, @Body() body: editDto, @Param('id') id: string): Promise<generalResponse> {
+    return await this.accountService.putAccount(id, body, user);
   }
 
-  @Delete(':id')
+  @Put('users/:id/expire')
+  @AccountRoles('account_edit')
+  @UseGuards(accountGaurd)
+  async putAccountExpire(@User() user, @Param('id') id: string): Promise<generalResponse> {
+    return await this.accountService.putAccountExpire(id, user);
+  }
+
+  @Delete('users/:id')
   @AccountRoles('account_delete')
   @UseGuards(accountGaurd)
   async deleteAccount(@Param('id') id: string): Promise<generalResponse> {
     return await this.accountService.deleteAccount(id);
   }
 
-  @Post('')
+  @Post('users/')
   @AccountRoles('account_add')
   @UseGuards(accountGaurd)
-  async signUp(@Body() body: signUpDto): Promise<generalResponse> {
-    const output = await this.accountService.signUp(body);
+  async signUp(@User() user,@Body() body: signUpDto): Promise<generalResponse> {
+    const output = await this.accountService.signUp(body, user);
     return output;
+  }
+
+  @Get('/access')
+  async verifyToken(@Headers() req, @Response() res) {
+    const output: any = await this.accountService.verifyToken(req);
+    res.set('X-User_ID', output);
+    return res.send(output);
   }
 
   @Post('/access')
@@ -82,80 +96,46 @@ export class AccountController {
     return await this.accountService.changePass(body)
   }
 
-  @Get('/access/verify')
-  async verifyToken(@Headers() req, @Response() res) {
-    const output: any = await this.accountService.verifyToken(req);
-    res.set('X-User_ID', output);
-    return res.send(output);
-  }
-
-  @Get('access/roles')
+  @Get('roles')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
   async allRoles(): Promise<generalResponse> {
     return await this.accountService.allRoles();
   }
 
-  @Get('access/groups')
+  @Get('groups')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async allGroups(): Promise<generalResponse> {
-    return await this.accountService.allGroups();
+  async allGroups(@User() user, @Query() query: groupSearchQuery): Promise<generalResponse> {
+    return await this.accountService.allGroups(user, query);
   }
 
-  @Post('access/groups')
+  @Post('groups')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async postGroups(@Body() body): Promise<generalResponse> {
+  async postGroups(@Body() body: nameDto): Promise<generalResponse> {
     return await this.accountService.postGroups(body);
   }
 
-  @Get('access/groups/:id')
+  @Get('groups/:group_id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async getGroups(@Param('id') id: string): Promise<generalResponse> {
-    return await this.accountService.getGroups(id);
+  async getGroups(@Param('group_id') group_id: string): Promise<generalResponse> {
+    return await this.accountService.getGroups(group_id);
   }
 
-  @Put('access/groups/:id')
+  @Put('groups/:group_id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async putGroups(@Param('id') id: string, @Body() body): Promise<generalResponse> {
-    return await this.accountService.putGroups(id, body);
+  async putGroups(@Param('group_id') group_id: string, @Body() body: nameDto): Promise<generalResponse> {
+    return await this.accountService.putGroups(group_id, body);
   }
 
-  @Delete('access/groups/:id')
+  @Delete('groups/:group_id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async deleteGroups(@Param('id') id: string): Promise<generalResponse> {
-    return await this.accountService.deleteGroups(id);
+  async deleteGroups(@Param('group_id') group_id: string): Promise<generalResponse> {
+    return await this.accountService.deleteGroups(group_id);
   }
 
-  @Post('access/groups/:id/role/:rid')
-  @AccountRoles('account_list')
-  @UseGuards(accountGaurd)
-  async postGroupsRoles(@Param('id') id: string,@Param('rid') rid: string): Promise<generalResponse> {
-    return await this.accountService.postGroupsRoles(id, rid);
-  }
-
-  @Delete('access/groups/:id/role/:rid')
-  @AccountRoles('account_list')
-  @UseGuards(accountGaurd)
-  async deleteGroupsRoles(@Param('id') id: string, @Param('rid') rid: string): Promise<generalResponse> {
-    return await this.accountService.deleteGroupsRoles(id, rid);
-  }
-
-  @Post('access/groups/:id/account/:rid')
-  @AccountRoles('account_list')
-  @UseGuards(accountGaurd)
-  async postGroupsUser(@Param('id') id: string,@Param('rid') rid: string): Promise<generalResponse> {
-    return await this.accountService.postGroupsUser(id, rid);
-  }
-
-  @Delete('access/groups/:id/account/:rid')
-  @AccountRoles('account_list')
-  @UseGuards(accountGaurd)
-  async deleteGroupsUser(@Param('id') id: string, @Param('rid') rid: string): Promise<generalResponse> {
-    return await this.accountService.deleteGroupsUser(id, rid);
-  }
 }

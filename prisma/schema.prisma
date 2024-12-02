@@ -23,9 +23,11 @@ model user_accounts {
   isHidden                    Boolean     @default(false)
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
-  user_account_group          user_account_group[]
-  user_account_tokens         user_account_tokens[]
-  camera_account              camera_account[]
+  camera                      camera[]
+  user_groups                 user_groups[]
+  user_roles                  user_roles[]
+  user_tokens                 user_tokens[]
+  camera_groups               camera_groups[]
 }
 
 model user_groups {
@@ -33,8 +35,10 @@ model user_groups {
   name                        String      @unique()
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
-  user_group_roles            user_group_roles[]
-  user_account_group          user_account_group[]
+  user_accounts               user_accounts[]
+  user_roles                  user_roles[]
+  camera                      camera[]
+  camera_groups               camera_groups[]
 }
 
 model user_roles {
@@ -44,38 +48,17 @@ model user_roles {
   default                     Boolean     @default(true)
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
-  user_group_roles            user_group_roles[]
+  user_accounts               user_accounts[]
+  user_groups                 user_groups[]
 }
 
-model user_group_roles {
+model user_tokens {
   id                          String        @id @default(uuid())
-  group_id                    String
-  role_id                     String
-  value                       Int           @default(0)
-  created_at                  DateTime      @default(now())
-  updated_at                  DateTime      @updatedAt()
-  user_roles                  user_roles @relation(fields: [role_id], references: [id])
-  user_groups                 user_groups @relation(fields: [group_id], references: [id])
-}
-
-model user_account_group {
-  id                          String        @id @default(uuid())
-  account_id                  String
-  group_id                    String
-  created_at                  DateTime      @default(now())
-  updated_at                  DateTime      @updatedAt()
-  user_accounts               user_accounts @relation(fields: [account_id], references: [id])
-  user_groups                 user_groups @relation(fields: [group_id], references: [id])
-}
-
-model user_account_tokens {
-  id                          String        @id @default(uuid())
-  account_id                  String
   token                       String
   expiration                  DateTime
   created_at                  DateTime      @default(now())
   updated_at                  DateTime      @updatedAt()
-  user_accounts               user_accounts @relation(fields: [account_id], references: [id])
+  user_accounts               user_accounts[]
 }
 
 model camera {
@@ -88,15 +71,19 @@ model camera {
   camera_info                 camera_info[]
   camera_service_camera       camera_service_camera[]
   camera_recorder_camera      camera_recorder_camera[]
-  camera_account              camera_account[]
+  user_accounts               user_accounts[]
+  camera_groups               camera_groups[]
+  user_groups                 user_groups[]
 }
 
-model camera_account {
-  id                          String        @id @default(uuid())
-  camera_id                   String
-  account_id                  String
-  user_accounts               user_accounts @relation(fields: [account_id], references: [id])
-  camera                      camera @relation(fields: [camera_id], references: [id])
+model camera_groups {
+  id                          String      @id @default(uuid())
+  name                        String      @unique()
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  camera                      camera[]
+  user_accounts               user_accounts[]
+  user_groups                 user_groups[]
 }
 
 model camera_info {

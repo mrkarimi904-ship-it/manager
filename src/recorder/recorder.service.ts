@@ -125,4 +125,31 @@ export class RecorderService {
     }
   }
 
+  async force_stop(user, body: dtos.recorderDto): Promise<generalResponse> {
+    try {
+      // check if camera available
+      const { data } = await this.status(user, body);
+      const subscribers = data['subscribers'];
+      const port = data['port'];
+      const status = data['status'];
+      const cameraService = data['cameraService'];
+      const cameraServiceInfoId = data['id']
+      const camera = data['camera'];
+      const cameraRTSPUrl = data['rtsp'];
+
+      const cameraUsername = camera.username;
+      const cameraPassword = camera.password;
+      const cameraServiceUrl = cameraService.url;
+      const cameraServicePort = cameraService.port;
+      const completeRTSP = cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", function() { return `rtsp://${cameraUsername}:${cameraPassword}@` })
+
+      const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service/remove`
+      await this.axios.axiosRef.post(uurl, { url: completeRTSP, id: body.cameraId })
+
+      await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: false } })
+      return { status: true, data: null, error: null, msg: null };
+    } catch (error) {
+      throw new NotAcceptableException(error)
+    }
+  }
 }

@@ -87,7 +87,7 @@ export class CameraServiceService {
     if (process.env.NODE_ENV) { return true }
     try {
       console.debug('scanning cameraservices ...', new Date().toString());
-      this.db.camera_service_camera.updateMany({ where: {}, data: { state: 'loading ...' } })
+      await this.db.camera_service_camera.updateMany({ data: { state: 'loading ...' } })
       const camerasService = await this.db.camera_service.findMany({ include: { camera_service_camera: true } });
       camerasService.forEach(async element => {
         const cameraServiceId = element.id;
@@ -95,15 +95,16 @@ export class CameraServiceService {
         const cameraServicePort = element.port;
         const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
         const results = await this.axios.axiosRef.get(uurl)
-        results.data.data.forEach(async elm => {
+        await Promise.all(results.data.data.map(async (elm) => {
           if (elm.subscribers === 0) {
             await this.axios.axiosRef.post(uurl + '/remove', { url: elm.rtspUrl, id: elm.cameraId })
             await this.db.camera_service_camera.updateMany({ where: { camera_service_id: cameraServiceId, camera_id: elm.cameraId, port: elm.port }, data: { status: false, port: 0, state: 'none' } })
           } else {
             await this.db.camera_service_camera.updateMany({ where: { camera_service_id: cameraServiceId, camera_id: elm.cameraId, port: elm.port }, data: { state: elm.subscribers.toString() } })
           }
-        });
+        }));
       });
+      await this.db.camera_service_camera.updateMany({ where: { state: 'loading ...' },  data: { port: 0, status: false, state: 'none' } })
     } catch (error) {
       console.log('error scanning cameraservices', error)
     }

@@ -10,7 +10,7 @@ export class accountGaurd implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // remove expired tokens
-    await this.db.user_account_tokens.deleteMany({ where: { expiration: { lt: new Date(Date.now()) } } })
+    await this.db.user_tokens.deleteMany({ where: { expiration: { lt: new Date(Date.now()) } } })
     // get role of this route
     const role = this.reflector.getAllAndOverride('role', [ context.getHandler(), context.getClass() ])
     // prepare tokens
@@ -23,28 +23,19 @@ export class accountGaurd implements CanActivate {
         const user_token: any = v.payload;
         const user_id = user_token.id;
 
-        const user = await this.db.user_accounts.findUnique({ where: { id: user_id } });
+        const user = await this.db.user_accounts.findUnique({ where: { id: user_id }, include: { user_groups: { include: { user_roles: true } }, user_roles: true } });
+
         if (!user) { return false }
 
-        const stored_token = await this.db.user_account_tokens.findFirst({ where: { account_id: user.id, token: token }})
+        const stored_token = await this.db.user_tokens.findFirst({ where: { token: token, user_accounts: { some: { id: user.id } } }})
         if (!stored_token) { return false }
 
         if (user.isSuperAdmin === true) { return true; }
         if (!role) { return true }
 
-        const roles = await this.db.user_roles.findFirst({ where: { name: role } })
-        if (!roles) { return false } // role not found !!!
-
-        const account = await this.db.user_accounts.findMany({ include: { user_account_group: { include: { user_groups: { include: { user_group_roles: { include: { user_roles: true } } } } } } }, where: { id: user.id, user_account_group: { some: { user_groups: { is: { user_group_roles: { some: { user_roles: { is: { name: role } } } } } } } } }})
-        if (!account) { return false } // group not found
-
-        const role_default = account[0]?.user_account_group[0]?.user_groups?.user_group_roles[0]?.user_roles?.default;
-        const role_value = account[0]?.user_account_group[0]?.user_groups?.user_group_roles[0]?.value;
-        if (role_value === 1) { return true }
-        if (role_value === -1) { return false }
-        if (role_value === 0) {
-          if (role_default === true) { return true } else { return false }
-        }
+        const roles = await this.db.user_roles.findFirst({ where: { name: role, user_accounts: { some: { id: user.id } } } })
+        const groups = await this.db.user_groups.findFirst({ where: { user_accounts: { some: { id: user.id } }, user_roles: { some: { name: role } } }, include: { user_roles: true } })
+        if (roles || groups) { return true } // role found , direct or nested of group
 
         return false
       } catch (error) {
