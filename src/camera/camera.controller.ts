@@ -10,7 +10,7 @@ import { AccountRoles, User } from 'src/account/account.decorator';
 import { accountGaurd } from 'src/account/account.gaurd';
 
 @ApiBearerAuth()
-@ApiTags('camera')
+@ApiTags('03. camera')
 @Controller('camera')
 export class CameraController {
   constructor(private readonly cameraService: CameraService) {}
@@ -69,41 +69,5 @@ export class CameraController {
   @UseGuards(accountGaurd)
   async deleteSingle(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
     return this.cameraService.deleteSingle(user, id);
-  }
-
-  @Get('groups')
-  @AccountRoles('account_list')
-  @UseGuards(accountGaurd)
-  async allGroups(@User() user, @Query() query: dtos.groupSearchQuery): Promise<generalResponse> {
-    return await this.cameraService.allGroups(user, query);
-  }
-
-
-  @Post('groups')
-  @AccountRoles('account_list')
-  @UseGuards(accountGaurd)
-  async postGroups(@Body() body: dtos.nameDto): Promise<generalResponse> {
-    return await this.cameraService.postGroups(body);
-  }
-
-  @Get('groups/:group_id')
-  @AccountRoles('account_list')
-  @UseGuards(accountGaurd)
-  async getGroups(@Param('group_id') group_id: string): Promise<generalResponse> {
-    return await this.cameraService.getGroups(group_id);
-  }
-
-  @Put('groups/:group_id')
-  @AccountRoles('account_list')
-  @UseGuards(accountGaurd)
-  async putGroups(@Param('group_id') group_id: string, @Body() body: dtos.nameDto): Promise<generalResponse> {
-    return await this.cameraService.putGroups(group_id, body);
-  }
-
-  @Delete('groups/:group_id')
-  @AccountRoles('account_list')
-  @UseGuards(accountGaurd)
-  async deleteGroups(@Param('group_id') group_id: string): Promise<generalResponse> {
-    return await this.cameraService.deleteGroups(group_id);
   }
 }

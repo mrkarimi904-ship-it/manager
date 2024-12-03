@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import * as dtos from './dtos';import { generalResponse } from 'src/app.consts';
 import { DbService } from 'src/db/db.service';
 ;
@@ -27,7 +27,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -49,7 +49,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -70,7 +70,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -92,7 +92,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -113,7 +113,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -135,7 +135,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -158,7 +158,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -180,7 +180,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -201,7 +201,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -210,7 +210,7 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { return { status: false, data: null, error: 'invalid action', msg: 'invalid action' }; }
       const cameras = (await this.db.camera.findMany()).map(x => { return x.id })
       await Promise.all(data.from.map(async (el_from) => {
-        const c = await this.db.camera.findFirst({ where: { id: el_from } })
+        const c = await this.db.user_groups.findFirst({ where: { id: el_from } })
           if (c) {
           await Promise.all(cameras.map(async (el_to) => {
             if (data.action === 'add') {
@@ -223,7 +223,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -244,7 +244,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -266,7 +266,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -289,7 +289,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -311,7 +311,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -332,7 +332,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -354,7 +354,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -375,7 +375,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -397,7 +397,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -420,7 +420,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -442,7 +442,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -463,7 +463,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -472,7 +472,7 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { return { status: false, data: null, error: 'invalid action', msg: 'invalid action' }; }
       const usergroups = (await this.db.user_groups.findMany()).map(x => { return x.id })
       await Promise.all(data.from.map(async (el_from) => {
-        const c = await this.db.camera.findFirst({ where: { id: el_from } })
+        const c = await this.db.camera_groups.findFirst({ where: { id: el_from } })
         if (c) {
           await Promise.all(usergroups.map(async (el_to) => {
             if (data.action === 'add') {
@@ -485,7 +485,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -506,7 +506,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -528,7 +528,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -551,7 +551,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
@@ -573,7 +573,7 @@ export class AssignService {
       }));
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 

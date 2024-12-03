@@ -5,7 +5,6 @@ import { DbService } from './db/db.service';
 export class AppService {
   constructor(private db: DbService) {}
 
-
   async getHello(): Promise<string> {
     return 'ok';
   }

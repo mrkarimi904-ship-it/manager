@@ -10,7 +10,7 @@ import { AccountRoles, User } from 'src/account/account.decorator';
 import { accountGaurd } from 'src/account/account.gaurd';
 
 @ApiBearerAuth()
-@ApiTags('live')
+@ApiTags('09. live')
 @Controller('live')
 export class LiveController {
   constructor(private readonly liveService: LiveService) {}

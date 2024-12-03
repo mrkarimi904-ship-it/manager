@@ -7,7 +7,7 @@ import { generalResponse } from 'src/app.consts';
 
 import { ApiTags } from '@nestjs/swagger';
 
-@ApiTags('camera_playback')
+@ApiTags('07. camera_playback')
 @Controller('camera_playback')
 export class CameraPlaybackController {
   constructor(private readonly cameraPlaybackService: CameraPlaybackService) {}

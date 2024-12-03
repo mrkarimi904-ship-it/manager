@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 
 import { DbService } from 'src/db/db.service';
 
@@ -17,20 +17,28 @@ export class CameraServiceService {
   constructor(private db: DbService, private recorderservice: RecorderService, private liveService: LiveService, private readonly axios: HttpService) {}
 
   async getAll(): Promise<generalResponse> {
-    const camerasService: dtos.cameraServiceDto[] = await this.db.camera_service.findMany({ include: { camera_service_camera: true } });
-    const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
-    return response;
+    try {
+      const camerasService: dtos.cameraServiceDto[] = await this.db.camera_service.findMany({ include: { camera_service_camera: true } });
+      const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
   }
 
   async getSingle(id: string): Promise<generalResponse> {
-    const camerasService: dtos.cameraServiceDto = await this.db.camera_service.findUnique({ where: { id: id }, include: { camera_service_camera: true } });
-    const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
-    return response;
+    try {
+      const camerasService: dtos.cameraServiceDto = await this.db.camera_service.findUnique({ where: { id: id }, include: { camera_service_camera: true } });
+      const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
   }
 
   async postSingle(body: dtos.postCameraServiceDto): Promise<generalResponse> {
     try {
-      if (parseInt(body.port_to) - parseInt(body.port_from) <= 0 ) { throw new BadRequestException() }
+      if (parseInt(body.port_to) - parseInt(body.port_from) <= 0 ) { throw new HttpException({ status: false, data: null, error: 'invalid port', msg: 'invalid port' }, 406) }
       const camerasService: dtos.cameraServiceDto = await this.db.camera_service.upsert({ where: { id: body.id}, update: { port_from: body.port_from, port_to: body.port_to, port: body.swagger_port, url: body.url }, create: { url: body.url, port_from: body.port_from, port_to: body.port_to, port: body.swagger_port } })
       // try to start currently registered cameras
       const allCameraServices = await this.db.camera_service.findMany()
@@ -45,41 +53,53 @@ export class CameraServiceService {
       const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
       return response;
     } catch (error) {
-      return { status: false, data: null, error: error, msg: null };
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
   async deleteSingle(id: string): Promise<generalResponse> {
-    const camerasService: dtos.cameraServiceDto = await this.db.camera_service.delete({ where: { id: id } })
-    const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
-    return response;
+    try {
+      const camerasService: dtos.cameraServiceDto = await this.db.camera_service.delete({ where: { id: id } })
+      const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
   }
 
   async getAvailable(): Promise<generalResponse> {
-    let result = 0
-    const camerasService: dtos.cameraServiceDto[] = await this.db.camera_service.findMany();
-    const camerasServiceCameras = await this.db.camera_service_camera.findMany();
-    camerasService.forEach(element => {
-      const id = element.id
-      const used_ports = camerasServiceCameras.filter(x => x.camera_service_id === id).length
-      const available_ports = parseInt(element.port_to) - parseInt(element.port_from) + 1
-      result = result + available_ports - used_ports;
-    });
-    const response: generalResponse = { status: true, data: { count: result }, error: null, msg: null };
-    return response;
+    try {
+      let result = 0
+      const camerasService: dtos.cameraServiceDto[] = await this.db.camera_service.findMany();
+      const camerasServiceCameras = await this.db.camera_service_camera.findMany();
+      camerasService.forEach(element => {
+        const id = element.id
+        const used_ports = camerasServiceCameras.filter(x => x.camera_service_id === id).length
+        const available_ports = parseInt(element.port_to) - parseInt(element.port_from) + 1
+        result = result + available_ports - used_ports;
+      });
+      const response: generalResponse = { status: true, data: { count: result }, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
   }
 
   async getFreeCameraServiceId(): Promise<string> {
-    let result = null
-    const camerasService: dtos.cameraServiceDto[] = await this.db.camera_service.findMany();
-    const camerasServiceCameras = await this.db.camera_service_camera.findMany();
-    camerasService.forEach(element => {
-      const id = element.id
-      const used_ports = camerasServiceCameras.filter(x => x.camera_service_id === id).length
-      const available_ports = parseInt(element.port_to) - parseInt(element.port_from) + 1
-      if (used_ports < available_ports) { result = id; return true }
-    });
-    return result;
+    try {
+      let result = null
+      const camerasService: dtos.cameraServiceDto[] = await this.db.camera_service.findMany();
+      const camerasServiceCameras = await this.db.camera_service_camera.findMany();
+      camerasService.forEach(element => {
+        const id = element.id
+        const used_ports = camerasServiceCameras.filter(x => x.camera_service_id === id).length
+        const available_ports = parseInt(element.port_to) - parseInt(element.port_from) + 1
+        if (used_ports < available_ports) { result = id; return true }
+      });
+      return result;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
   }
 
   @Cron('0 */5 * * * *')

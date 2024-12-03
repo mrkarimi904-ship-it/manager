@@ -7,7 +7,7 @@ import { generalResponse } from 'src/app.consts';
 
 import { ApiTags } from '@nestjs/swagger';
 
-@ApiTags('camera_recorder')
+@ApiTags('08. camera_recorder')
 @Controller('camera_recorder')
 export class CameraRecorderController {
   constructor(private readonly cameraRecorderService: CameraRecorderService) {}

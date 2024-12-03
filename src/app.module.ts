@@ -10,17 +10,20 @@ import { AppService } from './app.service';
 
 import { DbModule } from './db/db.module';
 
+import { AccountModule } from './account/account.module';
+import { AccountGroupModule } from './account_group/account_group.module';
+import { accountInterceptor } from './account/account.interceptor';
+import { AssignModule } from './assign/assign.module';
+
 import { CameraModule } from './camera/camera.module';
+import { CameraGroupModule } from './camera_group/camera_group.module';
 import { RecorderModule } from './recorder/recorder.module';
 import { LiveModule } from './live/live.module';
 
 import { CameraServiceModule } from './camera_service/camera_service.module';
 import { CameraRecorderModule } from './camera_recorder/camera_recorder.module';
 import { CameraPlaybackModule } from './camera_playback/camera_playback.module';
-
-import { AccountModule } from './account/account.module';
-import { accountInterceptor } from './account/account.interceptor';
-import { AssignModule } from './assign/assign.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -29,7 +32,7 @@ import { AssignModule } from './assign/assign.module';
       rootPath: join(__dirname, '..', 'client'),
       serveRoot: '/static'
     }),
-    ConfigModule.forRoot(), DbModule, AccountModule, CameraModule, LiveModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule, AssignModule],
+    ConfigModule.forRoot(), DbModule, AccountModule, AccountGroupModule, CameraModule, CameraGroupModule, LiveModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule],
   controllers: [AppController],
   providers: [
     AppService,

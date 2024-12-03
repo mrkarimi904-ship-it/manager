@@ -10,7 +10,7 @@ import { AccountRoles, User } from 'src/account/account.decorator';
 import { accountGaurd } from 'src/account/account.gaurd';
 
 @ApiBearerAuth()
-@ApiTags('recorder')
+@ApiTags('10. recorder')
 @Controller('recorder')
 export class RecorderController {
   constructor(private readonly recorderService: RecorderService) {}

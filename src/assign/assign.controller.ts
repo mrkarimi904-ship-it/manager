@@ -7,7 +7,7 @@ import { AccountRoles, User } from 'src/account/account.decorator';
 import { accountGaurd } from 'src/account/account.gaurd';
 
 @ApiBearerAuth()
-@ApiTags('assign')
+@ApiTags('05. assign')
 @Controller('assign')
 export class AssignController {
   constructor(private readonly assignService: AssignService) {}

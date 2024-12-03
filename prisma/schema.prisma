@@ -143,3 +143,12 @@ model camera_playback {
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
 }
+
+model setting_password_complexity {
+  id                          String @id @default("main")
+  minimumCharactersCount      Int @default(8)
+  haveSpecialCharacters       Boolean @default(true)
+  haveUppercaseCharacters     Boolean @default(true)
+  haveLowercaseCharacters     Boolean @default(true)
+  haveDigits                  Boolean @default(true)
+}

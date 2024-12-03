@@ -24,7 +24,7 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   fs.writeFileSync("./client/swagger.json", JSON.stringify(document));
-  SwaggerModule.setup('', app, document);
+  SwaggerModule.setup('', app, document, { swaggerOptions: { tagsSorter: 'alpha'} });
 
   app.enableCors({ origin: true, credentials: true });
 
