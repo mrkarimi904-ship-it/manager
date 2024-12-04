@@ -95,6 +95,11 @@ export class editDto {
   @ApiProperty()
   @IsBoolean()
   isSuperAdmin: boolean = false;
+
+  @IsOptional()
+  @ApiProperty()
+  @IsBoolean()
+  isActive: boolean = false;
 }
 
 export class PasswordDto {

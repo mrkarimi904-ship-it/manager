@@ -180,7 +180,9 @@ export class AccountService {
       if (!account) { throw { message: 'Unauthorized' } }
       // check if user password is valid
       const comparePassword = await bcrypt.compare(body.old_password, account.password);
-      if (!comparePassword) { throw { message: 'Unauthorized' } }
+      if (!comparePassword) { throw { message: 'invalid current user password' } }
+      // check password complexity
+      if (!this.settings.checkPasswordComplexities(body.new_password)) { throw { message: 'password complexity missmatch' } }
       // prepare password
       body.new_password = await bcrypt.hash(body.new_password, hash_secret);
       // check if expired
