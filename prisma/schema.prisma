@@ -28,6 +28,7 @@ model user_accounts {
   user_roles                  user_roles[]
   user_tokens                 user_tokens[]
   camera_groups               camera_groups[]
+  logger_notifications        logger_notifications[]
 }
 
 model user_groups {
@@ -151,4 +152,33 @@ model setting_password_complexity {
   haveUppercaseCharacters     Boolean @default(true)
   haveLowercaseCharacters     Boolean @default(true)
   haveDigits                  Boolean @default(true)
+}
+
+
+
+
+
+
+
+
+
+model logger_logs {
+  id                          String      @id @default(uuid())
+  log                         String
+  internal                    Boolean     @default(false)
+  by                          String?
+  user                        String?
+  user_group                  String?
+  camera                      String?
+  camera_group                String?
+  created_at                  DateTime    @default(now())
+}
+
+model logger_notifications {
+  id                          String      @id @default(uuid())
+  title                       String
+  content                     String
+  type                        String      @default("Info")
+  created_at                  DateTime    @default(now())
+  user_accounts               user_accounts[]
 }

@@ -9,10 +9,11 @@ import * as bcrypt from 'bcryptjs';
 
 import { generalResponse, hash_secret, jwt_secret } from 'src/app.consts';
 import { SettingsService } from 'src/settings/settings.service';
+import { LoggerGateway } from 'src/logger/logger.gateway';
 
 @Injectable()
 export class AccountService {
-  constructor(private db: DbService, private settings: SettingsService) {}
+  constructor(private db: DbService, private settings: SettingsService, private loggerService: LoggerGateway ) {}
 
   async allAccounts(user, query: accountSearchQuery): Promise<generalResponse> {
     try {
@@ -165,6 +166,8 @@ export class AccountService {
       const token = jwt.sign(account, jwt_secret, { expiresIn: 24 * 60 * 60 });
       // save token to db
       await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24*60*60*1000), user_accounts: { connect: { id: account.id } } } })
+      // send notif
+      this.loggerService.send('new user sign in ...')
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
       return response;

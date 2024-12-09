@@ -24,6 +24,7 @@ import { CameraServiceModule } from './camera_service/camera_service.module';
 import { CameraRecorderModule } from './camera_recorder/camera_recorder.module';
 import { CameraPlaybackModule } from './camera_playback/camera_playback.module';
 import { SettingsModule } from './settings/settings.module';
+import { LoggerModule } from './logger/logger.module';
 
 @Module({
   imports: [
@@ -32,7 +33,7 @@ import { SettingsModule } from './settings/settings.module';
       rootPath: join(__dirname, '..', 'client'),
       serveRoot: '/static'
     }),
-    ConfigModule.forRoot(), DbModule, AccountModule, AccountGroupModule, CameraModule, CameraGroupModule, LiveModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule],
+    ConfigModule.forRoot(), DbModule, AccountModule, AccountGroupModule, CameraModule, CameraGroupModule, LiveModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule, LoggerModule],
   controllers: [AppController],
   providers: [
     AppService,
