@@ -152,8 +152,7 @@ model setting_password_complexity {
 model logger_logs {
   id                          String      @id @default(uuid())
   log                         String
-  internal                    Boolean     @default(false)
-  by                          String?
+  level                       Int @default(0) // 0 info - 1 notify - 2 important
   user                        String?
   user_group                  String?
   camera                      String?
