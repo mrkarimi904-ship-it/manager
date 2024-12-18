@@ -89,10 +89,9 @@ model camera_groups {
 
 model camera_info {
   id                          String        @id @default(uuid())
-  camera_id                   String
   key                         String
   value                       String
-  camera                      camera @relation(fields: [camera_id], references: [id])
+  camera                      camera[]
 }
 
 model camera_service {
@@ -108,14 +107,12 @@ model camera_service {
 
 model camera_service_camera {
   id                          String        @id @default(uuid())
-  camera_service_id           String
-  camera_id                   String
   type                        String
   port                        Int
   status                      Boolean
   state                       String @default("none")
-  camera_service              camera_service @relation(fields: [camera_service_id], references: [id])
-  camera                      camera @relation(fields: [camera_id], references: [id])
+  camera_service              camera_service[]
+  camera                      camera[]
 }
 
 model camera_recorder {
@@ -129,12 +126,10 @@ model camera_recorder {
 
 model camera_recorder_camera {
   id                          String        @id @default(uuid())
-  camera_recorder_id          String
-  camera_id                   String
-  status                      Boolean
-  state                       String @default("none")
-  camera_recorder             camera_recorder @relation(fields: [camera_recorder_id], references: [id])
-  camera                      camera @relation(fields: [camera_id], references: [id])
+  status                      String @default("none")
+  session                     String @default("none")
+  camera_recorder             camera_recorder[]
+  camera                      camera[]
 }
 
 model camera_playback {
@@ -153,14 +148,6 @@ model setting_password_complexity {
   haveLowercaseCharacters     Boolean @default(true)
   haveDigits                  Boolean @default(true)
 }
-
-
-
-
-
-
-
-
 
 model logger_logs {
   id                          String      @id @default(uuid())

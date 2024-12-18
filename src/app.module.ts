@@ -18,13 +18,14 @@ import { AssignModule } from './assign/assign.module';
 import { CameraModule } from './camera/camera.module';
 import { CameraGroupModule } from './camera_group/camera_group.module';
 import { RecorderModule } from './recorder/recorder.module';
-import { LiveModule } from './live/live.module';
+import { StreamModule } from './stream/stream.module';
 
 import { CameraServiceModule } from './camera_service/camera_service.module';
 import { CameraRecorderModule } from './camera_recorder/camera_recorder.module';
 import { CameraPlaybackModule } from './camera_playback/camera_playback.module';
 import { SettingsModule } from './settings/settings.module';
 import { LoggerModule } from './logger/logger.module';
+import { PlaybackModule } from './playback/playback.module';
 
 @Module({
   imports: [
@@ -33,7 +34,7 @@ import { LoggerModule } from './logger/logger.module';
       rootPath: join(__dirname, '..', 'client'),
       serveRoot: '/static'
     }),
-    ConfigModule.forRoot(), DbModule, AccountModule, AccountGroupModule, CameraModule, CameraGroupModule, LiveModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule, LoggerModule],
+    ConfigModule.forRoot(), DbModule, AccountModule, AccountGroupModule, CameraModule, CameraGroupModule, StreamModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule, LoggerModule, PlaybackModule],
   controllers: [AppController],
   providers: [
     AppService,

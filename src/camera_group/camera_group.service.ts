@@ -8,11 +8,11 @@ import * as dtos from './camera_group.dtos';
 
 import { generalResponse } from 'src/app.consts';
 import { RecorderService } from 'src/recorder/recorder.service';
-import { LiveService } from 'src/live/live.service';
+import { StreamService } from 'src/stream/stream.service';
 
 @Injectable()
 export class CameraGroupService {
-  constructor(private db: DbService, private readonly axios: HttpService, private cameraservice: CameraServiceService, private recorderservice: RecorderService, private liveService: LiveService) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private cameraservice: CameraServiceService, private recorderservice: RecorderService, private streamService: StreamService) {}
 
   async allGroups(user: any, query: dtos.groupSearchQuery): Promise<generalResponse> {
     try {

@@ -3,15 +3,15 @@ import { ConflictException, HttpException, Injectable } from '@nestjs/common';
 import { DbService } from 'src/db/db.service';
 import { HttpService } from '@nestjs/axios';
 
-import * as dtos from './live.dtos';
+import * as dtos from './stream.dtos';
 
 import { generalResponse } from 'src/app.consts';
 
 @Injectable()
-export class LiveService {
+export class StreamService {
   constructor(private db: DbService, private readonly axios: HttpService) {}
 
-  async status(user, body: dtos.liveDto): Promise<generalResponse> {
+  async status(user, body: dtos.streamDto): Promise<generalResponse> {
     try {
       // check if camera available
       const where = { id: body.cameraId }
@@ -19,11 +19,13 @@ export class LiveService {
       const camera = await this.db.camera.findUnique({ where });
       if (!camera) { throw new ConflictException() }
       // get status
+      const profile_key = body.type === "LOW" ? 'profile_live_rtsp' : 'profile_record_rtsp'
+      const profile_name = body.type === "LOW" ? 'live' : 'record'
       const [cameraInfo, cameraServiceInfo] = await this.db.$transaction([
-        this.db.camera_info.findFirst({ where: { camera_id: body.cameraId, key: 'profile_low_rtsp' } }),
-        this.db.camera_service_camera.findFirst({ where: { camera_id: body.cameraId, type: 'live' } })
+        this.db.camera_info.findFirst({ where: { camera: { some: { id: body.cameraId } }, key: profile_key } }),
+        this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: body.cameraId } } , type: profile_name }, include: { camera_service: true } })
       ])
-      const cameraService = await this.db.camera_service.findUnique({ where: { id: cameraServiceInfo.camera_service_id } })
+      const cameraService = cameraServiceInfo.camera_service[0];
       const cameraServiceUrl = cameraService.url;
       const cameraServicePort = cameraService.port;
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
@@ -36,7 +38,7 @@ export class LiveService {
     }
   }
 
-  async start(user, body: dtos.liveDto): Promise<generalResponse> {
+  async start(user, body: dtos.streamDto): Promise<generalResponse> {
     try {
       // check if camera available
       const { data } = await this.status(user, body);
@@ -68,7 +70,7 @@ export class LiveService {
     }
   }
 
-  async restart(body: dtos.liveDto): Promise<generalResponse> {
+  async restart(body: dtos.streamDto): Promise<generalResponse> {
     try {
       // check if camera available
       const { data } = await this.status({ isSuperAdmin: true }, body);
@@ -97,7 +99,7 @@ export class LiveService {
     }
   }
 
-  async stop(user, body: dtos.liveDto): Promise<generalResponse> {
+  async stop(user, body: dtos.streamDto): Promise<generalResponse> {
     try {
       // check if camera available
       const { data } = await this.status(user, body);
@@ -129,7 +131,7 @@ export class LiveService {
     }
   }
 
-  async force_stop(user, body: dtos.liveDto): Promise<generalResponse> {
+  async force_stop(user, body: dtos.streamDto): Promise<generalResponse> {
     try {
       // check if camera available
       const { data } = await this.status(user, body);

@@ -7,13 +7,12 @@ import * as dtos from './camera_playback.dtos';
 import { generalResponse } from 'src/app.consts';
 
 import { RecorderService } from 'src/recorder/recorder.service';
-import { LiveService } from 'src/live/live.service';
 
 import { HttpService } from '@nestjs/axios';
 
 @Injectable()
 export class CameraPlaybackService {
-  constructor(private db: DbService, private recorderservice: RecorderService, private liveService: LiveService, private readonly axios: HttpService) {}
+  constructor(private db: DbService, private recorderservice: RecorderService, private readonly axios: HttpService) {}
 
   async getAll(): Promise<generalResponse> {
     try {

@@ -1,18 +1,19 @@
-import { HttpException, Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 
 import { DbService } from 'src/db/db.service';
 import { HttpService } from '@nestjs/axios';
 import { CameraServiceService } from 'src/camera_service/camera_service.service';
+import { CameraRecorderService } from '../camera_recorder/camera_recorder.service';
 
 import * as dtos from './camera.dtos';
 
 import { generalResponse } from 'src/app.consts';
 import { RecorderService } from 'src/recorder/recorder.service';
-import { LiveService } from 'src/live/live.service';
+import { StreamService } from 'src/stream/stream.service';
 
 @Injectable()
 export class CameraService {
-  constructor(private db: DbService, private readonly axios: HttpService, private cameraservice: CameraServiceService, private recorderservice: RecorderService, private liveService: LiveService) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private cameraservice: CameraServiceService, private camerarecorder: CameraRecorderService, private recorderservice: RecorderService, private streamService: StreamService) {}
 
   async getAll(user, query: dtos.cameraSearchQuery): Promise<generalResponse> {
     try {
@@ -52,7 +53,7 @@ export class CameraService {
       if (query.cameraGroupId && query.cameraGroupFilter === 'Include') { where['AND'].push({ camera_groups: { some: { id: { equals: query.cameraGroupId } } } }) }
       if (query.cameraGroupId && query.cameraGroupFilter === 'Exclude') { where['AND'].push({ camera_groups: { none: { id: { equals: query.cameraGroupId } } } }) }
 
-      const include = { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } } }
+      const include = { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } }, camera_recorder_camera: { select: { status: true, session: true } } }
       // run query
       const [total, temp] = await this.db.$transaction([
         this.db.camera.count({ where }),
@@ -167,7 +168,7 @@ export class CameraService {
       // check resuts
       if (!temp) { return { status: false, data: null, error: null, msg: null }; }
       // check if restart is required
-      const temp2 = await this.db.camera_service_camera.findMany({ where: { camera_id: temp.id } })
+      const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: temp.id } } } })
       const is_restart_required = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0] || temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
       // get profiles from onvif service
       const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', body)]);
@@ -186,38 +187,36 @@ export class CameraService {
         // add camera to db
         try {
           if (is_restart_required) {
-            // start live
-            await this.liveService.force_stop({ isSuperAdmin: true }, { cameraId: id })
-            // start recorder
-            await this.recorderservice.force_stop({ isSuperAdmin: true }, { cameraId: id })
+            // stop stream
+            await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
+            await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
             // wait
             await new Promise(r => setTimeout(r, 1000))
           }
           // update
           await this.db.$transaction([
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'name' }, data: { value: body.name } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'type' }, data: { value: body.type } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'description' }, data: { value: body.description } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'address' }, data: { value: body.address } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'brand' }, data: { value: body.brand } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'partnumber' }, data: { value: body.partnumber } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'map_lat' }, data: { value: body.map_lat } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'map_lng' }, data: { value: body.map_lng } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'profile_low' }, data: { value: body.profile_low } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'profile_low_rtsp' }, data: { value: low[0] } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'profile_high' }, data: { value: body.profile_high } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'profile_high_rtsp' }, data: { value: high[0] } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'ptz_pan_tilt' }, data: { value: ptzPanTilt ? 'true' : 'false' } }),
-            this.db.camera_info.updateMany({ where: { camera_id: id, key: 'ptz_zoom' }, data: { value: ptzZoom? 'true' : 'false' } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'name' }, data: { value: body.name } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'type' }, data: { value: body.type } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'description' }, data: { value: body.description } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'address' }, data: { value: body.address } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'brand' }, data: { value: body.brand } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'partnumber' }, data: { value: body.partnumber } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'map_lat' }, data: { value: body.map_lat } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'map_lng' }, data: { value: body.map_lng } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_low' }, data: { value: body.profile_low } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_live_rtsp' }, data: { value: low[0] } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_high' }, data: { value: body.profile_high } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_record_rtsp' }, data: { value: high[0] } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_pan_tilt' }, data: { value: ptzPanTilt ? 'true' : 'false' } }),
+            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_zoom' }, data: { value: ptzZoom? 'true' : 'false' } }),
           ])
           const temp2: dtos.cameraDto = await this.db.camera.update({
             where: { id: id },
             data: { url: body.url, username: body.username, password: body.password }});
           if (is_restart_required) {
-            // start live
-            this.liveService.start({ isSuperAdmin: true }, { cameraId: temp2.id })
-            // start recorder
-            this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp2.id })
+            // start stream
+            await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp2.id, type: 'LOW' })
+            await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp2.id, type: 'HIGH' })
           }
           // generate response
           const response: generalResponse = { status: true, data: temp2, error: null, msg: null };
@@ -288,6 +287,9 @@ export class CameraService {
         // camera service
         const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
         if (!cameraserviceID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera serive available' }; }
+        // camera recorder
+        const cameraRecorderID = await this.camerarecorder.getFreeCameraRecorderId()
+        if (!cameraRecorderID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera recorder available' }; }
         // get ptz info
         const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
         const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
@@ -307,23 +309,22 @@ export class CameraService {
                   { key: 'map_lat', value: body.map_lat },
                   { key: 'map_lng', value: body.map_lng },
                   { key: 'profile_low', value: body.profile_low },
-                  { key: 'profile_low_rtsp', value: low[0] },
+                  { key: 'profile_live_rtsp', value: low[0] },
                   { key: 'profile_high', value: body.profile_high },
-                  { key: 'profile_high_rtsp', value: high[0] },
+                  { key: 'profile_record_rtsp', value: high[0] },
                   { key: 'ptz_pan_tilt', value: ptzPanTilt ? 'true' : 'false' },
                   { key: 'ptz_zoom', value: ptzZoom? 'true' : 'false' }
                 ]
               }
             }});
           // add info to camera service
-          await this.db.camera_service_camera.createMany({ data: [
-            { camera_service_id: cameraserviceID, camera_id: temp.id, type: 'live', port: 0, status: false },
-            { camera_service_id: cameraserviceID, camera_id: temp.id, type: 'record', port: 0, status: false },
-          ] })
-          // start live
-          this.liveService.start({ isSuperAdmin: true }, { cameraId: temp.id })
-          // start recorder
-          this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp.id })
+          await this.db.camera_service_camera.create({ data: { type: 'live', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
+          await this.db.camera_service_camera.create({ data: { type: 'record', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
+          await this.db.camera_recorder_camera.create({ data: { status: '', session: '', camera: { connect: { id: temp.id } }, camera_recorder: { connect: { id: cameraRecorderID } } } })
+          // start stream
+          await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'LOW' })
+          await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'HIGH' })
+          await this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp.id })
           // generate response
           const response: generalResponse = { status: true, data: temp, error: null, msg: null };
           return response;
@@ -358,13 +359,13 @@ export class CameraService {
       // check resuts
       if (!camOk) { return { status: false, data: null, error: null, msg: null }; }
       // stop live
-      await this.liveService.stop({ isSuperAdmin: true }, { cameraId: id })
+      await this.streamService.stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
       // stop recorder
-      await this.recorderservice.stop({ isSuperAdmin: true }, { cameraId: id })
+      await this.streamService.stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
       // delete related data from other tables
       await this.db.$transaction([
-        this.db.camera_info.deleteMany({ where: { camera_id: id } }),
-        this.db.camera_service_camera.deleteMany({ where: { camera_id: id } })
+        this.db.camera_info.deleteMany({ where: { camera: { some: { id: id } } } }),
+        this.db.camera_service_camera.deleteMany({ where: { camera: { some: { id: id } } } })
       ])
       // delete camera
       const temp: dtos.cameraDto = await this.db.camera.delete({ where: { id: id } });

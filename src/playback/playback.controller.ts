@@ -1,0 +1,53 @@
+import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { PlaybackService } from './playback.service';
+// import { CreatePlaybackDto } from './playback.dtos';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { generalResponse } from 'src/app.consts';
+
+
+@ApiBearerAuth()
+@ApiTags('11. Playback')
+@Controller('playback')
+export class PlaybackController {
+  constructor(private readonly playbackService: PlaybackService) {}
+
+  @Post()
+  async playback_create(@Body() body: any): Promise<generalResponse> {
+    return this.playbackService.playback_create(body);
+  }
+
+  @Get(':playback_session/info')
+  async playback_info(@Param('playback_session') id: string): Promise<generalResponse> {
+    return this.playbackService.playback_info(id);
+  }
+
+  @Get(':recorder_session/data')
+  async playback_data(@Param('recorder_session') id: string): Promise<generalResponse> {
+    return this.playbackService.playback_data(id);
+  }
+
+  @Post(':playback_session/start')
+  async playback_start(@Param('playback_session') id: string, @Body() body: any): Promise<generalResponse> {
+    return this.playbackService.playback_start(id, body);
+  }
+
+  @Post(':playback_session/speed')
+  async playback_speed(@Param('playback_session') id: string, @Body() body: any): Promise<generalResponse> {
+    return this.playbackService.playback_speed(id, body);
+  }
+
+  @Post(':playback_session/pause')
+  async playback_pause(@Param('playback_session') id: string, @Body() body: any): Promise<generalResponse> {
+    return this.playbackService.playback_pause(id, body);
+  }
+
+  @Post(':playback_session/resume')
+  async playback_resume(@Param('playback_session') id: string, @Body() body: any): Promise<generalResponse> {
+    return this.playbackService.playback_resume(id, body);
+  }
+
+  @Delete(':playback_session/stop')
+  async playback_stop(@Param('playback_session') id: string): Promise<generalResponse> {
+    return this.playbackService.playback_stop(id);
+  }
+}

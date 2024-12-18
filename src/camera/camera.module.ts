@@ -5,10 +5,11 @@ import { DbModule } from 'src/db/db.module';
 import { HttpModule } from '@nestjs/axios';
 import { CameraServiceModule } from 'src/camera_service/camera_service.module';
 import { RecorderModule } from 'src/recorder/recorder.module';
-import { LiveModule } from 'src/live/live.module';
+import { StreamModule } from 'src/stream/stream.module';
+import { CameraRecorderModule } from 'src/camera_recorder/camera_recorder.module';
 
 @Module({
-  imports: [DbModule, HttpModule, CameraServiceModule, RecorderModule, LiveModule],
+  imports: [DbModule, HttpModule, CameraServiceModule, RecorderModule, StreamModule, CameraRecorderModule],
   controllers: [CameraController],
   providers: [CameraService]
 })
