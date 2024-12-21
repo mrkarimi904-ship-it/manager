@@ -10,10 +10,11 @@ import * as bcrypt from 'bcryptjs';
 import { generalResponse, hash_secret, jwt_secret } from 'src/app.consts';
 import { SettingsService } from 'src/settings/settings.service';
 import { LoggerGateway } from 'src/logger/logger.gateway';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class AccountService {
-  constructor(private db: DbService, private settings: SettingsService, private loggerService: LoggerGateway ) {}
+  constructor(private db: DbService, private settings: SettingsService, private loggerGateway: LoggerGateway, private loggerService: LoggerService ) {}
 
   async allAccounts(user, query: accountSearchQuery): Promise<generalResponse> {
     try {
@@ -24,7 +25,6 @@ export class AccountService {
       const where = { isHidden: false, AND: [] }
       if (query.search) { where['AND'].push({ OR: [ { username: { contains: query.search, mode: 'insensitive' } }, { firstname: { contains: query.search, mode: 'insensitive' } }, { lastname: { contains: query.search, mode: 'insensitive' } } ] }) }
       if (query.cameraId && query.cameraFilter === 'Include') { where['AND'].push({ OR : [ { camera: { some: { id: { equals: query.cameraId } } } }, { isSuperAdmin: true } ] }) }
-      // if (query.cameraId && query.cameraFilter === 'Exclude') { where['camera'] = { none: { id: { equals: query.cameraId } } }; where['isSuperAdmin'] = false }
       if (query.cameraId && query.cameraFilter === 'Exclude') { where['AND'].push({ camera: { none: { id: { equals: query.cameraId } } } }) }
       if (query.cameraId && query.cameraFilter === 'Exclude') { where['AND'].push({ isSuperAdmin: false }) }
       if (query.userGroupId && query.userGroupFilter === 'Include') { where['AND'].push({ user_groups: { some: { id: { equals: query.userGroupId } } } }) }
@@ -141,6 +141,8 @@ export class AccountService {
       // store in db
       const account = await this.db.user_accounts.create({ data: body });
       account.password = null;
+      // logger
+      this.loggerService.log('new user created', 0, user, account.id)
       // response
       const response: generalResponse = { status: true, data: account, error: null, msg: null };
       return response;
@@ -167,7 +169,8 @@ export class AccountService {
       // save token to db
       await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24*60*60*1000), user_accounts: { connect: { id: account.id } } } })
       // send notif
-      this.loggerService.send('new user sign in ...')
+      this.loggerService.log('user sign in', 0, account)
+      this.loggerGateway.notify_admins(`${account.firstname} ${account.lastname} signed in`)
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
       return response;

@@ -8,14 +8,14 @@ export class LoggerService {
 
   constructor(private db: DbService) {}
 
-  async log(text: string, level: number = 0, user: string = null, user_group: string = null, camera: string = null, camera_group: string = null ) {
-    await this.db.logger_logs.create({ data: { log: text, level: level, user: user, user_group: user_group, camera: camera, camera_group: camera_group } })
+  async log(text: string, level: number = 0, by: any = null, user: string = null, user_group: string = null, camera: string = null, camera_group: string = null ) {
+    await this.db.logger_logs.create({ data: { log: text, level: level, by: by?.id, user: user, user_group: user_group, camera: camera, camera_group: camera_group } })
   }
 
   async getAll(user: any, query: dtos.logSearchDto): Promise<generalResponse> {
     try {
       // limit query if user is not superadmin
-      if (user.isSuperAdmin !== true) { query.userId = user.id; query.userFilter = 'Include' }
+      if (user.isSuperAdmin !== true) { query.byId = user.id }
       // create where
       if (!query.pageIndex) { query.pageIndex = "1" }
       if (!query.pageSize) { query.pageSize = "20" }
@@ -24,19 +24,26 @@ export class LoggerService {
       const where = { AND: [] }
       if (query.level) { where['AND'].push({ level: { equals: parseInt(query.level) } }) }
       if (query.search) { where['AND'].push({ log: { contains: query.search, mode: 'insensitive' } }) }
-      if (query.userId && query.userFilter === 'Include') { where['AND'].push({ OR: [ { user: {  equals: query.userId }} ] }) }
-      if (query.userId && query.userFilter === 'Exclude') { where['AND'].push({ OR: [ { user: {  notEqual: query.userId }} ] }) }
-      if (query.userGroupId && query.userGroupFilter === 'Include') { where['AND'].push({ OR: [ { user_group: {  equals: query.userGroupId }} ] }) }
-      if (query.userGroupId && query.userGroupFilter === 'Exclude') { where['AND'].push({ OR: [ { user_group: {  notEqual: query.userGroupId }} ] }) }
-      if (query.cameraId && query.cameraFilter === 'Include') { where['AND'].push({ OR: [ { camera: {  equals: query.cameraId }} ] }) }
-      if (query.cameraId && query.cameraFilter === 'Exclude') { where['AND'].push({ OR: [ { camera: {  notEqual: query.cameraId }} ] }) }
-      if (query.cameraGroupId && query.cameraGroupFilter === 'Include') { where['AND'].push({ OR: [ { camera_group: {  equals: query.cameraGroupId }} ] }) }
-      if (query.cameraGroupId && query.cameraGroupFilter === 'Exclude') { where['AND'].push({ OR: [ { camera_group: {  notEqual: query.cameraGroupId }} ] }) }
+      if (query.byId) { where['AND'].push({ OR: [ { by: {  equals: query.byId }} ] }) }
+      if (query.userId) { where['AND'].push({ OR: [ { user: {  equals: query.userId }} ] }) }
+      if (query.userGroupId) { where['AND'].push({ OR: [ { user_group: {  equals: query.userGroupId }} ] }) }
+      if (query.cameraId) { where['AND'].push({ OR: [ { camera: {  equals: query.cameraId }} ] }) }
+      if (query.cameraGroupId) { where['AND'].push({ OR: [ { camera_group: {  equals: query.cameraGroupId }} ] }) }
+      if (query.from) { where['AND'].push({ OR: [ { created_at: {  gte: new Date(query.from) }} ] }) }
+      if (query.to) { where['AND'].push({ OR: [ { created_at: {  lte: new Date(query.to) }} ] }) }
       // run query
       const [total, temp] = await this.db.$transaction([
         this.db.logger_logs.count({ where }),
         this.db.logger_logs.findMany({ where, skip, take })
       ])
+      // inject extra data
+      await Promise.all(temp.map(async (rr) => {
+        if (rr.by) { rr['by_info'] = await this.db.user_accounts.findFirst({ where: { id: rr.by }, select: { username: true, firstname: true, lastname: true } }) }
+        if (rr.user) { rr['user_info'] = await this.db.user_accounts.findFirst({ where: { id: rr.user }, select: { username: true, firstname: true, lastname: true } }) }
+        if (rr.user_group) { rr['user_group_info'] = await this.db.user_groups.findFirst({ where: { id: rr.user_group }, select: { name: true } }) }
+        if (rr.camera) { rr['camera_info'] = await this.db.camera.findFirst({ where: { id: rr.camera }, include: { camera_info: true } }) }
+        if (rr.camera_group) { rr['camera_group_info'] = await this.db.camera_groups.findFirst({ where: { id: rr.camera_group }, select: { name: true } }) }
+      }));
       const response: generalResponse = { status: true, data: { total, data: temp }, error: null, msg: null };
       return response;
     } catch (error) {

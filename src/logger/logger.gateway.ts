@@ -6,6 +6,7 @@ import { Server, Socket } from "socket.io";
 import { DbService } from 'src/db/db.service';
 import * as jwt from 'jsonwebtoken';
 import { jwt_secret } from 'src/app.consts';
+import { Cron } from '@nestjs/schedule';
 
 @WebSocketGateway({ cors: true })
 export class LoggerGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -25,6 +26,7 @@ export class LoggerGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (!user) { client.disconnect(); return false; }
       const stored_token = await this.db.user_tokens.findFirst({ where: { token: token, user_accounts: { every: { id: user.id } } }})
       if (!stored_token) { client.disconnect(); return false; }
+      client['user'] = user
       this.clients.push(client)
     } catch (error) {
       client.disconnect()
@@ -36,19 +38,48 @@ export class LoggerGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.clients = this.clients.filter(x => x.id !== id)
   }
 
+  notify_all(msg) {
+    this.clients.forEach(x => {
+      x.emit('notify', msg)
+    })
+  }
+
+  notify_admins(msg) {
+    this.clients.forEach(x => {
+      const user = x.user
+      if (user.isSuperAdmin === true) {
+        x.emit('notify', msg)
+      }
+    })
+  }
+
+  notify_user(user_id, msg) {
+    this.clients.forEach(x => {
+      const user = x.user
+      if (user.id === user_id) {
+        x.emit('notify', msg)
+      }
+    })
+  }
+
   send(msg) {
     this.clients.forEach(x => {
       x.emit('notify', msg)
     })
   }
 
-  // @SubscribeMessage('findAllLogger')
-  // findAll() {
-  //   console.log(1)
-  //   return {
-  //     event: "pong",
-  //     data: "Wrong data that will make the test fail",
-  //   };
-  // }
+  @SubscribeMessage('self')
+  handleEvent(client: Socket, data: string): string {
+    return data;
+  }
+
+  @Cron('0 * * * * *')
+  async handleCron() {
+    await Promise.all(this.clients.map(async (client) => {
+      const token = client.handshake?.headers?.authorization?.toString()
+      const stored_token = await this.db.user_tokens.findFirst({ where: { token: token }})
+      if (!stored_token) { client.disconnect() }
+    }));
+  }
 
 }

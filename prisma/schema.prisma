@@ -153,6 +153,7 @@ model logger_logs {
   id                          String      @id @default(uuid())
   log                         String
   level                       Int @default(0) // 0 info - 1 notify - 2 important
+  by                          String? // executor of command
   user                        String?
   user_group                  String?
   camera                      String?

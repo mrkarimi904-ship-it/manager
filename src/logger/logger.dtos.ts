@@ -21,45 +21,40 @@ export class logSearchDto {
   @ApiProperty({ default: '', required: false })
   @IsOptional()
   @IsString()
-  userId: string;
+  byId: string;
 
-  @ApiProperty({ default: 'Exclude', required: false })
+  @ApiProperty({ default: '', required: false })
   @IsOptional()
   @IsString()
-  userFilter: string;
+  userId: string;
 
   @ApiProperty({ default: '', required: false })
   @IsOptional()
   @IsString()
   userGroupId: string;
 
-  @ApiProperty({ default: 'Exclude', required: false })
-  @IsOptional()
-  @IsString()
-  userGroupFilter: string;
-
   @ApiProperty({ default: '', required: false })
   @IsOptional()
   @IsString()
   cameraId: string;
-
-  @ApiProperty({ default: 'Exclude', required: false })
-  @IsOptional()
-  @IsString()
-  cameraFilter: string;
 
   @ApiProperty({ default: '', required: false })
   @IsOptional()
   @IsString()
   cameraGroupId: string;
 
-  @ApiProperty({ default: 'Exclude', required: false })
-  @IsOptional()
-  @IsString()
-  cameraGroupFilter: string;
-
   @ApiProperty({ default: '0', required: false })
   @IsOptional()
   @IsString()
   level: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  from: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  to: string;
 }

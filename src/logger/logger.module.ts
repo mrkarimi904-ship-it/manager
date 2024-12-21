@@ -6,8 +6,8 @@ import { LoggerController } from './logger.controller';
 
 @Module({
   imports: [DbModule],
+  controllers: [LoggerController],
   providers: [LoggerGateway, LoggerService],
-  exports: [LoggerGateway],
-  controllers: [LoggerController]
+  exports: [LoggerGateway, LoggerService]
 })
 export class LoggerModule {}
