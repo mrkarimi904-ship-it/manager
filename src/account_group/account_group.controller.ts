@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 
 import { AccountGroupService } from './account_group.service';
 
@@ -32,21 +32,21 @@ export class AccountGroupController {
   @Get(':group_id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async getGroups(@Param('group_id') group_id: string): Promise<generalResponse> {
+  async getGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
     return await this.accountGroupService.getGroups(group_id);
   }
 
   @Put(':group_id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async putGroups(@Param('group_id') group_id: string, @Body() body: nameDto): Promise<generalResponse> {
+  async putGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Body() body: nameDto): Promise<generalResponse> {
     return await this.accountGroupService.putGroups(group_id, body);
   }
 
   @Delete(':group_id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async deleteGroups(@Param('group_id') group_id: string): Promise<generalResponse> {
+  async deleteGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
     return await this.accountGroupService.deleteGroups(group_id);
   }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, Response, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Post, Put, Query, Response, UseGuards } from '@nestjs/common';
 
 import { AccountService } from './account.service';
 
@@ -25,42 +25,42 @@ export class AccountController {
   @Get(':id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async getAccount(@Param('id') id: string): Promise<generalResponse> {
+  async getAccount(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
     return await this.accountService.getAccount(id);
   }
 
   @Get(':id/tokens')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async getAccountTokens(@Param('id') id: string, @Token() token): Promise<generalResponse> {
+  async getAccountTokens(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Token() token): Promise<generalResponse> {
     return await this.accountService.getAccountTokens(id, token);
   }
 
   @Delete(':id/tokens/:token_id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async deleteAccountTokens(@Param('id') id: string, @Param('token_id') token_id: string): Promise<generalResponse> {
+  async deleteAccountTokens(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Param('token_id', new ParseUUIDPipe({ version: "4" })) token_id: string): Promise<generalResponse> {
     return await this.accountService.deleteAccountTokens(id, token_id);
   }
 
   @Put(':id')
   @AccountRoles('account_edit')
   @UseGuards(accountGaurd)
-  async putAccount(@User() user, @Body() body: editDto, @Param('id') id: string): Promise<generalResponse> {
+  async putAccount(@User() user, @Body() body: editDto, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
     return await this.accountService.putAccount(id, body, user);
   }
 
   @Put(':id/expire')
   @AccountRoles('account_edit')
   @UseGuards(accountGaurd)
-  async putAccountExpire(@User() user, @Param('id') id: string): Promise<generalResponse> {
+  async putAccountExpire(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
     return await this.accountService.putAccountExpire(id, user);
   }
 
   @Delete(':id')
   @AccountRoles('account_delete')
   @UseGuards(accountGaurd)
-  async deleteAccount(@Param('id') id: string): Promise<generalResponse> {
+  async deleteAccount(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
     return await this.accountService.deleteAccount(id);
   }
 
