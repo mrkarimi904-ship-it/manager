@@ -234,6 +234,17 @@ export class CameraService {
     }
   }
 
+  async isAdded(body: dtos.postPreCameraDto): Promise<generalResponse> {
+    try {
+      const c = await this.db.camera.findMany({ where: { url: body.url } })
+      // generate response
+      const response: generalResponse = { status: c ? true : false, data: null, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
   async postPre(body: dtos.postPreCameraDto): Promise<generalResponse> {
     try {
       // get profiles from onvif service
