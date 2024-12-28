@@ -16,7 +16,7 @@ export class CameraPlaybackService {
 
   async getAll(): Promise<generalResponse> {
     try {
-      const camerasService: dtos.cameraPlaybackDto[] = await this.db.camera_playback.findMany({});
+      const camerasService: dtos.cameraPlaybackDto[] = await this.db.camera_playback.findMany({ orderBy: [{ created_at: 'desc' }] });
       const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
       return response;
     } catch (error) {

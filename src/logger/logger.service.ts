@@ -34,7 +34,7 @@ export class LoggerService {
       // run query
       const [total, temp] = await this.db.$transaction([
         this.db.logger_logs.count({ where }),
-        this.db.logger_logs.findMany({ where, skip, take })
+        this.db.logger_logs.findMany({ where, skip, take, orderBy: [{ created_at: 'desc' }] })
       ])
       // inject extra data
       await Promise.all(temp.map(async (rr) => {

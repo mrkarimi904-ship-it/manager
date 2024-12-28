@@ -18,7 +18,7 @@ export class CameraServiceService {
 
   async getAll(): Promise<generalResponse> {
     try {
-      const camerasService: dtos.cameraServiceDto[] = await this.db.camera_service.findMany({ include: { camera_service_camera: true } });
+      const camerasService: dtos.cameraServiceDto[] = await this.db.camera_service.findMany({ include: { camera_service_camera: true }, orderBy: [{ created_at: 'desc' }] });
       const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
       return response;
     } catch (error) {

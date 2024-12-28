@@ -57,7 +57,7 @@ export class CameraService {
       // run query
       const [total, temp] = await this.db.$transaction([
         this.db.camera.count({ where }),
-        this.db.camera.findMany({ where, skip, take, include })
+        this.db.camera.findMany({ where, skip, take, include, orderBy: [{ created_at: 'desc' }] })
       ])
       const response: generalResponse = { status: true, data: { total, data: temp }, error: null, msg: null };
       return response;

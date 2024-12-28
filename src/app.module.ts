@@ -26,6 +26,7 @@ import { CameraPlaybackModule } from './camera_playback/camera_playback.module';
 import { SettingsModule } from './settings/settings.module';
 import { LoggerModule } from './logger/logger.module';
 import { PlaybackModule } from './playback/playback.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -34,7 +35,7 @@ import { PlaybackModule } from './playback/playback.module';
       rootPath: join(__dirname, '..', 'client'),
       serveRoot: '/static'
     }),
-    ConfigModule.forRoot(), DbModule, AccountModule, AccountGroupModule, CameraModule, CameraGroupModule, StreamModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule, LoggerModule, PlaybackModule],
+    ConfigModule.forRoot(), DbModule, AccountModule, AccountGroupModule, CameraModule, CameraGroupModule, StreamModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule, LoggerModule, PlaybackModule, SchedulerModule],
   controllers: [AppController],
   providers: [
     AppService,

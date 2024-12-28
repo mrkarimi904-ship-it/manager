@@ -28,7 +28,7 @@ model user_accounts {
   user_roles                  user_roles[]
   user_tokens                 user_tokens[]
   camera_groups               camera_groups[]
-  logger_notifications        logger_notifications[]
+  scheduler_user_account      scheduler_user_account[]
 }
 
 model user_groups {
@@ -161,11 +161,11 @@ model logger_logs {
   created_at                  DateTime    @default(now())
 }
 
-model logger_notifications {
+model scheduler_user_account {
   id                          String      @id @default(uuid())
   title                       String
-  content                     String
-  type                        String      @default("Info")
+  from                        String
+  to                          String
   created_at                  DateTime    @default(now())
   user_accounts               user_accounts[]
 }

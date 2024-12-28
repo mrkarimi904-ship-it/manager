@@ -35,7 +35,7 @@ export class AccountService {
       const include = {}
       const [total, temp] = await this.db.$transaction([
         this.db.user_accounts.count({ where }),
-        this.db.user_accounts.findMany({ where, skip, take, include })
+        this.db.user_accounts.findMany({ where, skip, take, include, orderBy: [{ created_at: 'desc' }] })
       ])
       // response
       const response: generalResponse = { status: true, data: { total, data: temp }, error: null, msg: null };
@@ -63,7 +63,7 @@ export class AccountService {
 
   async getAccountTokens(id: string, token: string): Promise<generalResponse> {
     try {
-      const accounts = await this.db.user_tokens.findMany({ where: { user_accounts: { every: { id: id } } }, select: { id: true, expiration: true, token: true } })
+      const accounts = await this.db.user_tokens.findMany({ where: { user_accounts: { every: { id: id } } }, select: { id: true, expiration: true, token: true }, orderBy: [{ created_at: 'desc' }] })
       accounts.forEach(element => {
         if (element.token === token) { element.token = 'current' } else { element.token = '' }
       });

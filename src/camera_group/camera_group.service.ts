@@ -32,7 +32,7 @@ export class CameraGroupService {
       const include = {}
       const [total, temp] = await this.db.$transaction([
         this.db.camera_groups.count({ where }),
-        this.db.camera_groups.findMany({ where, skip, take, include })
+        this.db.camera_groups.findMany({ where, skip, take, include, orderBy: [{ created_at: 'desc' }] })
       ])
       // response
       const response: generalResponse = { status: true, data: { total, data: temp }, error: null, msg: null };
