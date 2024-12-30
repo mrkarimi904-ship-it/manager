@@ -39,7 +39,7 @@ export class CameraServiceService {
   async postSingle(body: dtos.postCameraServiceDto): Promise<generalResponse> {
     try {
       if (parseInt(body.port_to) - parseInt(body.port_from) <= 0 ) { throw new HttpException({ status: false, data: null, error: 'invalid port', msg: 'invalid port' }, 406) }
-      const camerasService: dtos.cameraServiceDto = await this.db.camera_service.upsert({ where: { id: body.id}, update: { port_from: body.port_from, port_to: body.port_to, port: body.swagger_port, url: body.url }, create: { url: body.url, port_from: body.port_from, port_to: body.port_to, port: body.swagger_port } })
+      const camerasService: dtos.cameraServiceDto = await this.db.camera_service.upsert({ where: { id: body.id}, update: { port_from: body.port_from, port_to: body.port_to, port: body.swagger_port, url: body.url }, create: { id: body.id, url: body.url, port_from: body.port_from, port_to: body.port_to, port: body.swagger_port } })
       // try to start currently registered cameras
       // TODO : ...
       const camera_service_camera = await this.db.camera_service_camera.findMany({ where: { camera_service: { some: { id: camerasService.id }}, status: true }, include: { camera: true } })

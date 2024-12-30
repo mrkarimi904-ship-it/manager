@@ -10,6 +10,7 @@ import * as dtos from './camera.dtos';
 import { generalResponse } from 'src/app.consts';
 import { RecorderService } from 'src/recorder/recorder.service';
 import { StreamService } from 'src/stream/stream.service';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class CameraService {
@@ -385,6 +386,42 @@ export class CameraService {
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+
+  @Cron('0 */2 * * * *')
+  async handleCron() {
+    if (process.env.NODE_ENV) { return true }
+    try {
+      console.debug('scanning cameraservices ...', new Date().toString());
+      await this.db.camera.updateMany({ data: { status: 'loading' } })
+      const cameras = await this.db.camera.findMany();
+      await Promise.all(cameras.map(async (element) => {
+        const cam_id = element.id;
+        const cam_fullurl = element.url;
+        const cam_username = element.username;
+        const cam_password = element.password;
+        let cam_ip = '';
+        let cam_port = '';
+        if (cam_fullurl.includes(':')) {
+          cam_ip = cam_fullurl.split(':')[0];
+          cam_port = cam_fullurl.split(':')[1];
+        } else {
+          cam_ip = cam_fullurl;
+          cam_port = '80';
+        }
+        const temp = { username: cam_username, password: cam_password, ip: cam_ip, port: cam_port }
+        const health = await this.axios.axiosRef.post(process.env.HEALTH_SERVICE + '/check_camera', temp);
+        if (health.data.status === 'true') {
+          await this.db.camera.update({ where: { id: cam_id }, data: { status: 'ok' } })
+        } else {
+          await this.db.camera.update({ where: { id: cam_id }, data: { status: health.data.error } })
+        }
+      }));
+      await this.db.camera.updateMany({ where: { status: 'loading' },  data: { status: 'error : unknown' } })
+    } catch (error) {
+      console.log('error scanning cameras', error)
     }
   }
 

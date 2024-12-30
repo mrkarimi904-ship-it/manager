@@ -35,7 +35,7 @@ export class AccountService {
       const include = {}
       const [total, temp] = await this.db.$transaction([
         this.db.user_accounts.count({ where }),
-        this.db.user_accounts.findMany({ where, skip, take, include, orderBy: [{ created_at: 'desc' }] })
+        this.db.user_accounts.findMany({ where, skip, take, include, orderBy: [{ created_at: 'desc' }], omit: { password: true } })
       ])
       // response
       const response: generalResponse = { status: true, data: { total, data: temp }, error: null, msg: null };
@@ -52,7 +52,7 @@ export class AccountService {
         user_groups: { select: { id: true, name: true } },
         camera: { select: { id: true } },
         camera_groups: { select: { id: true, name: true } },
-      }})
+      }, omit: { password: true }})
       // response
       const response: generalResponse = { status: true, data: accounts, error: null, msg: null };
       return response;
@@ -88,13 +88,13 @@ export class AccountService {
 
   async putAccount(id: string, body: editDto, user: any): Promise<generalResponse> {
     try {
-      const account = await this.db.user_accounts.findUnique({ where: { id: id } })
-      if (body.password && body.password !== '') { body.password = await bcrypt.hash(body.password, hash_secret); }
+      const account = await this.db.user_accounts.findUnique({ where: { id: id }, omit: { password: true } })
+      if (body.password && body.password !== '' && user.isSuperAdmin === true) { body.password = await bcrypt.hash(body.password, hash_secret); }
       if (account.expired === true && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
       if (account.expired === false && body.expired === true && body.expireInterval !== 0) { body['expire_at'] = null }
       if (body.expireInterval === 0) { body['expire_at'] = null }
       if (user.isSuperAdmin === false) { body.isSuperAdmin = false }
-      const account2 = await this.db.user_accounts.update({ where: { id: id }, data: body })
+      const account2 = await this.db.user_accounts.update({ where: { id: id }, data: body, omit: { password: true } })
       // response
       const response: generalResponse = { status: true, data: account2, error: null, msg: null };
       return response;
@@ -105,7 +105,7 @@ export class AccountService {
 
   async putAccountExpire(id: string, user: any): Promise<generalResponse> {
     try {
-      const account = await this.db.user_accounts.update({ where: { id: id }, data: { expired: true } })
+      const account = await this.db.user_accounts.update({ where: { id: id }, data: { expired: true }, omit: { password: true } })
       // response
       const response: generalResponse = { status: true, data: account, error: null, msg: null };
       return response;
@@ -116,7 +116,7 @@ export class AccountService {
 
   async deleteAccount(id: string): Promise<generalResponse> {
     try {
-      const account = await this.db.user_accounts.delete({ where: { id: id } })
+      const account = await this.db.user_accounts.delete({ where: { id: id }, omit: { password: true } })
       // response
       const response: generalResponse = { status: true, data: account, error: null, msg: null };
       return response;
@@ -139,8 +139,7 @@ export class AccountService {
       // prevent creating superadmin by normal user
       if (user.isSuperAdmin === false) { body.isSuperAdmin = false }
       // store in db
-      const account = await this.db.user_accounts.create({ data: body });
-      account.password = null;
+      const account = await this.db.user_accounts.create({ data: body, omit: { password: true } });
       // logger
       this.loggerService.log('new user created', 0, user, account.id)
       // response
@@ -173,6 +172,18 @@ export class AccountService {
       this.loggerGateway.notify_admins(`${account.firstname} ${account.lastname} signed in`)
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 401);
+    }
+  }
+
+  async signOut(req: any, user: any): Promise<generalResponse> {
+    try {
+      const token = req.authorization?.replace('Bearer ', '')
+      await this.db.user_tokens.deleteMany({ where: { token: token } })
+      // response
+      const response: generalResponse = { status: true, data: null, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 401);

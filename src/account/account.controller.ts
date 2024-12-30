@@ -89,6 +89,14 @@ export class AccountController {
     return await this.accountService.changePass(body)
   }
 
+  @Post('/access/logout')
+  @AccountRoles()
+  @UseGuards(accountGaurd)
+  async signOut(@Headers() req, @User() user,): Promise<generalResponse> {
+    return await this.accountService.signOut(req, user)
+  }
+
+
   @Get('/access/roles')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)

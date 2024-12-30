@@ -124,8 +124,8 @@ export class StreamService {
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service/remove`
 
       await this.axios.axiosRef.post(uurl, { url: completeRTSP, id: body.cameraId })
-      await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: false, port: 0 } })
-      return { status: true, data: { status: false, port: 0 }, error: null, msg: null };
+      await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: false } })
+      return { status: true, data: { status: false, port: port }, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }

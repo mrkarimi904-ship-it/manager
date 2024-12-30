@@ -36,7 +36,7 @@ export class CameraPlaybackService {
 
   async postSingle(body: dtos.postCameraPlaybackDto): Promise<generalResponse> {
     try {
-      const camerasService: dtos.cameraPlaybackDto = await this.db.camera_playback.upsert({ where: { id: body.id}, update: { port: body.swagger_port, url: body.url }, create: { url: body.url, port: body.swagger_port } })
+      const camerasService: dtos.cameraPlaybackDto = await this.db.camera_playback.upsert({ where: { id: body.id}, update: { port: body.swagger_port, url: body.url }, create: { id: body.id, url: body.url, port: body.swagger_port } })
       // try to start currently registered cameras
       // const allCameraPlaybacks = await this.db.camera_playback.findMany()
       // allCameraPlaybacks.forEach(async element => {

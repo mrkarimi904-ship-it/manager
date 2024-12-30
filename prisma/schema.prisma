@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["omitApi"]
 }
 
 datasource db {
@@ -67,6 +68,7 @@ model camera {
   url                         String      @unique()
   username                    String
   password                    String
+  status                      String      @default("ok")
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
   camera_info                 camera_info[]
