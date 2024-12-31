@@ -7,9 +7,10 @@ import { CameraServiceModule } from 'src/camera_service/camera_service.module';
 import { RecorderModule } from 'src/recorder/recorder.module';
 import { StreamModule } from 'src/stream/stream.module';
 import { CameraRecorderModule } from 'src/camera_recorder/camera_recorder.module';
+import { LoggerModule } from 'src/logger/logger.module';
 
 @Module({
-  imports: [DbModule, HttpModule, CameraServiceModule, RecorderModule, StreamModule, CameraRecorderModule],
+  imports: [DbModule, HttpModule, CameraServiceModule, RecorderModule, StreamModule, CameraRecorderModule, LoggerModule],
   controllers: [CameraController],
   providers: [CameraService]
 })

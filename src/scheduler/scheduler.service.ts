@@ -53,9 +53,12 @@ export class SchedulerService {
     }
   }
 
-  async put_user_account(user: any, id: string, scheduleBody: dtos.scheduleDto): Promise<generalResponse> {
+  async put_user_account(user: any, id: string, scheduleBody: dtos.scheduleEditDto): Promise<generalResponse> {
     try {
-      return { status: true, data: null, error: null, msg: null };
+      cronParser.parseExpression(scheduleBody.from);
+      cronParser.parseExpression(scheduleBody.to);
+      const temp = await this.db.scheduler_user_account.update({ where: { id: id }, data: { title: scheduleBody.title, from: scheduleBody.from, to: scheduleBody.to} })
+      return { status: true, data: temp, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
@@ -71,35 +74,33 @@ export class SchedulerService {
   }
 
   async verify_user_account(user_id: string): Promise<generalResponse> {
-
-    const options = {
-      currentDate: new Date(),
-      endDate: new Date('Wed, 26 Dec 2025 14:40:00 UTC'),
-      // iterator: true
-    };
-    const interval = cronParser.parseExpression('*/10 * * * * *', options);
-
-    console.log('Date: ', interval.next().toString());
-    console.log('Date: ', interval.next().toString());
-    console.log('Date: ', interval.next().toString());
-    console.log('Date: ', interval.next().toString());
-
-    const cronStart = '0 9 * * *'; // Every day at 09:00 AM
-    const cronStop = '0 17 * * *'; // Every day at 05:00 PM
-    const now = new Date();
-
-    const startInterval = cronParser.parseExpression(cronStart);
-    const stopInterval = cronParser.parseExpression(cronStop);
-
-    const nextStart = startInterval.prev().toDate();
-    const nextStop = stopInterval.next().toDate();
-
-    console.log('Next Start: ', nextStart);
-    console.log('Next Stop: ', nextStop);
-
-    console.log(now >= nextStart && now <= nextStop);
-
-    return { status: false, data: null, error: null, msg: null };
-
+    // const options = {
+    //   currentDate: new Date(),
+    //   // endDate: new Date('Wed, 26 Dec 2025 14:40:00 UTC'),
+    //   // iterator: true
+    // };
+    // const interval = cronParser.parseExpression('*/10 * * * * *', options);
+    // console.log('Date: ', interval.next().toString());
+    // console.log('Date: ', interval.next().toString());
+    // console.log('Date: ', interval.next().toString());
+    // console.log('Date: ', interval.next().toString());
+    try {
+      let overAll = false
+      const list = await this.db.scheduler_user_account.findMany({ where: { user_accounts: { some: { id: { equals: user_id } } } } })
+      list.forEach(element => {
+        const cronStart = element.from
+        const cronStop = element.to
+        const now = new Date()
+        const startInterval = cronParser.parseExpression(cronStart)
+        const stopInterval = cronParser.parseExpression(cronStop)
+        const prevStart = new Date(startInterval.prev().toDate())
+        const prevStop = new Date(stopInterval.prev().toDate())
+        if (now.getTime() - prevStart.getTime() < now.getTime() - prevStop.getTime()) { overAll = true }
+      })
+      if (list.length == 0) { overAll = true }
+      return { status: true, data: { valid: overAll }, error: null, msg: null };
+    } catch (error) {
+      return { status: false, data: null, error: error, msg: error.message };
+    }
   }
 }

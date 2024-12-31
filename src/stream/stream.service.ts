@@ -6,10 +6,11 @@ import { HttpService } from '@nestjs/axios';
 import * as dtos from './stream.dtos';
 
 import { generalResponse } from 'src/app.consts';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class StreamService {
-  constructor(private db: DbService, private readonly axios: HttpService) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService ) {}
 
   async status(user, body: dtos.streamDto): Promise<generalResponse> {
     try {
@@ -62,6 +63,8 @@ export class StreamService {
 
       const x1 = await this.axios.axiosRef.post(uurl, { url: completeRTSP, port: port, id: body.cameraId })
       const new_port = x1.data?.data[0]?.port ? x1.data.data[0].port : 0
+
+      this.loggerService.log(`Stream ${body.type} started`, 0, user, undefined, undefined, body.cameraId, undefined)
 
       await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: true, port: new_port } })
       return { status: true, data: { status: true, port: new_port }, error: null, msg: null };
@@ -124,6 +127,9 @@ export class StreamService {
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service/remove`
 
       await this.axios.axiosRef.post(uurl, { url: completeRTSP, id: body.cameraId })
+
+      this.loggerService.log(`Stream ${body.type} stopped`, 0, user, undefined, undefined, body.cameraId, undefined)
+
       await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: false } })
       return { status: true, data: { status: false, port: port }, error: null, msg: null };
     } catch (error) {
@@ -151,6 +157,8 @@ export class StreamService {
 
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service/remove`
       await this.axios.axiosRef.post(uurl, { url: completeRTSP, id: body.cameraId })
+
+      this.loggerService.log(`Stream ${body.type} force stopped`, 0, undefined, undefined, undefined, body.cameraId, undefined)
 
       await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: false } })
       return { status: true, data: null, error: null, msg: null };

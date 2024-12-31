@@ -8,6 +8,6 @@ import { LoggerController } from './logger.controller';
   imports: [DbModule],
   controllers: [LoggerController],
   providers: [LoggerGateway, LoggerService],
-  exports: [LoggerGateway, LoggerService]
+  exports: [LoggerService]
 })
 export class LoggerModule {}

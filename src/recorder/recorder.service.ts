@@ -6,10 +6,11 @@ import { HttpService } from '@nestjs/axios';
 import * as dtos from './recorder.dtos';
 
 import { generalResponse } from 'src/app.consts';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class RecorderService {
-  constructor(private db: DbService, private readonly axios: HttpService) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService ) {}
 
   async status(user, body: dtos.recorderDto): Promise<generalResponse> {
     try {
@@ -65,11 +66,13 @@ export class RecorderService {
         const newurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder/start`
         const cc = await this.axios.axiosRef.post(newurl, { storage_path: '/storage', quota: 1000, block_size:100, stream_ip: cameraService.url, stream_port: cameraServiceInfo.port, enable_rotation: true })
         await this.db.camera_recorder_camera.update({ where: { id: cameraRecorderCamera.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
+        this.loggerService.log('Recorder started', 0, user, undefined, undefined, body.cameraId, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
       } else {
         const newurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder/` + cameraRecorderCamera.session + `/start`
         const cc = await this.axios.axiosRef.post(newurl, { stream_ip: cameraService.url, stream_port: cameraServiceInfo.port, enable_rotation: true })
         await this.db.camera_recorder_camera.update({ where: { id: cameraRecorderCamera.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
+        this.loggerService.log('Recorder started', 0, user, undefined, undefined, body.cameraId, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
       }
 
@@ -126,6 +129,8 @@ export class RecorderService {
       const newurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder/` + cameraRecorderCamera.session
       const cc = await this.axios.axiosRef.delete(newurl)
       await this.db.camera_recorder_camera.update({ where: { id: cameraRecorderCamera.id }, data: { status: 'STOPPED' } })
+
+      this.loggerService.log('Recorder stopped', 0, user, undefined, undefined, body.cameraId, undefined)
 
       return { status: true, data: { status: false, session: cameraRecorderCamera.session }, error: null, msg: null };
 

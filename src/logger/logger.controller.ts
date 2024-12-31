@@ -8,7 +8,6 @@ import { ApiTags } from '@nestjs/swagger';
 
 @ApiTags('0. logger')
 @Controller('logger')
-@Controller('logger')
 export class LoggerController {
 
   constructor(private readonly loggerService: LoggerService) {}

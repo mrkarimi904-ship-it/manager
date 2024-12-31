@@ -9,12 +9,11 @@ import * as bcrypt from 'bcryptjs';
 
 import { generalResponse, hash_secret, jwt_secret } from 'src/app.consts';
 import { SettingsService } from 'src/settings/settings.service';
-import { LoggerGateway } from 'src/logger/logger.gateway';
 import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class AccountService {
-  constructor(private db: DbService, private settings: SettingsService, private loggerGateway: LoggerGateway, private loggerService: LoggerService ) {}
+  constructor(private db: DbService, private settings: SettingsService, private loggerService: LoggerService ) {}
 
   async allAccounts(user, query: accountSearchQuery): Promise<generalResponse> {
     try {
@@ -94,6 +93,7 @@ export class AccountService {
       if (account.expired === false && body.expired === true && body.expireInterval !== 0) { body['expire_at'] = null }
       if (body.expireInterval === 0) { body['expire_at'] = null }
       if (user.isSuperAdmin === false) { body.isSuperAdmin = false }
+      if (!body.isActive) { body.isActive = account.isActive }
       const account2 = await this.db.user_accounts.update({ where: { id: id }, data: body, omit: { password: true } })
       // response
       const response: generalResponse = { status: true, data: account2, error: null, msg: null };
@@ -169,7 +169,6 @@ export class AccountService {
       await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24*60*60*1000), user_accounts: { connect: { id: account.id } } } })
       // send notif
       this.loggerService.log('user sign in', 0, account)
-      this.loggerGateway.notify_admins(`${account.firstname} ${account.lastname} signed in`)
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
       return response;
@@ -182,6 +181,8 @@ export class AccountService {
     try {
       const token = req.authorization?.replace('Bearer ', '')
       await this.db.user_tokens.deleteMany({ where: { token: token } })
+      // log
+      this.loggerService.log('user signed out', 0, user, user.id)
       // response
       const response: generalResponse = { status: true, data: null, error: null, msg: null };
       return response;

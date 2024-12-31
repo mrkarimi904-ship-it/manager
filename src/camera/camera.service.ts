@@ -11,10 +11,11 @@ import { generalResponse } from 'src/app.consts';
 import { RecorderService } from 'src/recorder/recorder.service';
 import { StreamService } from 'src/stream/stream.service';
 import { Cron } from '@nestjs/schedule';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class CameraService {
-  constructor(private db: DbService, private readonly axios: HttpService, private cameraservice: CameraServiceService, private camerarecorder: CameraRecorderService, private recorderservice: RecorderService, private streamService: StreamService) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private cameraservice: CameraServiceService, private camerarecorder: CameraRecorderService, private recorderservice: RecorderService, private streamService: StreamService, private loggerService: LoggerService ) {}
 
   async getAll(user, query: dtos.cameraSearchQuery): Promise<generalResponse> {
     try {
@@ -305,6 +306,8 @@ export class CameraService {
         // get ptz info
         const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
         const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
+        // make sure port is included in url to prevent duplication
+        if (body.url.includes(':')) { body.url = body.url } else { body.url = body.url + ':80' }
         // add camera to db
         try {
           const temp: dtos.cameraDto = await this.db.camera.create({
@@ -334,9 +337,10 @@ export class CameraService {
           await this.db.camera_service_camera.create({ data: { type: 'record', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
           await this.db.camera_recorder_camera.create({ data: { status: '', session: '', camera: { connect: { id: temp.id } }, camera_recorder: { connect: { id: cameraRecorderID } } } })
           // start stream
-          await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'LOW' })
-          await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'HIGH' })
-          await this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp.id })
+          // todo : start camera streams and recorder if needed
+          // await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'LOW' })
+          // await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'HIGH' })
+          // await this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp.id })
           // generate response
           const response: generalResponse = { status: true, data: temp, error: null, msg: null };
           return response;
@@ -390,18 +394,19 @@ export class CameraService {
   }
 
 
-  @Cron('0 */2 * * * *')
+  @Cron('0 */1 * * * *')
   async handleCron() {
     if (process.env.NODE_ENV) { return true }
     try {
-      console.debug('scanning cameraservices ...', new Date().toString());
-      await this.db.camera.updateMany({ data: { status: 'loading' } })
+      console.debug('scanning cameras ...', new Date().toString());
       const cameras = await this.db.camera.findMany();
+      await this.db.camera.updateMany({ data: { status: 'loading' } })
       await Promise.all(cameras.map(async (element) => {
         const cam_id = element.id;
         const cam_fullurl = element.url;
         const cam_username = element.username;
         const cam_password = element.password;
+        const old_status = element.status;
         let cam_ip = '';
         let cam_port = '';
         if (cam_fullurl.includes(':')) {
@@ -415,8 +420,12 @@ export class CameraService {
         const health = await this.axios.axiosRef.post(process.env.HEALTH_SERVICE + '/check_camera', temp);
         if (health.data.status === 'true') {
           await this.db.camera.update({ where: { id: cam_id }, data: { status: 'ok' } })
+          if (old_status !== 'ok') {
+            this.loggerService.log(`Camera connected`, 1, undefined, undefined, undefined, cam_id, undefined);
+          }
         } else {
           await this.db.camera.update({ where: { id: cam_id }, data: { status: health.data.error } })
+          this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, cam_id, undefined);
         }
       }));
       await this.db.camera.updateMany({ where: { status: 'loading' },  data: { status: 'error : unknown' } })

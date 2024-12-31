@@ -2,14 +2,31 @@ import { HttpException, Injectable } from '@nestjs/common';
 import { DbService } from 'src/db/db.service';
 import * as dtos from './logger.dtos'
 import { generalResponse } from 'src/app.consts';
+import { LoggerGateway } from './logger.gateway';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class LoggerService {
 
-  constructor(private db: DbService) {}
+  constructor(private readonly db: DbService, private readonly loggerGateway: LoggerGateway) {}
 
   async log(text: string, level: number = 0, by: any = null, user: string = null, user_group: string = null, camera: string = null, camera_group: string = null ) {
     await this.db.logger_logs.create({ data: { log: text, level: level, by: by?.id, user: user, user_group: user_group, camera: camera, camera_group: camera_group } })
+  }
+
+  async log_and_notify_me(text: string, level: number = 0, by: any = null, user: string = null, user_group: string = null, camera: string = null, camera_group: string = null ) {
+    await this.log(text, level, by, user, user_group, camera, camera_group)
+    this.loggerGateway.notify_user(by.id, text)
+  }
+
+  async log_and_notify_admins(text: string, level: number = 0, by: any = null, user: string = null, user_group: string = null, camera: string = null, camera_group: string = null ) {
+    await this.log(text, level, by, user, user_group, camera, camera_group)
+    this.loggerGateway.notify_admins(text)
+  }
+
+  async log_and_notify_all(text: string, level: number = 0, by: any = null, user: string = null, user_group: string = null, camera: string = null, camera_group: string = null ) {
+    await this.log(text, level, by, user, user_group, camera, camera_group)
+    this.loggerGateway.notify_all(text)
   }
 
   async getAll(user: any, query: dtos.logSearchDto): Promise<generalResponse> {
@@ -50,4 +67,35 @@ export class LoggerService {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
+
+  /**
+   * Cleans up the logger logs by deleting older records while keeping the most recent ones.
+   *
+   * This function performs the following steps:
+   * 1. Retrieves the 100,000 most recent log entries.
+   * 2. Extracts the IDs of these recent entries.
+   * 3. Deletes all log entries that are not in this set of recent IDs.
+   */
+  async cleanUp(): Promise<generalResponse> {
+    try {
+      const garbage = await this.db.logger_logs.findMany({ orderBy: { created_at: 'desc' }, take: 100000, select: { id: true } })
+      const recentIds = garbage.map(record => record.id);
+      await this.db.logger_logs.deleteMany({ where: { NOT: { id: { in: recentIds, }, }, }, });
+      const response: generalResponse = { status: true, data: null, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  @Cron('0 0 * * * *')
+    async handleCron() {
+      if (process.env.NODE_ENV) { return true }
+      try {
+        console.debug('cleaning logger ...', new Date().toString());
+        await this.cleanUp()
+      } catch (error) {
+        console.log('error cleaning logger', error)
+      }
+    }
 }

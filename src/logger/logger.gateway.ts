@@ -1,16 +1,17 @@
 import { WebSocketGateway, SubscribeMessage, MessageBody, OnGatewayConnection, WebSocketServer, OnGatewayDisconnect } from '@nestjs/websockets';
-import { LoggerService } from './logger.service';
 
 import { Server, Socket } from "socket.io";
 
 import { DbService } from 'src/db/db.service';
+
 import * as jwt from 'jsonwebtoken';
 import { jwt_secret } from 'src/app.consts';
+
 import { Cron } from '@nestjs/schedule';
 
 @WebSocketGateway({ cors: true })
 export class LoggerGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  constructor(private readonly loggerService: LoggerService, private db: DbService) {}
+  constructor(private db: DbService) {}
 
   @WebSocketServer() io: Server;
 
@@ -59,12 +60,6 @@ export class LoggerGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (user.id === user_id) {
         x.emit('notify', msg)
       }
-    })
-  }
-
-  send(msg) {
-    this.clients.forEach(x => {
-      x.emit('notify', msg)
     })
   }
 

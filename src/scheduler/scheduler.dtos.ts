@@ -19,6 +19,21 @@ export class scheduleDto {
   to: string;
 }
 
+export class scheduleEditDto {
+  @IsString()
+  @ApiProperty()
+  title: string;
+
+  @IsString()
+  @ApiProperty()
+  from: string;
+
+  @IsString()
+  @ApiProperty()
+  to: string;
+}
+
+
 export class scheduleSearchDto {
   @ApiProperty({ default: 20, required: false })
   @IsOptional()
