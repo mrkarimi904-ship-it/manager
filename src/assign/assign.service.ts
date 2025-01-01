@@ -18,9 +18,9 @@ export class AssignService {
           const u = await this.db.user_groups.findFirst({ where: { id: el_to } })
           if (u) {
             if (data.action === 'add') {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { user_groups: { connect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { user_groups: { connect: { id: el_to } } } })
             } else {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { user_groups: { disconnect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { user_groups: { disconnect: { id: el_to } } } })
             }
           }
         }));
@@ -36,13 +36,13 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { return { status: false, data: null, error: 'invalid action', msg: 'invalid action' }; }
       const usergroups = (await this.db.user_groups.findMany()).map(x => { return x.id })
       await Promise.all(data.from.map(async (el_from) => {
-        const c = await this.db.user_accounts.findFirst({ where: { id: el_from } })
+        const c = await this.db.user_accounts.findFirst({ where: { id: el_from, isSuperAdmin: false } })
           if (c) {
           await Promise.all(usergroups.map(async (el_to) => {
             if (data.action === 'add') {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { user_groups: { connect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { user_groups: { connect: { id: el_to } } } })
             } else {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { user_groups: { disconnect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { user_groups: { disconnect: { id: el_to } } } })
             }
           }));
         }
@@ -61,9 +61,9 @@ export class AssignService {
           const u = await this.db.camera.findFirst({ where: { id: el_to } })
           if (u) {
             if (data.action === 'add') {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { camera: { connect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera: { connect: { id: el_to } } } })
             } else {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { camera: { disconnect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera: { disconnect: { id: el_to } } } })
             }
           }
         }));
@@ -79,13 +79,13 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { return { status: false, data: null, error: 'invalid action', msg: 'invalid action' }; }
       const cameras = (await this.db.camera.findMany()).map(x => { return x.id })
       await Promise.all(data.from.map(async (el_from) => {
-        const c = await this.db.user_accounts.findFirst({ where: { id: el_from } })
+        const c = await this.db.user_accounts.findFirst({ where: { id: el_from, isSuperAdmin: false } })
           if (c) {
           await Promise.all(cameras.map(async (el_to) => {
             if (data.action === 'add') {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { camera: { connect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera: { connect: { id: el_to } } } })
             } else {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { camera: { disconnect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera: { disconnect: { id: el_to } } } })
             }
           }));
         }
@@ -104,9 +104,9 @@ export class AssignService {
           const u = await this.db.camera_groups.findFirst({ where: { id: el_to } })
           if (u) {
             if (data.action === 'add') {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { camera_groups: { connect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera_groups: { connect: { id: el_to } } } })
             } else {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { camera_groups: { disconnect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera_groups: { disconnect: { id: el_to } } } })
             }
           }
         }));
@@ -122,13 +122,13 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { return { status: false, data: null, error: 'invalid action', msg: 'invalid action' }; }
       const cameragroups = (await this.db.camera_groups.findMany()).map(x => { return x.id })
       await Promise.all(data.from.map(async (el_from) => {
-        const c = await this.db.user_accounts.findFirst({ where: { id: el_from } })
+        const c = await this.db.user_accounts.findFirst({ where: { id: el_from, isSuperAdmin: false } })
           if (c) {
           await Promise.all(cameragroups.map(async (el_to) => {
             if (data.action === 'add') {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { camera_groups: { connect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera_groups: { connect: { id: el_to } } } })
             } else {
-              await this.db.user_accounts.update({ where: { id: el_from }, data: { camera_groups: { disconnect: { id: el_to } } } })
+              await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera_groups: { disconnect: { id: el_to } } } })
             }
           }));
         }
@@ -277,8 +277,8 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { return { status: false, data: null, error: 'invalid action', msg: 'invalid action' }; }
       await Promise.all(data.from.map(async (el_from) => {
         await Promise.all(data.to.map(async (el_to) => {
-          const u = await this.db.user_accounts.findFirst({ where: { id: el_to } })
-          if (u && u.isSuperAdmin === false) {
+          const u = await this.db.user_accounts.findFirst({ where: { id: el_to, isSuperAdmin: false } })
+          if (u) {
             if (data.action === 'add') {
               await this.db.camera.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
             } else {
@@ -408,8 +408,8 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { return { status: false, data: null, error: 'invalid action', msg: 'invalid action' }; }
       await Promise.all(data.from.map(async (el_from) => {
         await Promise.all(data.to.map(async (el_to) => {
-          const u = await this.db.user_accounts.findFirst({ where: { id: el_to } })
-          if (u && u.isSuperAdmin === false) {
+          const u = await this.db.user_accounts.findFirst({ where: { id: el_to, isSuperAdmin: false } })
+          if (u) {
             if (data.action === 'add') {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
             } else {

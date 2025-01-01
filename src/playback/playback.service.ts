@@ -23,7 +23,7 @@ export class PlaybackService {
     try {
       const base_url = await this.get_playback()
       const results = await this.axios.axiosRef.post(base_url, body)
-      const result = { status: false, data: results, error: null, msg: null }
+      const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -34,7 +34,7 @@ export class PlaybackService {
     try {
       const base_url = await this.get_playback()
       const results = await this.axios.axiosRef.get(base_url + '/' + id)
-      const result = { status: false, data: results, error: null, msg: null }
+      const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -48,7 +48,7 @@ export class PlaybackService {
       const p2 = p1.camera_recorder[0]
       const base_url = `http://${p2.url}:${p2.port}/camera_recorder/data/` + id
       const results = await this.axios.axiosRef.get(base_url)
-      const result = { status: false, data: results, error: null, msg: null }
+      const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -59,7 +59,7 @@ export class PlaybackService {
     try {
       const base_url = await this.get_playback()
       const results = await this.axios.axiosRef.post(base_url + '/' + id + '/start', body)
-      const result = { status: false, data: results, error: null, msg: null }
+      const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -70,7 +70,7 @@ export class PlaybackService {
     try {
       const base_url = await this.get_playback()
       const results = await this.axios.axiosRef.post(base_url + '/' + id + '/speed', body)
-      const result = { status: false, data: results, error: null, msg: null }
+      const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -81,7 +81,7 @@ export class PlaybackService {
     try {
       const base_url = await this.get_playback()
       const results = await this.axios.axiosRef.post(base_url + '/' + id + '/pause', body)
-      const result = { status: false, data: results, error: null, msg: null }
+      const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -92,7 +92,7 @@ export class PlaybackService {
     try {
       const base_url = await this.get_playback()
       const results = await this.axios.axiosRef.post(base_url + '/' + id + '/resume', body)
-      const result = { status: false, data: results, error: null, msg: null }
+      const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -103,7 +103,7 @@ export class PlaybackService {
     try {
       const base_url = await this.get_playback()
       const results = await this.axios.axiosRef.delete(base_url + '/' + id + '/stop')
-      const result = { status: false, data: results, error: null, msg: null }
+      const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

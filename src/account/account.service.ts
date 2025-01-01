@@ -22,6 +22,7 @@ export class AccountService {
       const skip: number = (parseInt(query.pageIndex) - 1) * parseInt(query.pageSize)
       const take: number = parseInt(query.pageSize)
       const where = { isHidden: false, AND: [] }
+      if (query.standardOnly && query.standardOnly === 'true') { where['isSuperAdmin'] = false }
       if (query.search) { where['AND'].push({ OR: [ { username: { contains: query.search, mode: 'insensitive' } }, { firstname: { contains: query.search, mode: 'insensitive' } }, { lastname: { contains: query.search, mode: 'insensitive' } } ] }) }
       if (query.cameraId && query.cameraFilter === 'Include') { where['AND'].push({ OR : [ { camera: { some: { id: { equals: query.cameraId } } } }, { isSuperAdmin: true } ] }) }
       if (query.cameraId && query.cameraFilter === 'Exclude') { where['AND'].push({ camera: { none: { id: { equals: query.cameraId } } } }) }

@@ -165,4 +165,9 @@ export class accountSearchQuery {
   @IsOptional()
   @IsString()
   cameraGroupFilter: string;
+
+  @ApiProperty({ default: 'false', required: false })
+  @IsOptional()
+  @IsString()
+  standardOnly: string;
 }

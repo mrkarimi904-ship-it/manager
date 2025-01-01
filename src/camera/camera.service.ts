@@ -419,13 +419,15 @@ export class CameraService {
         const temp = { username: cam_username, password: cam_password, ip: cam_ip, port: cam_port }
         const health = await this.axios.axiosRef.post(process.env.HEALTH_SERVICE + '/check_camera', temp);
         if (health.data.status === 'true') {
-          await this.db.camera.update({ where: { id: cam_id }, data: { status: 'ok' } })
-          if (old_status !== 'ok') {
+          if (old_status !== 'ok' && old_status !== 'loading') {
+            await this.db.camera.update({ where: { id: cam_id }, data: { status: 'ok' } })
             this.loggerService.log(`Camera connected`, 1, undefined, undefined, undefined, cam_id, undefined);
           }
         } else {
           await this.db.camera.update({ where: { id: cam_id }, data: { status: health.data.error } })
-          this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, cam_id, undefined);
+          if (old_status === 'ok' || old_status === 'loading') {
+            this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, cam_id, undefined);
+          }
         }
       }));
       await this.db.camera.updateMany({ where: { status: 'loading' },  data: { status: 'error : unknown' } })

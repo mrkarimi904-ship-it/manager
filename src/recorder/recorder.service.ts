@@ -15,8 +15,15 @@ export class RecorderService {
   async status(user, body: dtos.recorderDto): Promise<generalResponse> {
     try {
       // check if camera available
-      const where = { id: body.cameraId }
-      if (user.isSuperAdmin !== true) { where['camera_account'] = { some: { account_id: { equals: user.id } } } }
+      const where = { id: body.cameraId, AND: [] }
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
       const camera = await this.db.camera.findUnique({ where });
       if (!camera) { throw new ConflictException() }
       // get status
