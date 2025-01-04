@@ -394,7 +394,7 @@ export class CameraService {
   }
 
 
-  @Cron('0 */1 * * * *')
+  @Cron('0 */5 * * * *')
   async handleCron() {
     if (process.env.NODE_ENV) { return true }
     try {
@@ -402,35 +402,47 @@ export class CameraService {
       const cameras = await this.db.camera.findMany();
       await this.db.camera.updateMany({ data: { status: 'loading' } })
       await Promise.all(cameras.map(async (element) => {
-        const cam_id = element.id;
-        const cam_fullurl = element.url;
-        const cam_username = element.username;
-        const cam_password = element.password;
-        const old_status = element.status;
-        let cam_ip = '';
-        let cam_port = '';
-        if (cam_fullurl.includes(':')) {
-          cam_ip = cam_fullurl.split(':')[0];
-          cam_port = cam_fullurl.split(':')[1];
-        } else {
-          cam_ip = cam_fullurl;
-          cam_port = '80';
-        }
-        const temp = { username: cam_username, password: cam_password, ip: cam_ip, port: cam_port }
-        const health = await this.axios.axiosRef.post(process.env.HEALTH_SERVICE + '/check_camera', temp);
-        if (health.data.status === 'true') {
-          if (old_status !== 'ok' && old_status !== 'loading') {
-            await this.db.camera.update({ where: { id: cam_id }, data: { status: 'ok' } })
-            this.loggerService.log(`Camera connected`, 1, undefined, undefined, undefined, cam_id, undefined);
+        // const cam_id = element.id;
+        // const cam_fullurl = element.url;
+        // const cam_username = element.username;
+        // const cam_password = element.password;
+        // const old_status = element.status;
+        // let cam_ip = '';
+        // let cam_port = '';
+        // if (cam_fullurl.includes(':')) {
+        //   cam_ip = cam_fullurl.split(':')[0];
+        //   cam_port = cam_fullurl.split(':')[1];
+        // } else {
+        //   cam_ip = cam_fullurl;
+        //   cam_port = '80';
+        // }
+        // const temp = { username: cam_username, password: cam_password, ip: cam_ip, port: cam_port }
+        // const health = await this.axios.axiosRef.post(process.env.HEALTH_SERVICE + '/check_camera', temp);
+        // if (health.data.status === 'true') {
+        //   if (old_status !== 'ok' && old_status !== 'loading') {
+        //     await this.db.camera.update({ where: { id: cam_id }, data: { status: 'ok' } })
+        //     this.loggerService.log(`Camera connected`, 1, undefined, undefined, undefined, cam_id, undefined);
+        //   }
+        // } else {
+        //   await this.db.camera.update({ where: { id: cam_id }, data: { status: health.data.error } })
+        //   if (old_status === 'ok' || old_status === 'loading') {
+        //     this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, cam_id, undefined);
+        //   }
+        // }
+        const health = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera', element);
+        if (health.data.status === 'up') {
+          await this.db.camera.update({ where: { id: element.id }, data: { status: 'ok' } })
+          if (element.status.includes('error')) {
+            this.loggerService.log(`Camera connected`, 1, undefined, undefined, undefined, element.id, undefined);
           }
         } else {
-          await this.db.camera.update({ where: { id: cam_id }, data: { status: health.data.error } })
-          if (old_status === 'ok' || old_status === 'loading') {
-            this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, cam_id, undefined);
+          await this.db.camera.update({ where: { id: element.id }, data: { status: 'error: ' + health.data.error } })
+          if (element.status === 'ok') {
+            this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, element.id, undefined);
           }
         }
       }));
-      await this.db.camera.updateMany({ where: { status: 'loading' },  data: { status: 'error : unknown' } })
+      await this.db.camera.updateMany({ where: { status: 'loading' },  data: { status: 'error' } })
     } catch (error) {
       console.log('error scanning cameras', error)
     }

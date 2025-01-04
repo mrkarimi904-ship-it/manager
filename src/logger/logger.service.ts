@@ -78,7 +78,7 @@ export class LoggerService {
    */
   async cleanUp(): Promise<generalResponse> {
     try {
-      const garbage = await this.db.logger_logs.findMany({ orderBy: { created_at: 'desc' }, take: 100000, select: { id: true } })
+      const garbage = await this.db.logger_logs.findMany({ orderBy: { created_at: 'desc' }, take: 1000, select: { id: true } })
       const recentIds = garbage.map(record => record.id);
       await this.db.logger_logs.deleteMany({ where: { NOT: { id: { in: recentIds, }, }, }, });
       const response: generalResponse = { status: true, data: null, error: null, msg: null };
