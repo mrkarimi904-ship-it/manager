@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MinLength, IsBoolean, IsInt, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, IsBoolean, IsInt, IsOptional, IsNumber } from 'class-validator';
 import { ApiProperty } from "@nestjs/swagger";
 
 export class signUpDto {
@@ -100,6 +100,12 @@ export class editDto {
   @ApiProperty()
   @IsBoolean()
   isActive: boolean = false;
+
+  @IsOptional()
+  @ApiProperty()
+  @IsNumber()
+  concurrent: number = 1;
+
 }
 
 export class PasswordDto {

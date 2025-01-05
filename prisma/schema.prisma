@@ -19,6 +19,7 @@ model user_accounts {
   firstname                   String
   lastname                    String
   description                 String
+  concurrent                  Int         @default(1)
   isActive                    Boolean     @default(true)
   isSuperAdmin                Boolean     @default(false)
   isHidden                    Boolean     @default(false)

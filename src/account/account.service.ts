@@ -186,8 +186,15 @@ export class AccountService {
       // prepare token
       account.password = null;
       const token = jwt.sign(account, jwt_secret, { expiresIn: 24 * 60 * 60 });
+      // prepare for concurrent logins
+      if (account.concurrent > 0)
+      {
+        const concurrent = await this.db.user_tokens.findMany({ where: { user_accounts: { some: { id: account.id } } } , skip: account.concurrent - 1, orderBy: { created_at: 'desc' } });
+        const concurrentIds = concurrent.map(item => item.id)
+        await this.db.user_tokens.deleteMany({ where: { user_accounts: { some: { id: account.id } }, id: { in: concurrentIds} } })
+      }
       // save token to db
-      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24*60*60*1000), user_accounts: { connect: { id: account.id } } } })
+      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), user_accounts: { connect: { id: account.id } } } })
       // send notif
       this.loggerService.log('user sign in', 0, account)
       // response
@@ -235,7 +242,7 @@ export class AccountService {
       account.password = null;
       const token = jwt.sign(account, jwt_secret, { expiresIn: 24 * 60 * 60 });
       // save token to db
-      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24*60*60*1000), user_accounts: { connect: { id: account.id } } } })
+      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), user_accounts: { connect: { id: account.id } } } })
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
       return response;
@@ -248,6 +255,10 @@ export class AccountService {
     try {
       // enable cors
       if (req['x-forwarded-method'] && req['x-forwarded-method'] === 'OPTIONS') { return true }
+
+      // ip
+      const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : false
+      // todo : validate ip
 
       if (!req.authorization) { throw { message: 'Forbidden' } }
       const token = req.authorization.replace('Bearer ', '');
