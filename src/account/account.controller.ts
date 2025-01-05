@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Post, Put
 
 import { AccountService } from './account.service';
 
-import { editDto, PasswordDto, signUpDto, singInDto, accountSearchQuery } from './account.dto';
+import { editDto, PasswordDto, signUpDto, singInDto, accountSearchQuery, roleSearchQuery } from './account.dto';
 
 import { generalResponse } from 'src/app.consts';
 import { AccountRoles, User, Token } from './account.decorator';
@@ -27,6 +27,13 @@ export class AccountController {
   @UseGuards(accountGaurd)
   async getAccount(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
     return await this.accountService.getAccount(id);
+  }
+
+  @Get(':id/role')
+  @AccountRoles('account_list')
+  @UseGuards(accountGaurd)
+  async getAccountRoles(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return await this.accountService.getAccountRoles(id);
   }
 
   @Get(':id/tokens')
@@ -100,8 +107,8 @@ export class AccountController {
   @Get('/access/roles')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)
-  async allRoles(): Promise<generalResponse> {
-    return await this.accountService.allRoles();
+  async allRoles(@User() user, @Query() query: roleSearchQuery): Promise<generalResponse> {
+    return await this.accountService.allRoles(user, query);
   }
 
 }

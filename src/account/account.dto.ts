@@ -171,3 +171,41 @@ export class accountSearchQuery {
   @IsString()
   standardOnly: string;
 }
+
+export class roleSearchQuery {
+  @ApiProperty({ default: 20, required: false })
+  @IsOptional()
+  @IsString()
+  pageSize?: string;
+
+  @ApiProperty({ default: 1, required: false })
+  @IsOptional()
+  @IsString()
+  pageIndex: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  search: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  userId: string;
+
+  @ApiProperty({ default: 'Exclude', required: false })
+  @IsOptional()
+  @IsString()
+  userFilter: string;
+
+  @ApiProperty({ default: '', required: false })
+  @IsOptional()
+  @IsString()
+  userGroupId: string;
+
+  @ApiProperty({ default: 'Exclude', required: false })
+  @IsOptional()
+  @IsString()
+  userGroupFilter: string;
+
+}

@@ -36,6 +36,13 @@ export class AccountGroupController {
     return await this.accountGroupService.getGroups(group_id);
   }
 
+  @Get(':group_id/role')
+  @AccountRoles('account_list')
+  @UseGuards(accountGaurd)
+  async getAccountRoles(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
+    return await this.accountGroupService.getGroupRoles(group_id);
+  }
+
   @Put(':group_id')
   @AccountRoles('account_list')
   @UseGuards(accountGaurd)

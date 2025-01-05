@@ -2,7 +2,7 @@ import { HttpException, Injectable } from '@nestjs/common';
 
 import { DbService } from 'src/db/db.service';
 
-import { accountSearchQuery, editDto, PasswordDto, signUpDto, singInDto } from './account.dto';
+import { accountSearchQuery, editDto, PasswordDto, roleSearchQuery, signUpDto, singInDto } from './account.dto';
 
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
@@ -55,6 +55,26 @@ export class AccountService {
       }, omit: { password: true }})
       // response
       const response: generalResponse = { status: true, data: accounts, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async getAccountRoles(id: string): Promise<generalResponse> {
+    try {
+      const roles: any = await this.db.user_roles.findMany({ select: { id: true, name: true, description: true } })
+      roles.forEach(element => { element.selected = false })
+
+      const account = await this.db.user_accounts.findUnique({ where: { id: id }, select: { isSuperAdmin: true, user_roles: { select: { id: true, name: true, description: true } } , user_groups: { select: { user_roles: { select: { id: true, name: true, description: true } } } }} })
+      account.user_roles.forEach(element => { if (roles.find(x => x.id === element.id)) { roles.find(x => x.id === element.id).selected = true } })
+      account.user_groups.forEach(element => { element.user_roles.forEach(element2 => { if (roles.find(x => x.id === element2.id)) { roles.find(x => x.id === element2.id).selected = true } }) })
+
+      // superadmin has all roles
+      if (account.isSuperAdmin === true) { roles.forEach(element => { element.selected = true })  }
+
+      // response
+      const response: generalResponse = { status: true, data: roles, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -252,11 +272,26 @@ export class AccountService {
     }
   }
 
-  async allRoles(): Promise<generalResponse> {
+  async allRoles(user: any, query: roleSearchQuery): Promise<generalResponse> {
     try {
-      const roles = await this.db.user_roles.findMany({});
+      if (!query.pageIndex) { query.pageIndex = "1" }
+      if (!query.pageSize) { query.pageSize = "20" }
+      const skip: number = (parseInt(query.pageIndex) - 1) * parseInt(query.pageSize)
+      const take: number = parseInt(query.pageSize)
+      const where = { AND: [] }
+      if (query.search) { where['AND'].push({ OR: [ { name: { contains: query.search, mode: 'insensitive' } }, { description: { contains: query.search, mode: 'insensitive' } } ] }) }
+      if (query.userId && query.userFilter === 'Include') { where['AND'].push({ OR : [ { user_accounts: { some: { id: { equals: query.userId } } } } ] }) }
+      if (query.userId && query.userFilter === 'Exclude') { where['AND'].push({ user_accounts: { none: { id: { equals: query.userId } } } }) }
+      if (query.userGroupId && query.userGroupFilter === 'Include') { where['AND'].push({ OR : [ { user_groups: { some: { id: { equals: query.userGroupId } } } } ] }) }
+      if (query.userGroupId && query.userGroupFilter === 'Exclude') { where['AND'].push({ user_groups: { none: { id: { equals: query.userGroupId } } } }) }
+
+      const include = {}
+      const [total, temp] = await this.db.$transaction([
+        this.db.user_roles.count({ where }),
+        this.db.user_roles.findMany({ where, skip, take, include, orderBy: [{ created_at: 'desc' }] })
+      ])
       // response
-      const response: generalResponse = { status: true, data: roles, error: null, msg: null };
+      const response: generalResponse = { status: true, data: { total, data: temp }, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

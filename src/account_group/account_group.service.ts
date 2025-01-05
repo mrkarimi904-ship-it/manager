@@ -90,4 +90,20 @@ export class AccountGroupService {
     }
   }
 
+  async getGroupRoles(id: string): Promise<generalResponse> {
+    try {
+      const roles: any = await this.db.user_roles.findMany({ select: { id: true, name: true, description: true } })
+      roles.forEach(element => { element.selected = false })
+
+      const userg = await this.db.user_groups.findUnique({ where: { id: id }, select: { user_roles: { select: { id: true, name: true, description: true } } } })
+      userg.user_roles.forEach(element => { if (roles.find(x => x.id === element.id)) { roles.find(x => x.id === element.id).selected = true } })
+
+      // response
+      const response: generalResponse = { status: true, data: roles, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
 }
