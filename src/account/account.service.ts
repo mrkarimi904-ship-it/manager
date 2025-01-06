@@ -83,7 +83,7 @@ export class AccountService {
 
   async getAccountTokens(id: string, token: string): Promise<generalResponse> {
     try {
-      const accounts = await this.db.user_tokens.findMany({ where: { user_accounts: { every: { id: id } } }, select: { id: true, expiration: true, token: true }, orderBy: [{ created_at: 'desc' }] })
+      const accounts = await this.db.user_tokens.findMany({ where: { user_accounts: { every: { id: id } } }, orderBy: [{ created_at: 'desc' }] })
       accounts.forEach(element => {
         if (element.token === token) { element.token = 'current' } else { element.token = '' }
       });
@@ -171,7 +171,7 @@ export class AccountService {
     }
   }
 
-  async signIn(body: singInDto): Promise<generalResponse> {
+  async signIn(req: any, body: singInDto): Promise<generalResponse> {
     try {
       // check if user email is valid
       let account = await this.db.user_accounts.findFirst({ where: { username: body.username, isActive: true } });
@@ -179,6 +179,22 @@ export class AccountService {
       // check if user password is valid
       const comparePassword = await bcrypt.compare(body.password, account.password);
       if (!comparePassword) { throw { message: 'Unauthorized' } }
+      //
+      //
+      //
+      //
+      //
+      // check if ip and mac are valid
+      // const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : false
+      // todo : validate ip
+      const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : body.ip ? body.ip : '-'
+      //
+      //
+      //
+      //
+      //
+      //
+      //
       // check if expired
       if (account.expire_at !== null && account.expire_at < new Date()) {
         account = await this.db.user_accounts.update({ where: { id : account.id}, data: { expired: true } })
@@ -193,8 +209,10 @@ export class AccountService {
         const concurrentIds = concurrent.map(item => item.id)
         await this.db.user_tokens.deleteMany({ where: { user_accounts: { some: { id: account.id } }, id: { in: concurrentIds} } })
       }
+      // prepare service
+      const service = body.service === 'Configtool'? 'Configtool' : 'Client'
       // save token to db
-      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), user_accounts: { connect: { id: account.id } } } })
+      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), service: service, ip: ip, user_accounts: { connect: { id: account.id } } } })
       // send notif
       this.loggerService.log('user sign in', 0, account)
       // response
@@ -219,7 +237,7 @@ export class AccountService {
     }
   }
 
-  async changePass(body: PasswordDto): Promise<generalResponse> {
+  async changePass(req: any, body: PasswordDto): Promise<generalResponse> {
     try {
       // check if user email is valid
       let account = await this.db.user_accounts.findFirst({ where: { username: body.username, isActive: true } });
@@ -227,6 +245,22 @@ export class AccountService {
       // check if user password is valid
       const comparePassword = await bcrypt.compare(body.old_password, account.password);
       if (!comparePassword) { throw { message: 'invalid current user password' } }
+      //
+      //
+      //
+      //
+      //
+      // check if ip and mac are valid
+      // const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : false
+      // todo : validate ip
+      const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : '-'
+      //
+      //
+      //
+      //
+      //
+      //
+      //
       // check password complexity
       if (!this.settings.checkPasswordComplexities(body.new_password)) { throw { message: 'password complexity missmatch' } }
       // prepare password
@@ -242,7 +276,7 @@ export class AccountService {
       account.password = null;
       const token = jwt.sign(account, jwt_secret, { expiresIn: 24 * 60 * 60 });
       // save token to db
-      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), user_accounts: { connect: { id: account.id } } } })
+      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), service: 'Configtool', ip: ip, user_accounts: { connect: { id: account.id } } } })
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
       return response;
@@ -255,10 +289,6 @@ export class AccountService {
     try {
       // enable cors
       if (req['x-forwarded-method'] && req['x-forwarded-method'] === 'OPTIONS') { return true }
-
-      // ip
-      const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : false
-      // todo : validate ip
 
       if (!req.authorization) { throw { message: 'Forbidden' } }
       const token = req.authorization.replace('Bearer ', '');

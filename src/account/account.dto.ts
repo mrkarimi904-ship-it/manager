@@ -51,6 +51,21 @@ export class singInDto {
   @IsNotEmpty()
   @MinLength(4)
   password: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  service: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  ip: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  mac: string;
 }
 
 export class editDto {

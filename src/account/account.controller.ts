@@ -87,13 +87,13 @@ export class AccountController {
   }
 
   @Post('/access/login')
-  async signIn(@Body() body: singInDto): Promise<generalResponse> {
-    return await this.accountService.signIn(body)
+  async signIn(@Headers() req, @Body() body: singInDto): Promise<generalResponse> {
+    return await this.accountService.signIn(req, body)
   }
 
   @Post('/access/reset')
-  async changePass(@Body() body: PasswordDto): Promise<generalResponse> {
-    return await this.accountService.changePass(body)
+  async changePass(@Headers() req, @Body() body: PasswordDto): Promise<generalResponse> {
+    return await this.accountService.changePass(req, body)
   }
 
   @Post('/access/logout')

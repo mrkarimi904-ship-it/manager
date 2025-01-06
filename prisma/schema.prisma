@@ -59,6 +59,8 @@ model user_tokens {
   id                          String        @id @default(uuid())
   token                       String
   expiration                  DateTime
+  service                     String        @default("") // web / client
+  ip                          String        @default("")
   created_at                  DateTime      @default(now())
   updated_at                  DateTime      @updatedAt()
   user_accounts               user_accounts[]
