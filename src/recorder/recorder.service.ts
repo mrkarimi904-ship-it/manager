@@ -71,7 +71,7 @@ export class RecorderService {
       if (cameraRecorderCamera.session === '')
       {
         const newurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder/start`
-        const cc = await this.axios.axiosRef.post(newurl, { storage_path: '/storage', quota: 1000, block_size:100, stream_ip: cameraService.url, stream_port: cameraServiceInfo.port, enable_rotation: true })
+        const cc = await this.axios.axiosRef.post(newurl, { storage_path: '/storage', quota: 10000, block_size:100, stream_ip: cameraService.url, stream_port: cameraServiceInfo.port, enable_rotation: true })
         await this.db.camera_recorder_camera.update({ where: { id: cameraRecorderCamera.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
         this.loggerService.log('Recorder started', 0, user, undefined, undefined, body.cameraId, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };

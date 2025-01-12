@@ -114,7 +114,7 @@ export class AccountService {
       if (account.expired === false && body.expired === true && body.expireInterval !== 0) { body['expire_at'] = null }
       if (body.expireInterval === 0) { body['expire_at'] = null }
       if (user.isSuperAdmin === false) { body.isSuperAdmin = false }
-      if (!body.isActive) { body.isActive = account.isActive }
+      if (body.isActive === null || body.isActive === undefined) { body.isActive = account.isActive }
       const account2 = await this.db.user_accounts.update({ where: { id: id }, data: body, omit: { password: true } })
       // response
       const response: generalResponse = { status: true, data: account2, error: null, msg: null };
@@ -188,6 +188,7 @@ export class AccountService {
       // const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : false
       // todo : validate ip
       const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : body.ip ? body.ip : '-'
+      const mac = body.mac ? body.mac : '-'
       //
       //
       //
@@ -212,7 +213,7 @@ export class AccountService {
       // prepare service
       const service = body.service === 'Configtool'? 'Configtool' : 'Client'
       // save token to db
-      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), service: service, ip: ip, user_accounts: { connect: { id: account.id } } } })
+      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })
       // send notif
       this.loggerService.log('user sign in', 0, account)
       // response
@@ -276,7 +277,7 @@ export class AccountService {
       account.password = null;
       const token = jwt.sign(account, jwt_secret, { expiresIn: 24 * 60 * 60 });
       // save token to db
-      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), service: 'Configtool', ip: ip, user_accounts: { connect: { id: account.id } } } })
+      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), service: 'Configtool', ip: ip, mac: '-', user_accounts: { connect: { id: account.id } } } })
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
       return response;

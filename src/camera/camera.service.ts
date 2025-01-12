@@ -27,7 +27,11 @@ export class CameraService {
       const skip: number = (parseInt(query.pageIndex) - 1) * parseInt(query.pageSize)
       const take: number = parseInt(query.pageSize)
       const where = { AND: [] }
-      if (query.search) { where['AND'].push({ camera_info: { some: { key: { equals: 'name' }, value: { contains: query.search, mode: 'insensitive' } } } }) }
+      if (query.search) { where['AND'].push({ OR: [
+        { camera_info: { some: { key: { in: ['name', 'description', ] }, value: { contains: query.search, mode: 'insensitive' } } } },
+        { url: { contains: query.search, mode: 'insensitive' } },
+        { id: { contains: query.search, mode: 'insensitive' } },
+      ] }) }
       if (query.userId && query.userFilter === 'Include') {
         if (query.directOnly && query.directOnly === 'true') {
           where['AND'].push({ OR: [
@@ -43,12 +47,18 @@ export class CameraService {
         }
       }
       if (query.userId && query.userFilter === 'Exclude') {
-        where['AND'].push({ AND: [
-          { user_accounts: { none: { id: { equals: query.userId } } } },
-          { user_groups: { none: { user_accounts: { some: { id: { equals: query.userId } } } } } },
-          { camera_groups: { none: { user_accounts: { some: { id: { equals: query.userId } } } } } },
-          { camera_groups: { none: { user_groups: { some: { user_accounts: { some: { id: { equals: query.userId } } } } } } } }
-        ] })
+        if (query.directOnly && query.directOnly === 'true') {
+          where['AND'].push({ AND: [
+            { user_accounts: { none: { id: { equals: query.userId } } } },
+          ] })
+        } else {
+          where['AND'].push({ AND: [
+            { user_accounts: { none: { id: { equals: query.userId } } } },
+            { user_groups: { none: { user_accounts: { some: { id: { equals: query.userId } } } } } },
+            { camera_groups: { none: { user_accounts: { some: { id: { equals: query.userId } } } } } },
+            { camera_groups: { none: { user_groups: { some: { user_accounts: { some: { id: { equals: query.userId } } } } } } } }
+          ] })
+        }
       }
       if (query.userGroupId && query.userGroupFilter === 'Include') { where['AND'].push({ user_groups: { some: { id: { equals: query.userGroupId } } } }) }
       if (query.userGroupId && query.userGroupFilter === 'Exclude') { where['AND'].push({ user_groups: { none: { id: { equals: query.userGroupId } } } }) }
@@ -240,7 +250,7 @@ export class CameraService {
     try {
       const c = await this.db.camera.findMany({ where: { url: body.url } })
       // generate response
-      const response: generalResponse = { status: c ? true : false, data: null, error: null, msg: null };
+      const response: generalResponse = { status: c.length > 0 ? true : false, data: null, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

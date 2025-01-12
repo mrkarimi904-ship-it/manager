@@ -61,6 +61,7 @@ model user_tokens {
   expiration                  DateTime
   service                     String        @default("") // web / client
   ip                          String        @default("")
+  mac                         String        @default("")
   created_at                  DateTime      @default(now())
   updated_at                  DateTime      @updatedAt()
   user_accounts               user_accounts[]
