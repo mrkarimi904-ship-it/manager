@@ -1,4 +1,4 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, Inject, Injectable } from '@nestjs/common';
 
 import { DbService } from 'src/db/db.service';
 
@@ -10,10 +10,13 @@ import * as bcrypt from 'bcryptjs';
 import { generalResponse, hash_secret, jwt_secret } from 'src/app.consts';
 import { SettingsService } from 'src/settings/settings.service';
 import { LoggerService } from 'src/logger/logger.service';
+import { SchedulerService } from 'src/scheduler/scheduler.service';
+import { Cache } from 'cache-manager';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 @Injectable()
 export class AccountService {
-  constructor(private db: DbService, private settings: SettingsService, private loggerService: LoggerService ) {}
+  constructor(private db: DbService, private settings: SettingsService, private loggerService: LoggerService, @Inject(CACHE_MANAGER) private cacheManager: Cache, private scheduler: SchedulerService ) {}
 
   async allAccounts(user, query: accountSearchQuery): Promise<generalResponse> {
     try {
@@ -299,11 +302,27 @@ export class AccountService {
         const user_token: any = v.payload;
         const user_id = user_token.id;
 
-        const user = await this.db.user_accounts.findUnique({ where: { id: user_id } });
+        let user = await this.cacheManager.get(`user_${user_id}`) as any;
+        if (!user) {
+          user = await this.db.user_accounts.findUnique({ where: { id: user_id } });
+          await this.cacheManager.set(`user_${user_id}`, user)
+        }
         if (!user) { throw { message: 'Forbidden' } }
 
-        const stored_token = await this.db.user_tokens.findFirst({ where: { token: token, user_accounts: { every: { id: user.id } } }})
+        let stored_token = await this.cacheManager.get(`user_token_${user_id}`) as any;
+        if (!stored_token) {
+          stored_token = await this.db.user_tokens.findFirst({ where: { token: token, user_accounts: { some: { id: user.id } } }})
+          await this.cacheManager.set(`user_token_${user_id}`, stored_token)
+        }
         if (!stored_token) { throw { message: 'Forbidden' } }
+
+        let login_scheduler = await this.cacheManager.get(`user_scheduler_${user_id}`) as any;
+        if (!login_scheduler) {
+          const login_scheduler_result = await this.scheduler.verify_user_account(user_id)
+          login_scheduler = login_scheduler_result.status === true && login_scheduler_result.data['valid'] === true
+          await this.cacheManager.set(`user_scheduler_${user_id}`, login_scheduler)
+        }
+        if (!login_scheduler) { throw { message: 'Forbidden' } }
 
         return user_id
       } else {

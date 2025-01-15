@@ -4,10 +4,6 @@ import { ApiProperty } from "@nestjs/swagger";
 export class scheduleDto {
   @IsString()
   @ApiProperty()
-  parentId: string;
-
-  @IsString()
-  @ApiProperty()
   title: string;
 
   @IsString()
@@ -49,9 +45,4 @@ export class scheduleSearchDto {
   @IsOptional()
   @IsString()
   search: string;
-
-  @ApiProperty({ default: '', required: false })
-  @IsOptional()
-  @IsString()
-  parentId: string;
 }

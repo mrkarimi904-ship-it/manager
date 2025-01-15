@@ -8,6 +8,7 @@ import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
+import { CacheModule } from '@nestjs/cache-manager';
 import { DbModule } from './db/db.module';
 
 import { AccountModule } from './account/account.module';
@@ -35,7 +36,12 @@ import { SchedulerModule } from './scheduler/scheduler.module';
       rootPath: join(__dirname, '..', 'client'),
       serveRoot: '/static'
     }),
-    ConfigModule.forRoot(), DbModule, AccountModule, AccountGroupModule, CameraModule, CameraGroupModule, StreamModule, RecorderModule, CameraServiceModule, CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule, LoggerModule, PlaybackModule, SchedulerModule],
+    CacheModule.register({ ttl: 30000, isGlobal: true, max: 1000 }),
+    ConfigModule.forRoot(),
+    DbModule, AccountModule, AccountGroupModule, CameraModule,
+    CameraGroupModule, StreamModule, RecorderModule, CameraServiceModule,
+    CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule,
+    LoggerModule, PlaybackModule, SchedulerModule],
   controllers: [AppController],
   providers: [
     AppService,

@@ -12,42 +12,95 @@ import { generalResponse } from 'src/app.consts';
 export class SchedulerController {
   constructor(private readonly schedulerService: SchedulerService) {}
 
-  @Post('user_account')
+  @Post('user_account/:user_id')
   @AccountRoles('scheduler_user_account')
   @UseGuards(accountGaurd)
-  async post_user_account(@User() user, @Body() scheduleBody: dtos.scheduleDto): Promise<generalResponse> {
-    return this.schedulerService.post_user_account(user, scheduleBody);
+  async post_user_account(@User() user, @Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string, @Body() scheduleBody: dtos.scheduleDto): Promise<generalResponse> {
+    return this.schedulerService.post_user_account(user, user_id, scheduleBody);
   }
 
-  @Get('user_account')
+  @Get('user_account/:user_id')
   @AccountRoles('scheduler_user_account')
   @UseGuards(accountGaurd)
-  async get_user_accounts(@User() user, @Query() query: dtos.scheduleSearchDto): Promise<generalResponse> {
-    return this.schedulerService.get_user_accounts(user, query);
+  async get_user_accounts(@User() user, @Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string, @Query() query: dtos.scheduleSearchDto): Promise<generalResponse> {
+    return this.schedulerService.get_user_accounts(user, user_id, query);
   }
 
-  @Get('user_account/:id')
+  @Get('user_account/:user_id/:id')
   @AccountRoles('scheduler_user_account')
   @UseGuards(accountGaurd)
-  async get_user_account(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
-    return this.schedulerService.get_user_account(user, id);
+  async get_user_account(@User() user, @Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.schedulerService.get_user_account(user, user_id, id);
   }
 
-  @Put('user_account/:id')
+  @Put('user_account/:user_id/:id')
   @AccountRoles('scheduler_user_account')
   @UseGuards(accountGaurd)
-  async put_user_account(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Body() scheduleBody: dtos.scheduleEditDto): Promise<generalResponse> {
-    return this.schedulerService.put_user_account(user, id, scheduleBody);
+  async put_user_account(@User() user, @Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Body() scheduleBody: dtos.scheduleEditDto): Promise<generalResponse> {
+    return this.schedulerService.put_user_account(user, user_id, id, scheduleBody);
   }
 
-  @Delete('user_account/:id')
+  @Delete('user_account/:user_id/:id')
   @AccountRoles('scheduler_user_account')
   @UseGuards(accountGaurd)
-  async delete_user_account(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
-    return this.schedulerService.delete_user_account(user, id);
+  async delete_user_account(@User() user, @Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.schedulerService.delete_user_account(user, user_id, id);
   }
 
-  @Get('user_account/:user_id/verify')
+
+
+
+
+
+
+
+
+
+
+
+  @Post('user_group/:group_id')
+  @AccountRoles('scheduler_user_group')
+  @UseGuards(accountGaurd)
+  async post_user_group(@User() user, @Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Body() scheduleBody: dtos.scheduleDto): Promise<generalResponse> {
+    return this.schedulerService.post_user_group(user, group_id, scheduleBody);
+  }
+
+  @Get('user_group/:group_id')
+  @AccountRoles('scheduler_user_group')
+  @UseGuards(accountGaurd)
+  async get_user_groups(@User() user, @Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Query() query: dtos.scheduleSearchDto): Promise<generalResponse> {
+    return this.schedulerService.get_user_groups(user, group_id, query);
+  }
+
+  @Get('user_group/:group_id/:id')
+  @AccountRoles('scheduler_user_group')
+  @UseGuards(accountGaurd)
+  async get_user_group(@User() user, @Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.schedulerService.get_user_group(user, group_id, id);
+  }
+
+  @Put('user_group/:group_id/:id')
+  @AccountRoles('scheduler_user_group')
+  @UseGuards(accountGaurd)
+  async put_user_group(@User() user, @Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Body() scheduleBody: dtos.scheduleEditDto): Promise<generalResponse> {
+    return this.schedulerService.put_user_group(user, group_id, id, scheduleBody);
+  }
+
+  @Delete('user_group/:group_id/:id')
+  @AccountRoles('scheduler_user_group')
+  @UseGuards(accountGaurd)
+  async delete_user_group(@User() user, @Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.schedulerService.delete_user_group(user, group_id, id);
+  }
+
+
+
+
+
+
+
+
+  @Get('verify/:user_id')
   async verify_user_account(@Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string): Promise<generalResponse> {
     return this.schedulerService.verify_user_account(user_id);
   }

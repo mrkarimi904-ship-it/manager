@@ -7,5 +7,6 @@ import { DbModule } from 'src/db/db.module';
   imports: [DbModule],
   controllers: [SchedulerController],
   providers: [SchedulerService],
+  exports: [SchedulerService]
 })
 export class SchedulerModule {}

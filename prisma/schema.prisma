@@ -42,6 +42,7 @@ model user_groups {
   user_roles                  user_roles[]
   camera                      camera[]
   camera_groups               camera_groups[]
+  scheduler_user_group        scheduler_user_group[]
 }
 
 model user_roles {
@@ -174,4 +175,13 @@ model scheduler_user_account {
   to                          String
   created_at                  DateTime    @default(now())
   user_accounts               user_accounts[]
+}
+
+model scheduler_user_group {
+  id                          String      @id @default(uuid())
+  title                       String
+  from                        String
+  to                          String
+  created_at                  DateTime    @default(now())
+  user_groups                 user_groups[]
 }
