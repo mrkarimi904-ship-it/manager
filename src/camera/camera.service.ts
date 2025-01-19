@@ -439,17 +439,25 @@ export class CameraService {
         //     this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, cam_id, undefined);
         //   }
         // }
-        const health = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera', element);
-        if (health.data.status === 'up') {
-          await this.db.camera.update({ where: { id: element.id }, data: { status: 'ok' } })
-          if (element.status.includes('error')) {
-            this.loggerService.log(`Camera connected`, 1, undefined, undefined, undefined, element.id, undefined);
+        try {
+          const health = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera', element);
+          if (health.data.status === 'up') {
+            await this.db.camera.update({ where: { id: element.id }, data: { status: 'ok' } })
+            if (element.status.includes('error')) {
+              this.loggerService.log(`Camera connected`, 1, undefined, undefined, undefined, element.id, undefined);
+            }
+          } else {
+            await this.db.camera.update({ where: { id: element.id }, data: { status: 'error: ' + health.data.error } })
+            if (element.status === 'ok') {
+              this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, element.id, undefined);
+            }
           }
-        } else {
-          await this.db.camera.update({ where: { id: element.id }, data: { status: 'error: ' + health.data.error } })
+        } catch (e2) {
+          await this.db.camera.update({ where: { id: element.id }, data: { status: 'error: Network error' } })
           if (element.status === 'ok') {
             this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, element.id, undefined);
           }
+          if (e2 === 1) { console.log(true) }
         }
       }));
       await this.db.camera.updateMany({ where: { status: 'loading' },  data: { status: 'error' } })

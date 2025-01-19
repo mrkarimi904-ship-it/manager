@@ -182,6 +182,15 @@ export class AccountService {
       // check if user password is valid
       const comparePassword = await bcrypt.compare(body.password, account.password);
       if (!comparePassword) { throw { message: 'Unauthorized' } }
+      // check scheduler
+      const user_id = account.id
+      let login_scheduler = await this.cacheManager.get(`user_scheduler_${user_id}`) as any;
+      if (!login_scheduler) {
+        const login_scheduler_result = await this.scheduler.verify_user_account(user_id)
+        login_scheduler = login_scheduler_result.status === true && login_scheduler_result.data['valid'] === true
+        await this.cacheManager.set(`user_scheduler_${user_id}`, login_scheduler)
+      }
+      if (!login_scheduler) { throw { message: 'Invalid scheduler time' } }
       //
       //
       //
@@ -322,7 +331,7 @@ export class AccountService {
           login_scheduler = login_scheduler_result.status === true && login_scheduler_result.data['valid'] === true
           await this.cacheManager.set(`user_scheduler_${user_id}`, login_scheduler)
         }
-        if (!login_scheduler) { throw { message: 'Forbidden' } }
+        if (!login_scheduler) { throw { message: 'Invalid scheduler time' } }
 
         return user_id
       } else {

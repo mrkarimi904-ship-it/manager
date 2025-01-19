@@ -168,6 +168,7 @@ export class SchedulerService {
         const prevStart = new Date(startInterval.prev().toDate())
         const prevStop = new Date(stopInterval.prev().toDate())
         if (now.getTime() - prevStart.getTime() < now.getTime() - prevStop.getTime()) { overAll = true }
+        console.log({ rule: element.id, user: user_id, c: prevStart, d: prevStop, overAll: overAll, now: now })
       })
       list2.forEach(element => {
         const cronStart = element.from

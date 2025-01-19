@@ -126,7 +126,7 @@ export class CameraRecorderService {
       }));
       await this.db.camera_recorder_camera.updateMany({ where: { status: 'loading ...' },  data: { status: '' } })
     } catch (error) {
-      console.log('error scanning cameraservices', error)
+      console.log('error scanning camerarecorders', error)
     }
   }
 }

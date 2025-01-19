@@ -63,21 +63,22 @@ export class RecorderService {
       const cameraRecorder = data['cameraRecorder']
 
       // check if already started
-      if (cameraRecorderCamera.status === 'RUNNING') { return { status: true, data: { status: true, session: cameraRecorderCamera.session }, error: null, msg: null }; }
+      if (cameraRecorderCamera.status === 'RUNNING') {
+        return { status: true, data: { status: true, session: cameraRecorderCamera.session }, error: null, msg: null };
+      }
 
       const cameraRecorderUrl = cameraRecorder.url;
       const cameraRecorderPort = cameraRecorder.port;
-
       if (cameraRecorderCamera.session === '')
       {
         const newurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder/start`
-        const cc = await this.axios.axiosRef.post(newurl, { storage_path: '/storage', quota: 10000, block_size:100, stream_ip: cameraService.url, stream_port: cameraServiceInfo.port, enable_rotation: true })
+        const cc = await this.axios.axiosRef.post(newurl, { storage_path: '/storage', quota: 10000, block_size:100, stream_host: cameraService.url, stream_port: cameraServiceInfo.port, enable_rotation: true })
         await this.db.camera_recorder_camera.update({ where: { id: cameraRecorderCamera.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
         this.loggerService.log('Recorder started', 0, user, undefined, undefined, body.cameraId, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
       } else {
         const newurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder/` + cameraRecorderCamera.session + `/start`
-        const cc = await this.axios.axiosRef.post(newurl, { stream_ip: cameraService.url, stream_port: cameraServiceInfo.port, enable_rotation: true })
+        const cc = await this.axios.axiosRef.post(newurl, { stream_host: cameraService.url, stream_port: cameraServiceInfo.port, enable_rotation: true })
         await this.db.camera_recorder_camera.update({ where: { id: cameraRecorderCamera.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
         this.loggerService.log('Recorder started', 0, user, undefined, undefined, body.cameraId, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
