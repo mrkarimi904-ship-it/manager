@@ -113,6 +113,7 @@ export class AccountService {
     try {
       const account = await this.db.user_accounts.findUnique({ where: { id: id }, omit: { password: true } })
       if (body.password && body.password !== '' && user.isSuperAdmin === true) { body.password = await bcrypt.hash(body.password, hash_secret); }
+      if (account.expired === false && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
       if (account.expired === true && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
       if (account.expired === false && body.expired === true && body.expireInterval !== 0) { body['expire_at'] = null }
       if (body.expireInterval === 0) { body['expire_at'] = null }
@@ -184,12 +185,8 @@ export class AccountService {
       if (!comparePassword) { throw { message: 'Unauthorized' } }
       // check scheduler
       const user_id = account.id
-      let login_scheduler = await this.cacheManager.get(`user_scheduler_${user_id}`) as any;
-      if (!login_scheduler) {
-        const login_scheduler_result = await this.scheduler.verify_user_account(user_id)
-        login_scheduler = login_scheduler_result.status === true && login_scheduler_result.data['valid'] === true
-        await this.cacheManager.set(`user_scheduler_${user_id}`, login_scheduler)
-      }
+      const login_scheduler_result = await this.scheduler.verify_user_account(user_id)
+      const login_scheduler = login_scheduler_result.status === true && login_scheduler_result.data['valid'] === true
       if (!login_scheduler) { throw { message: 'Invalid scheduler time' } }
       //
       //
@@ -214,7 +211,8 @@ export class AccountService {
       }
       // prepare token
       account.password = null;
-      const token = jwt.sign(account, jwt_secret, { expiresIn: 24 * 60 * 60 });
+      const expiresIn = account.isSuperAdmin === true ? 24 * 60 * 60 * 365 : 24 * 60 * 60
+      const token = jwt.sign(account, jwt_secret, { expiresIn: expiresIn });
       // prepare for concurrent logins
       if (account.concurrent > 0)
       {
@@ -225,7 +223,7 @@ export class AccountService {
       // prepare service
       const service = body.service === 'Configtool'? 'Configtool' : 'Client'
       // save token to db
-      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })
+      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })
       // send notif
       this.loggerService.log('user sign in', 0, account)
       // response
@@ -287,9 +285,10 @@ export class AccountService {
       }
       // prepare token
       account.password = null;
-      const token = jwt.sign(account, jwt_secret, { expiresIn: 24 * 60 * 60 });
+      const expiresIn = account.isSuperAdmin === true ? 24 * 60 * 60 * 365 : 24 * 60 * 60
+      const token = jwt.sign(account, jwt_secret, { expiresIn: expiresIn });
       // save token to db
-      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + 24 * 60 * 60 * 1000), service: 'Configtool', ip: ip, mac: '-', user_accounts: { connect: { id: account.id } } } })
+      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: 'Configtool', ip: ip, mac: '-', user_accounts: { connect: { id: account.id } } } })
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
       return response;

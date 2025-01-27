@@ -44,16 +44,16 @@ export class accountGaurd implements CanActivate {
         if (user.isSuperAdmin === true) { return true; }
         if (!role) { return true }
 
-        let roles = await this.cacheManager.get(`user_roles_${user_id}`) as any;
+        let roles = await this.cacheManager.get(`user_roles_${user_id}_${role}`) as any;
         if (!roles) {
           roles = await this.db.user_roles.findFirst({ where: { name: role, user_accounts: { some: { id: user.id } } } })
-          await this.cacheManager.set(`user_roles_${user_id}`, roles)
+          await this.cacheManager.set(`user_roles_${user_id}_${role}`, roles)
         }
 
-        let groups = await this.cacheManager.get(`user_groups_${user_id}`) as any;
+        let groups = await this.cacheManager.get(`user_groups_${user_id}_${role}`) as any;
         if (!groups) {
           groups = await this.db.user_groups.findFirst({ where: { user_accounts: { some: { id: user.id } }, user_roles: { some: { name: role } } }, include: { user_roles: true } })
-          await this.cacheManager.set(`user_groups_${user_id}`, groups)
+          await this.cacheManager.set(`user_groups_${user_id}_${role}`, groups)
         }
 
         if (roles || groups) { return true } // role found , direct or nested of group
