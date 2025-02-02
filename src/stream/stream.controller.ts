@@ -16,21 +16,21 @@ export class StreamController {
   constructor(private readonly streamService: StreamService) {}
 
   @Post('status')
-  @AccountRoles('stream_actions')
+  @AccountRoles('actions_live')
   @UseGuards(accountGaurd)
   async status(@User() user, @Body() body: dtos.streamDto): Promise<generalResponse> {
     return this.streamService.status(user, body);
   }
 
   @Post('start')
-  @AccountRoles('stream_actions')
+  @AccountRoles('actions_live')
   @UseGuards(accountGaurd)
   async start(@User() user, @Body() body: dtos.streamDto): Promise<generalResponse> {
     return this.streamService.start(user, body);
   }
 
   @Post('stop')
-  @AccountRoles('stream_actions')
+  @AccountRoles('actions_live')
   @UseGuards(accountGaurd)
   async stop(@User() user, @Body() body: dtos.streamDto): Promise<generalResponse> {
     return this.streamService.stop(user, body);

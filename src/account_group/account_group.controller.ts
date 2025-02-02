@@ -16,42 +16,42 @@ export class AccountGroupController {
   constructor(private readonly accountGroupService: AccountGroupService) {}
 
   @Get('')
-  @AccountRoles('account_list')
+  @AccountRoles('usergroup_list')
   @UseGuards(accountGaurd)
   async allGroups(@User() user, @Query() query: groupSearchQuery): Promise<generalResponse> {
     return await this.accountGroupService.allGroups(user, query);
   }
 
   @Post('')
-  @AccountRoles('account_list')
+  @AccountRoles('usergroup_add')
   @UseGuards(accountGaurd)
   async postGroups(@Body() body: nameDto): Promise<generalResponse> {
     return await this.accountGroupService.postGroups(body);
   }
 
   @Get(':group_id')
-  @AccountRoles('account_list')
+  @AccountRoles('usergroup_list')
   @UseGuards(accountGaurd)
   async getGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
     return await this.accountGroupService.getGroups(group_id);
   }
 
   @Get(':group_id/role')
-  @AccountRoles('account_list')
+  @AccountRoles('usergroup_list')
   @UseGuards(accountGaurd)
   async getAccountRoles(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
     return await this.accountGroupService.getGroupRoles(group_id);
   }
 
   @Put(':group_id')
-  @AccountRoles('account_list')
+  @AccountRoles('usergroup_edit')
   @UseGuards(accountGaurd)
   async putGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Body() body: nameDto): Promise<generalResponse> {
     return await this.accountGroupService.putGroups(group_id, body);
   }
 
   @Delete(':group_id')
-  @AccountRoles('account_list')
+  @AccountRoles('usergroup_delete')
   @UseGuards(accountGaurd)
   async deleteGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
     return await this.accountGroupService.deleteGroups(group_id);

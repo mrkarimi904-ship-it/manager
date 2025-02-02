@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MinLength, IsBoolean, IsInt, IsOptional, IsNumber, IsAlphanumeric, NotContains, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, IsBoolean, IsInt, IsOptional, IsNumber, IsAlphanumeric, NotContains, Matches, Min } from 'class-validator';
 import { ApiProperty } from "@nestjs/swagger";
 
 export class signUpDto {
@@ -7,6 +7,7 @@ export class signUpDto {
   @IsAlphanumeric('en-US')
   @NotContains(' ')
   @Matches(/^[a-zA-Z]/)
+  @MinLength(4)
   @IsNotEmpty()
   username: string;
 
@@ -30,17 +31,11 @@ export class signUpDto {
 
   @ApiProperty()
   @IsString()
-  @IsAlphanumeric('en-US')
-  @NotContains(' ')
-  @Matches(/^[a-zA-Z]/)
   @IsNotEmpty()
   firstname: string;
 
   @ApiProperty()
   @IsString()
-  @IsAlphanumeric('en-US')
-  @NotContains(' ')
-  @Matches(/^[a-zA-Z]/)
   @IsNotEmpty()
   lastname: string;
 
@@ -56,9 +51,6 @@ export class signUpDto {
 export class singInDto {
   @ApiProperty()
   @IsString()
-  @IsAlphanumeric('en-US')
-  @NotContains(' ')
-  @Matches(/^[a-zA-Z]/)
   @IsNotEmpty()
   username: string;
 
@@ -110,18 +102,12 @@ export class editDto {
   @IsOptional()
   @ApiProperty()
   @IsString()
-  @IsAlphanumeric('en-US')
-  @NotContains(' ')
-  @Matches(/^[a-zA-Z]/)
   @IsNotEmpty()
   firstname: string;
 
   @IsOptional()
   @ApiProperty()
   @IsString()
-  @IsAlphanumeric('en-US')
-  @NotContains(' ')
-  @Matches(/^[a-zA-Z]/)
   @IsNotEmpty()
   lastname: string;
 
@@ -143,8 +129,8 @@ export class editDto {
   @IsOptional()
   @ApiProperty()
   @IsNumber()
+  @Min(0)
   concurrent: number = 1;
-
 }
 
 export class PasswordDto {

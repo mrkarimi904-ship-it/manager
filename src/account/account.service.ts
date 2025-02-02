@@ -26,7 +26,7 @@ export class AccountService {
       const take: number = parseInt(query.pageSize)
       const where = { isHidden: false, AND: [] }
       if (query.standardOnly && query.standardOnly === 'true') { where['isSuperAdmin'] = false }
-      if (query.search) { where['AND'].push({ OR: [ { username: { contains: query.search, mode: 'insensitive' } }, { firstname: { contains: query.search, mode: 'insensitive' } }, { lastname: { contains: query.search, mode: 'insensitive' } } ] }) }
+      if (query.search) { where['AND'].push({ OR: [ { username: { contains: query.search, mode: 'insensitive' } }, { id: { contains: query.search, mode: 'insensitive' } }, { firstname: { contains: query.search, mode: 'insensitive' } }, { lastname: { contains: query.search, mode: 'insensitive' } } ] }) }
       if (query.cameraId && query.cameraFilter === 'Include') { where['AND'].push({ OR : [ { camera: { some: { id: { equals: query.cameraId } } } }, { isSuperAdmin: true } ] }) }
       if (query.cameraId && query.cameraFilter === 'Exclude') { where['AND'].push({ camera: { none: { id: { equals: query.cameraId } } } }) }
       if (query.cameraId && query.cameraFilter === 'Exclude') { where['AND'].push({ isSuperAdmin: false }) }
@@ -113,10 +113,13 @@ export class AccountService {
     try {
       const account = await this.db.user_accounts.findUnique({ where: { id: id }, omit: { password: true } })
       if (body.password && body.password !== '' && user.isSuperAdmin === true) { body.password = await bcrypt.hash(body.password, hash_secret); }
-      if (account.expired === false && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
-      if (account.expired === true && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
-      if (account.expired === false && body.expired === true && body.expireInterval !== 0) { body['expire_at'] = null }
+      // if (account.expireInterval !== body.expireInterval && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
+      // if (account.expired === false && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
+      // if (account.expired === true && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
+      // if (account.expired === false && body.expired === true && body.expireInterval !== 0) { body['expire_at'] = null }
+      if (body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
       if (body.expireInterval === 0) { body['expire_at'] = null }
+      if (body.expired === true) { body['expire_at'] = null }
       if (user.isSuperAdmin === false) { body.isSuperAdmin = false }
       if (body.isActive === null || body.isActive === undefined) { body.isActive = account.isActive }
       const account2 = await this.db.user_accounts.update({ where: { id: id }, data: body, omit: { password: true } })

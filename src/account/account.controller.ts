@@ -37,14 +37,14 @@ export class AccountController {
   }
 
   @Get(':id/tokens')
-  @AccountRoles('account_list')
+  @AccountRoles()
   @UseGuards(accountGaurd)
   async getAccountTokens(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Token() token): Promise<generalResponse> {
     return await this.accountService.getAccountTokens(id, token);
   }
 
   @Delete(':id/tokens/:token_id')
-  @AccountRoles('account_list')
+  @AccountRoles()
   @UseGuards(accountGaurd)
   async deleteAccountTokens(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Param('token_id', new ParseUUIDPipe({ version: "4" })) token_id: string): Promise<generalResponse> {
     return await this.accountService.deleteAccountTokens(id, token_id);

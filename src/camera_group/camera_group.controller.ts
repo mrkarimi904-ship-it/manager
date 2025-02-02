@@ -16,7 +16,7 @@ export class CameraGroupController {
   constructor(private readonly cameraGroupService: CameraGroupService) {}
 
   @Get('')
-  @AccountRoles('account_list')
+  @AccountRoles('cameragroup_list')
   @UseGuards(accountGaurd)
   async allGroups(@User() user, @Query() query: dtos.groupSearchQuery): Promise<generalResponse> {
     return await this.cameraGroupService.allGroups(user, query);
@@ -24,28 +24,28 @@ export class CameraGroupController {
 
 
   @Post('')
-  @AccountRoles('account_list')
+  @AccountRoles('cameragroup_add')
   @UseGuards(accountGaurd)
   async postGroups(@Body() body: dtos.nameDto): Promise<generalResponse> {
     return await this.cameraGroupService.postGroups(body);
   }
 
   @Get(':group_id')
-  @AccountRoles('account_list')
+  @AccountRoles('cameragroup_list')
   @UseGuards(accountGaurd)
   async getGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
     return await this.cameraGroupService.getGroups(group_id);
   }
 
   @Put(':group_id')
-  @AccountRoles('account_list')
+  @AccountRoles('cameragroup_edit')
   @UseGuards(accountGaurd)
   async putGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Body() body: dtos.nameDto): Promise<generalResponse> {
     return await this.cameraGroupService.putGroups(group_id, body);
   }
 
   @Delete(':group_id')
-  @AccountRoles('account_list')
+  @AccountRoles('cameragroup_delete')
   @UseGuards(accountGaurd)
   async deleteGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
     return await this.cameraGroupService.deleteGroups(group_id);

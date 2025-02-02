@@ -16,21 +16,21 @@ export class RecorderController {
   constructor(private readonly recorderService: RecorderService) {}
 
   @Post('status')
-  @AccountRoles('recorder_actions')
+  @AccountRoles('actions_recorder')
   @UseGuards(accountGaurd)
   async status(@User() user, @Body() body: dtos.recorderDto): Promise<generalResponse> {
     return this.recorderService.status(user, body);
   }
 
   @Post('start')
-  @AccountRoles('recorder_actions')
+  @AccountRoles('actions_recorder')
   @UseGuards(accountGaurd)
   async start(@User() user, @Body() body: dtos.recorderDto): Promise<generalResponse> {
     return this.recorderService.start(user, body);
   }
 
   @Post('stop')
-  @AccountRoles('recorder_actions')
+  @AccountRoles('actions_recorder')
   @UseGuards(accountGaurd)
   async stop(@User() user, @Body() body: dtos.recorderDto): Promise<generalResponse> {
     return this.recorderService.stop(user, body);
