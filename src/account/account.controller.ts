@@ -65,6 +65,20 @@ export class AccountController {
     return await this.accountService.putAccountExpire(id, user);
   }
 
+  @Get(':id/totp')
+  @AccountRoles()
+  @UseGuards(accountGaurd)
+  async getAccountTotp(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return await this.accountService.getAccountTotp(id, user);
+  }
+
+  @Put(':id/totp')
+  @AccountRoles()
+  @UseGuards(accountGaurd)
+  async putAccountTotp(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return await this.accountService.putAccountTotp(id, user);
+  }
+
   @Delete(':id')
   @AccountRoles('account_delete')
   @UseGuards(accountGaurd)

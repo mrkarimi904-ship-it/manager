@@ -46,8 +46,10 @@
     "cookie-parser": "^1.4.6",
     "cron-parser": "^4.9.0",
     "jsonwebtoken": "^9.0.2",
+    "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
+    "speakeasy": "^2.0.0",
     "uuid": "^10.0.0"
   },
   "devDependencies": {

@@ -74,6 +74,11 @@ export class singInDto {
   @IsString()
   @IsOptional()
   mac: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  totp: string;
 }
 
 export class editDto {
@@ -164,6 +169,11 @@ export class PasswordDto {
   @IsString()
   @IsOptional()
   mac: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  totp: string;
 }
 
 export class accountSearchQuery {

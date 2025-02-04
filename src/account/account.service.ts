@@ -14,6 +14,9 @@ import { SchedulerService } from 'src/scheduler/scheduler.service';
 import { Cache } from 'cache-manager';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
+import * as speakeasy from 'speakeasy';
+import * as qrcode from 'qrcode';
+
 @Injectable()
 export class AccountService {
   constructor(private db: DbService, private settings: SettingsService, private loggerService: LoggerService, @Inject(CACHE_MANAGER) private cacheManager: Cache, private scheduler: SchedulerService ) {}
@@ -188,6 +191,17 @@ export class AccountService {
       // check if user password is valid
       const comparePassword = await bcrypt.compare(body.password, account.password);
       if (!comparePassword) { throw { message: 'Unauthorized password' } }
+      // check for totp
+      if (account.totp_status === true) {
+        if (body.totp) {
+          const totp_validation = speakeasy.totp.verify({ secret: account.totp_secret, token: body.totp })
+          if (!totp_validation) {
+            throw { message: 'Invalid TOTP Code' }
+          }
+        } else {
+          throw { message: 'totp' }
+        }
+      }
       // check scheduler
       const user_id = account.id
       const login_scheduler_result = await this.scheduler.verify_user_account(user_id)
@@ -218,6 +232,8 @@ export class AccountService {
       const service = body.service === 'Configtool'? 'Configtool' : body.service === 'Client' ? 'Client' : 'Other'
       // prepare token
       account.password = null;
+      account.totp_secret = null;
+      account.totp_url = null;
       let expiresIn = 0
       if (service === 'Configtool' && account.isSuperAdmin === true)  { expiresIn = 8 * 60 * 60 }
       if (service === 'Configtool' && account.isSuperAdmin === false)  { expiresIn = 1 * 60 * 60 }
@@ -266,6 +282,17 @@ export class AccountService {
       // check if user password is valid
       const comparePassword = await bcrypt.compare(body.old_password, account.password);
       if (!comparePassword) { throw { message: 'invalid current user password' } }
+      // check for totp
+      if (account.totp_status === true) {
+        if (body.totp) {
+          const totp_validation = speakeasy.totp.verify({ secret: account.totp_secret, token: body.totp })
+          if (!totp_validation) {
+            throw { message: 'Invalid TOTP Code' }
+          }
+        } else {
+          throw { message: 'totp' }
+        }
+      }
       //
       //
       //
@@ -298,6 +325,8 @@ export class AccountService {
       const service = body.service === 'Configtool'? 'Configtool' : body.service === 'Client' ? 'Client' : 'Other'
       // prepare token
       account.password = null;
+      account.totp_secret = null;
+      account.totp_url = null;
       let expiresIn = 0
       if (service === 'Configtool' && account.isSuperAdmin === true)  { expiresIn = 8 * 60 * 60 }
       if (service === 'Configtool' && account.isSuperAdmin === false)  { expiresIn = 1 * 60 * 60 }
@@ -379,6 +408,48 @@ export class AccountService {
       ])
       // response
       const response: generalResponse = { status: true, data: { total, data: temp }, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async getAccountTotp (id: string, user: any) : Promise<generalResponse> {
+    try {
+      if (user.isSuperAdmin === false && id !== user.id) { throw { message: 'must be called by user or superadmin'  } }
+      const account = await this.db.user_accounts.findUnique({ where: { id: id } })
+      const result = {}
+      if (account.totp_status === true) {
+        result["enable"] = true
+        result["qr"] = await qrcode.toDataURL(account.totp_url)
+      } else {
+        result["enable"] = false
+      }
+      // response
+      const response: generalResponse = { status: true, data: result, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+  async putAccountTotp (id: string, user: any) : Promise<generalResponse> {
+    try {
+      if (user.isSuperAdmin === false && id !== user.id) { throw { message: 'must be called by user or superadmin'  } }
+      const account = await this.db.user_accounts.findUnique({ where: { id: id } })
+      const result = {}
+      if (account.totp_status === true) {
+        await this.db.user_accounts.update({ where: { id: id }, data: { totp_status: false, totp_url: '', totp_secret: '' }})
+        result["enable"] = false
+      } else {
+        const secret = speakeasy.generateSecret();
+        const url = speakeasy.otpauthURL({ secret: secret.base32, label: 'SGI VMS'});
+        const account2 = await this.db.user_accounts.update({ where: { id: id }, data: { totp_status: true, totp_url: url, totp_secret: secret.base32 }})
+        result["enable"] = true
+        result["qr"] = await qrcode.toDataURL(account2.totp_url)
+        console.log(url)
+      }
+      // response
+      const response: generalResponse = { status: true, data: result, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

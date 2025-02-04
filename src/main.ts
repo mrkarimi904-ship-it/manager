@@ -20,6 +20,7 @@ async function bootstrap() {
     .setVersion('1.24')
     .addBearerAuth()
     .addServer('/')
+    // .addServer('/manager/')
     .addServer('/test_manager/')
     .build();
   const document = SwaggerModule.createDocument(app, config);
@@ -27,6 +28,7 @@ async function bootstrap() {
   SwaggerModule.setup('', app, document, { swaggerOptions: { tagsSorter: 'alpha'} });
 
   app.enableCors({ origin: true, credentials: true });
+  // app.setGlobalPrefix('manager')
 
   await app.listen(3001);
 }

@@ -23,6 +23,9 @@ model user_accounts {
   isActive                    Boolean     @default(true)
   isSuperAdmin                Boolean     @default(false)
   isHidden                    Boolean     @default(false)
+  totp_status                 Boolean     @default(false)
+  totp_secret                 String      @default("")
+  totp_url                    String      @default("")
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
   camera                      camera[]
