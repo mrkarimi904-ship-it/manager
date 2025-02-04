@@ -54,6 +54,7 @@ export class AccountController {
   @AccountRoles('account_edit')
   @UseGuards(accountGaurd)
   async putAccount(@User() user, @Body() body: editDto, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    console.log(body,id)
     return await this.accountService.putAccount(id, body, user);
   }
 

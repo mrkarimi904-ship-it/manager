@@ -78,9 +78,8 @@ export class SettingsService {
 
   async checkPasswordComplexities(password: string) {
     const info = await this.db.setting_password_complexity.findFirst()
-    const passwordRegex = this.generatePasswordRegex(info)
-    const x = new RegExp(passwordRegex)
-    return x.test(password)
+    const passwordRegex: RegExp = this.generatePasswordRegex2(info)
+    return passwordRegex.test(password)
   }
 
   generatePasswordRegex({ minimumCharactersCount, haveSpecialCharacters, haveUppercaseCharacters, haveLowercaseCharacters, haveDigits }): string {
@@ -93,5 +92,16 @@ export class SettingsService {
       const regexPattern = `^${minLength}${regexComponents.join('')}.*$`;
       return new RegExp(regexPattern).toString();
   }
+
+  generatePasswordRegex2({ minimumCharactersCount, haveSpecialCharacters, haveUppercaseCharacters, haveLowercaseCharacters, haveDigits }): RegExp {
+    const regexComponents = [];
+    const minLength = `(?=.{${minimumCharactersCount},})`;
+    if (haveSpecialCharacters) { regexComponents.push('(?=.*[!@#$%^&*(),.?":{}|<>])'); }
+    if (haveUppercaseCharacters) { regexComponents.push('(?=.*[A-Z])'); }
+    if (haveLowercaseCharacters) { regexComponents.push('(?=.*[a-z])'); }
+    if (haveDigits) { regexComponents.push('(?=.*\\d)'); }
+    const regexPattern = `^${minLength}${regexComponents.join('')}.*$`;
+    return new RegExp(regexPattern);
+}
 
 }

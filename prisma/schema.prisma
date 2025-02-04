@@ -35,7 +35,7 @@ model user_accounts {
 
 model user_groups {
   id                          String      @id @default(uuid())
-  name                        String      @unique()
+  name                        String
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
   user_accounts               user_accounts[]

@@ -111,17 +111,19 @@ export class AccountService {
 
   async putAccount(id: string, body: editDto, user: any): Promise<generalResponse> {
     try {
+      console.log('edit user request', body)
       const account = await this.db.user_accounts.findUnique({ where: { id: id }, omit: { password: true } })
       if (body.password && body.password !== '' && user.isSuperAdmin === true) { body.password = await bcrypt.hash(body.password, hash_secret); }
       // if (account.expireInterval !== body.expireInterval && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
       // if (account.expired === false && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
       // if (account.expired === true && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
       // if (account.expired === false && body.expired === true && body.expireInterval !== 0) { body['expire_at'] = null }
-      if (body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
-      if (body.expireInterval === 0) { body['expire_at'] = null }
-      if (body.expired === true) { body['expire_at'] = null }
-      if (user.isSuperAdmin === false) { body.isSuperAdmin = false }
-      if (body.isActive === null || body.isActive === undefined) { body.isActive = account.isActive }
+      if (body.expireInterval && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
+      if (body.expireInterval && body.expireInterval === 0) { body['expire_at'] = null }
+      if (body.expired && body.expired === true) { body['expire_at'] = null }
+      if (body.isSuperAdmin && user.isSuperAdmin === false) { body.isSuperAdmin = false }
+      console.log('edit user current', account)
+      console.log('edit user final', body)
       const account2 = await this.db.user_accounts.update({ where: { id: id }, data: body, omit: { password: true } })
       // response
       const response: generalResponse = { status: true, data: account2, error: null, msg: null };
@@ -159,7 +161,7 @@ export class AccountService {
       const existingUser = await this.db.user_accounts.findUnique({ where: { username: body.username } });
       if (existingUser) { throw { message: 'username not valid'  } }
       // check complexity
-      if (!this.settings.checkPasswordComplexities(body.password)) { throw { message: 'password complexity missmatch' } }
+      if (await this.settings.checkPasswordComplexities(body.password) === false) { throw { message: 'password complexity missmatch' } }
       // prepare password
       body.password = await bcrypt.hash(body.password, hash_secret);
       // check expire date
@@ -276,7 +278,7 @@ export class AccountService {
       //
       //
       // check password complexity
-      if (!this.settings.checkPasswordComplexities(body.new_password)) { throw { message: 'password complexity missmatch' } }
+      if (await this.settings.checkPasswordComplexities(body.new_password) === false) { throw { message: 'password complexity missmatch' } }
       // prepare password
       body.new_password = await bcrypt.hash(body.new_password, hash_secret);
       // check if expired

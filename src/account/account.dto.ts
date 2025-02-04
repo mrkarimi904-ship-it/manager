@@ -87,17 +87,17 @@ export class editDto {
   @IsOptional()
   @ApiProperty()
   @IsBoolean()
-  expired: boolean = false;
+  expired: boolean;
 
   @IsOptional()
   @ApiProperty()
   @IsInt()
-  expireInterval: number = 30;
+  expireInterval: number;
 
   @IsOptional()
   @ApiProperty()
   @IsBoolean()
-  mustchangepassword: boolean = false;
+  mustchangepassword: boolean;
 
   @IsOptional()
   @ApiProperty()
@@ -119,18 +119,18 @@ export class editDto {
   @IsOptional()
   @ApiProperty()
   @IsBoolean()
-  isSuperAdmin: boolean = false;
+  isSuperAdmin: boolean;
 
   @IsOptional()
   @ApiProperty()
   @IsBoolean()
-  isActive: boolean = false;
+  isActive: boolean;
 
   @IsOptional()
   @ApiProperty()
   @IsNumber()
   @Min(0)
-  concurrent: number = 1;
+  concurrent: number;
 }
 
 export class PasswordDto {
