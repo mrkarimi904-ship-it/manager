@@ -184,10 +184,10 @@ export class AccountService {
     try {
       // check if user email is valid
       let account = await this.db.user_accounts.findFirst({ where: { username: body.username, isActive: true } });
-      if (!account) { throw { message: 'Unauthorized' } }
+      if (!account) { throw { message: 'Unauthorized user' } }
       // check if user password is valid
       const comparePassword = await bcrypt.compare(body.password, account.password);
-      if (!comparePassword) { throw { message: 'Unauthorized' } }
+      if (!comparePassword) { throw { message: 'Unauthorized password' } }
       // check scheduler
       const user_id = account.id
       const login_scheduler_result = await this.scheduler.verify_user_account(user_id)
@@ -214,9 +214,16 @@ export class AccountService {
       if (account.expire_at !== null && account.expire_at < new Date()) {
         account = await this.db.user_accounts.update({ where: { id : account.id}, data: { expired: true } })
       }
+      // prepare service
+      const service = body.service === 'Configtool'? 'Configtool' : body.service === 'Client' ? 'Client' : 'Other'
       // prepare token
       account.password = null;
-      const expiresIn = account.isSuperAdmin === true ? 24 * 60 * 60 * 365 : 24 * 60 * 60
+      let expiresIn = 0
+      if (service === 'Configtool' && account.isSuperAdmin === true)  { expiresIn = 8 * 60 * 60 }
+      if (service === 'Configtool' && account.isSuperAdmin === false)  { expiresIn = 1 * 60 * 60 }
+      if (service === 'Client' && account.isSuperAdmin === true)  { expiresIn = 24 * 60 * 60 * 365 }
+      if (service === 'Client' && account.isSuperAdmin === false)  { expiresIn = 24 * 60 * 60 }
+      if (service === 'Other')  { expiresIn = 10 * 60 }
       const token = jwt.sign(account, jwt_secret, { expiresIn: expiresIn });
       // prepare for concurrent logins
       if (account.concurrent > 0)
@@ -225,8 +232,6 @@ export class AccountService {
         const concurrentIds = concurrent.map(item => item.id)
         await this.db.user_tokens.deleteMany({ where: { user_accounts: { some: { id: account.id } }, id: { in: concurrentIds} } })
       }
-      // prepare service
-      const service = body.service === 'Configtool'? 'Configtool' : 'Client'
       // save token to db
       await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })
       // send notif
@@ -270,6 +275,7 @@ export class AccountService {
       // const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : false
       // todo : validate ip
       const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : '-'
+      const mac = body.mac ? body.mac : '-'
       //
       //
       //
@@ -288,12 +294,19 @@ export class AccountService {
         const new_expire_date = new Date(new Date().setDate(new Date().getDate() + account.expireInterval)).toISOString()
         account = await this.db.user_accounts.update({ where: { id : account.id}, data: { expire_at: new_expire_date } })
       }
+      // prepare service
+      const service = body.service === 'Configtool'? 'Configtool' : body.service === 'Client' ? 'Client' : 'Other'
       // prepare token
       account.password = null;
-      const expiresIn = account.isSuperAdmin === true ? 24 * 60 * 60 * 365 : 24 * 60 * 60
+      let expiresIn = 0
+      if (service === 'Configtool' && account.isSuperAdmin === true)  { expiresIn = 8 * 60 * 60 }
+      if (service === 'Configtool' && account.isSuperAdmin === false)  { expiresIn = 1 * 60 * 60 }
+      if (service === 'Client' && account.isSuperAdmin === true)  { expiresIn = 24 * 60 * 60 * 365 }
+      if (service === 'Client' && account.isSuperAdmin === false)  { expiresIn = 24 * 60 * 60 }
+      if (service === 'Other')  { expiresIn = 10 * 60 }
       const token = jwt.sign(account, jwt_secret, { expiresIn: expiresIn });
       // save token to db
-      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: 'Configtool', ip: ip, mac: '-', user_accounts: { connect: { id: account.id } } } })
+      await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
       return response;

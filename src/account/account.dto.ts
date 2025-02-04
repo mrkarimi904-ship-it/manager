@@ -149,6 +149,21 @@ export class PasswordDto {
   @IsNotEmpty()
   @MinLength(4)
   new_password: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  service: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  ip: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  mac: string;
 }
 
 export class accountSearchQuery {
