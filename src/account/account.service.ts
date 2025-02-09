@@ -422,6 +422,7 @@ export class AccountService {
       if (account.totp_status === true) {
         result["enable"] = true
         result["qr"] = await qrcode.toDataURL(account.totp_url)
+        result["secret"] = account.totp_secret
       } else {
         result["enable"] = false
       }
@@ -442,10 +443,11 @@ export class AccountService {
         result["enable"] = false
       } else {
         const secret = speakeasy.generateSecret();
-        const url = speakeasy.otpauthURL({ secret: secret.base32, label: 'SGI VMS'});
+        const url = speakeasy.otpauthURL({ secret: secret.base32, label: 'SGI VMS ' + account.username});
         const account2 = await this.db.user_accounts.update({ where: { id: id }, data: { totp_status: true, totp_url: url, totp_secret: secret.base32 }})
         result["enable"] = true
         result["qr"] = await qrcode.toDataURL(account2.totp_url)
+        result["secret"] = account2.totp_secret
         console.log(url)
       }
       // response
