@@ -10,14 +10,12 @@ export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
   @Get('PasswordComplexities')
-  @AccountRoles('account_list')
-  @UseGuards(accountGaurd)
   async getPasswordComplexities(@User() user): Promise<generalResponse> {
     return await this.settingsService.getPasswordComplexities(user);
   }
 
   @Put('PasswordComplexities')
-  @AccountRoles('account_list')
+  @AccountRoles('account_edit')
   @UseGuards(accountGaurd)
   async setPasswordComplexities(@User() user, @Body() updateSettingDto: dtos.passwordComplexityDto): Promise<generalResponse> {
     return await this.settingsService.setPasswordComplexities(user, updateSettingDto);

@@ -162,7 +162,44 @@ export class CameraService {
     }
   }
 
-  async putSingle(id: string, body: dtos.postCameraDto, user: any): Promise<generalResponse> {
+  async putSingle(id: string, body: dtos.editCameraDto, user: any): Promise<generalResponse> {
+    try {
+      // prepare where
+      const where = { id: id, AND: [] }
+      // check if user is limited
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
+      // get results
+      const temp: dtos.cameraDto = await this.db.camera.findUnique({ where });
+      // check resuts
+      if (!temp) { return { status: false, data: null, error: null, msg: null }; }
+
+      await this.db.$transaction([
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'name' }, data: { value: body.name } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'type' }, data: { value: body.type } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'description' }, data: { value: body.description } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'address' }, data: { value: body.address } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'brand' }, data: { value: body.brand } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'partnumber' }, data: { value: body.partnumber } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'map_lat' }, data: { value: body.map_lat } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'map_lng' }, data: { value: body.map_lng } }),
+      ])
+      await this.db.camera.update({ where: { id: id }, data: { url: body.url, username: body.username, password: body.password }});
+
+      const cam = await this.getSingle(user, id)
+      return { status: true, data: cam, error: null, msg: null };
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async putSingleProfile(id: string, body: dtos.editCameraProfileDto, user: any): Promise<generalResponse> {
     try {
       // prepare where
       const where = { id: id, AND: [] }
@@ -207,14 +244,6 @@ export class CameraService {
           }
           // update
           await this.db.$transaction([
-            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'name' }, data: { value: body.name } }),
-            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'type' }, data: { value: body.type } }),
-            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'description' }, data: { value: body.description } }),
-            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'address' }, data: { value: body.address } }),
-            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'brand' }, data: { value: body.brand } }),
-            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'partnumber' }, data: { value: body.partnumber } }),
-            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'map_lat' }, data: { value: body.map_lat } }),
-            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'map_lng' }, data: { value: body.map_lng } }),
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_low' }, data: { value: body.profile_low } }),
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_live_rtsp' }, data: { value: low[0] } }),
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_high' }, data: { value: body.profile_high } }),
@@ -222,16 +251,14 @@ export class CameraService {
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_pan_tilt' }, data: { value: ptzPanTilt ? 'true' : 'false' } }),
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_zoom' }, data: { value: ptzZoom? 'true' : 'false' } }),
           ])
-          const temp2: dtos.cameraDto = await this.db.camera.update({
-            where: { id: id },
-            data: { url: body.url, username: body.username, password: body.password }});
           if (is_restart_required) {
             // start stream
-            await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp2.id, type: 'LOW' })
-            await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp2.id, type: 'HIGH' })
+            await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
+            await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
           }
+          const cam = await this.getSingle(user, id)
           // generate response
-          const response: generalResponse = { status: true, data: temp2, error: null, msg: null };
+          const response: generalResponse = { status: true, data: cam, error: null, msg: null };
           return response;
         } catch (error) {
           // generate response
@@ -391,7 +418,8 @@ export class CameraService {
       // delete related data from other tables
       await this.db.$transaction([
         this.db.camera_info.deleteMany({ where: { camera: { some: { id: id } } } }),
-        this.db.camera_service_camera.deleteMany({ where: { camera: { some: { id: id } } } })
+        this.db.camera_service_camera.deleteMany({ where: { camera: { some: { id: id } } } }),
+        this.db.camera_recorder_camera.deleteMany({ where: { camera: { some: { id: id } } } })
       ])
       // delete camera
       const temp: dtos.cameraDto = await this.db.camera.delete({ where: { id: id } });

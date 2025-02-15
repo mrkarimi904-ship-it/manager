@@ -207,23 +207,12 @@ export class AccountService {
       const login_scheduler_result = await this.scheduler.verify_user_account(user_id)
       const login_scheduler = login_scheduler_result.status === true && login_scheduler_result.data['valid'] === true
       if (!login_scheduler) { throw { message: 'Invalid scheduler time' } }
-      //
-      //
-      //
-      //
-      //
-      // check if ip and mac are valid
-      // const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : false
-      // todo : validate ip
+      // check ip / mac
       const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : body.ip ? body.ip : '-'
       const mac = body.mac ? body.mac : '-'
-      //
-      //
-      //
-      //
-      //
-      //
-      //
+      const ip_mac_scheduler_result = await this.scheduler.verify_ip_mac(user_id, ip, mac)
+      const ip_mac_scheduler = ip_mac_scheduler_result.status === true && ip_mac_scheduler_result.data['valid'] === true
+      if (!ip_mac_scheduler) { throw { message: 'Invalid ip or mac' } }
       // check if expired
       if (account.expire_at !== null && account.expire_at < new Date()) {
         account = await this.db.user_accounts.update({ where: { id : account.id}, data: { expired: true } })
@@ -293,23 +282,17 @@ export class AccountService {
           throw { message: 'totp' }
         }
       }
-      //
-      //
-      //
-      //
-      //
-      // check if ip and mac are valid
-      // const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : false
-      // todo : validate ip
-      const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : '-'
+      // check scheduler
+      const user_id = account.id
+      const login_scheduler_result = await this.scheduler.verify_user_account(user_id)
+      const login_scheduler = login_scheduler_result.status === true && login_scheduler_result.data['valid'] === true
+      if (!login_scheduler) { throw { message: 'Invalid scheduler time' } }
+      // check ip / mac
+      const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : body.ip ? body.ip : '-'
       const mac = body.mac ? body.mac : '-'
-      //
-      //
-      //
-      //
-      //
-      //
-      //
+      const ip_mac_scheduler_result = await this.scheduler.verify_ip_mac(user_id, ip, mac)
+      const ip_mac_scheduler = ip_mac_scheduler_result.status === true && ip_mac_scheduler_result.data['valid'] === true
+      if (!ip_mac_scheduler) { throw { message: 'Invalid ip or mac' } }
       // check password complexity
       if (await this.settings.checkPasswordComplexities(body.new_password) === false) { throw { message: 'password complexity missmatch' } }
       // prepare password

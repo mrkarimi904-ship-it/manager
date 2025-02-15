@@ -3,7 +3,7 @@ import { PlaybackService } from './playback.service';
 // import { CreatePlaybackDto } from './playback.dtos';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { generalResponse } from 'src/app.consts';
-import { AccountRoles } from 'src/account/account.decorator';
+import { AccountRoles, User } from 'src/account/account.decorator';
 import { accountGaurd } from 'src/account/account.gaurd';
 
 
@@ -67,5 +67,12 @@ export class PlaybackController {
   @UseGuards(accountGaurd)
   async playback_stop(@Param('playback_session') id: string): Promise<generalResponse> {
     return this.playbackService.playback_stop(id);
+  }
+
+  @Get('all/:from/:to')
+  @AccountRoles('actions_playback')
+  @UseGuards(accountGaurd)
+  async playback_list(@User() user, @Param('from') from: number, @Param('to') to: number): Promise<generalResponse> {
+    return this.playbackService.playback_list(user, from, to);
   }
 }

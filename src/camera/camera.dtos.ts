@@ -197,3 +197,72 @@ export class groupSearchQuery {
   @IsString()
   cameraFilter: string;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export class editCameraDto {
+  @IsString()
+  @ApiProperty()
+  url: string;
+
+  @IsString()
+  @ApiProperty()
+  username: string;
+
+  @IsString()
+  @ApiProperty()
+  password: string;
+
+  @IsString()
+  @ApiProperty()
+  name: string;
+
+  @IsEnum(cameraTypeDto)
+  @ApiProperty()
+  type: string;
+
+  @IsString()
+  @ApiProperty()
+  description: string;
+
+  @IsString()
+  @ApiProperty()
+  address: string;
+
+  @IsString()
+  @ApiProperty()
+  brand: string;
+
+  @IsString()
+  @ApiProperty()
+  partnumber: string;
+
+  @IsString()
+  @ApiProperty()
+  map_lat: string;
+
+  @IsString()
+  @ApiProperty()
+  map_lng: string;
+}
+
+export class editCameraProfileDto {
+  @IsString()
+  @ApiProperty()
+  profile_low: string;
+
+  @IsString()
+  @ApiProperty()
+  profile_high: string;
+}

@@ -46,3 +46,17 @@ export class scheduleSearchDto {
   @IsString()
   search: string;
 }
+
+export class scheduleIpMacDto {
+  @IsString()
+  @ApiProperty()
+  title: string;
+
+  @IsString()
+  @ApiProperty()
+  typee: string;
+
+  @IsString()
+  @ApiProperty()
+  value: string;
+}

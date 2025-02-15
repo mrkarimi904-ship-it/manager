@@ -34,6 +34,7 @@ model user_accounts {
   user_tokens                 user_tokens[]
   camera_groups               camera_groups[]
   scheduler_user_account      scheduler_user_account[]
+  scheduler_ip_mac            scheduler_ip_mac[]
 }
 
 model user_groups {
@@ -187,4 +188,13 @@ model scheduler_user_group {
   to                          String
   created_at                  DateTime    @default(now())
   user_groups                 user_groups[]
+}
+
+model scheduler_ip_mac {
+  id                          String      @id @default(uuid())
+  title                       String
+  typee                       String
+  value                       String
+  created_at                  DateTime    @default(now())
+  user_accounts               user_accounts[]
 }

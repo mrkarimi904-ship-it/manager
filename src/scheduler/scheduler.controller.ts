@@ -100,9 +100,40 @@ export class SchedulerController {
 
 
 
-  @Get('verify/:user_id')
-  async verify_user_account(@Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string): Promise<generalResponse> {
-    return this.schedulerService.verify_user_account(user_id);
+
+
+  @Post('ip_mac/:user_id')
+  @AccountRoles('scheduler_ip_mac')
+  @UseGuards(accountGaurd)
+  async post_ip_mac(@User() user, @Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string, @Body() scheduleBody: dtos.scheduleIpMacDto): Promise<generalResponse> {
+    return this.schedulerService.post_ip_mac(user, user_id, scheduleBody);
   }
 
+  @Get('ip_mac/:user_id')
+  @AccountRoles('scheduler_ip_mac')
+  @UseGuards(accountGaurd)
+  async get_ip_macs(@User() user, @Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string, @Query() query: dtos.scheduleSearchDto): Promise<generalResponse> {
+    return this.schedulerService.get_ip_macs(user, user_id, query);
+  }
+
+  @Get('ip_mac/:user_id/:id')
+  @AccountRoles('scheduler_ip_mac')
+  @UseGuards(accountGaurd)
+  async get_ip_mac(@User() user, @Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.schedulerService.get_ip_mac(user, user_id, id);
+  }
+
+  @Put('ip_mac/:user_id/:id')
+  @AccountRoles('scheduler_ip_mac')
+  @UseGuards(accountGaurd)
+  async put_ip_mac(@User() user, @Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Body() scheduleBody: dtos.scheduleIpMacDto): Promise<generalResponse> {
+    return this.schedulerService.put_ip_mac(user, user_id, id, scheduleBody);
+  }
+
+  @Delete('ip_mac/:user_id/:id')
+  @AccountRoles('scheduler_ip_mac')
+  @UseGuards(accountGaurd)
+  async delete_ip_mac(@User() user, @Param('user_id', new ParseUUIDPipe({ version: "4" })) user_id: string, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.schedulerService.delete_ip_mac(user, user_id, id);
+  }
 }

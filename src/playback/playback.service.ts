@@ -110,4 +110,47 @@ export class PlaybackService {
     }
   }
 
+  async playback_list(user: any, from: number, to: number): Promise<generalResponse> {
+    try {
+
+      const where = {}
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
+      const my_cameras: any = await this.db.camera.findMany({ where, include: { camera_info: true, camera_recorder_camera: { include: { camera_recorder: true } } } });
+      const final_result = []
+      await Promise.all(my_cameras.map(async (cam: any) => {
+        const session = cam.camera_recorder_camera.map((x: any) => x.session).length > 0 ? cam.camera_recorder_camera.map((x: any) => x.session)[0] : null
+        if (session) {
+          const url = cam.camera_recorder_camera.map((x: any) => x.camera_recorder.map((y: any) => y.url)[0])[0]
+          const port = cam.camera_recorder_camera.map((x: any) => x.camera_recorder.map((y: any) => y.port)[0])[0]
+          const base_url = `http://${url}:${port}/camera_recorder/data/` + session + '/' + from + '/' + to
+          cam.record_data = []
+          cam.record_result = 'pending'
+          try {
+            const results = await this.axios.axiosRef.get(base_url)
+            cam.record_data = results.data.records
+            cam.record_result = results.data.message
+          } catch (error2) {
+            cam.record_result = 'error'
+          }
+        } else {
+          cam.record_data = []
+          cam.record_result = 'no_session'
+        }
+        delete cam.camera_recorder_camera
+        final_result.push(cam)
+      }))
+      const result = { status: true, data: final_result, error: null, msg: null }
+      return result;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
 }
