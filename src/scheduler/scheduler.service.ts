@@ -274,15 +274,15 @@ export class SchedulerService {
 
   async verify_ip_mac(user_id: string, ip: string, mac: string): Promise<generalResponse> {
     try {
-      let overAll = false
+      let overAll = true
       const ips = await this.db.scheduler_ip_mac.findMany({ where: { typee: 'ip', user_accounts: { some: { id: { equals: user_id } } } } })
       const macs = await this.db.scheduler_ip_mac.findMany({ where: { typee: 'mac', user_accounts: { some: { id: { equals: user_id } } } } })
       if (ips.length === 0 && macs.length === 0) { overAll = true }
       ips.forEach(element => {
-        if (this.inSubNet(ip, element.value)) { overAll = true }
+        if (!this.inSubNet(ip, element.value)) { overAll = false }
       })
       macs.forEach(element => {
-        if (mac === element.value) { overAll = true }
+        if (mac !== element.value) { overAll = false }
       })
       return { status: true, data: { valid: overAll }, error: null, msg: null };
     } catch (error) {

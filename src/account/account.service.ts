@@ -217,6 +217,7 @@ export class AccountService {
       if (account.expire_at !== null && account.expire_at < new Date()) {
         account = await this.db.user_accounts.update({ where: { id : account.id}, data: { expired: true } })
       }
+      if (account.expired === true) { throw { message: 'expired' } }
       // prepare service
       const service = body.service === 'Configtool'? 'Configtool' : body.service === 'Client' ? 'Client' : 'Other'
       // prepare token
@@ -321,6 +322,29 @@ export class AccountService {
       await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async generate_password(user, id): Promise<generalResponse> {
+    try {
+      if (user.isSuperAdmin === false && id !== user.id) { throw { message: 'must be called by user or superadmin'  } }
+
+      const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+      const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const numbers = '0123456789';
+      const specialChars = '!@#$%^&*';
+      const allChars = lowercase + uppercase + numbers + specialChars;
+      let password = '';
+      for (let i = 0; i < 10; i++) {
+          const randomIndex = Math.floor(Math.random() * allChars.length);
+          password += allChars[randomIndex];
+      }
+      const new_password = await bcrypt.hash(password, hash_secret);
+      await this.db.user_accounts.update({ where: { id : id}, data: { password: new_password, mustchangepassword: true } })
+      const response: generalResponse = { status: true, data: { password: password }, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

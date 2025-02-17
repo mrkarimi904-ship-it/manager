@@ -79,6 +79,13 @@ export class AccountController {
     return await this.accountService.putAccountTotp(id, user);
   }
 
+  @Post(':id/generate_password')
+  @AccountRoles('account_edit')
+  @UseGuards(accountGaurd)
+  async generate_password(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return await this.accountService.generate_password(user, id)
+  }
+
   @Delete(':id')
   @AccountRoles('account_delete')
   @UseGuards(accountGaurd)

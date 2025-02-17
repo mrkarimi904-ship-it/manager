@@ -64,6 +64,13 @@ export class CameraController {
     return this.cameraService.postPre(body);
   }
 
+  @Post('/fast_register')
+  @AccountRoles('camera_add')
+  @UseGuards(accountGaurd)
+  async postFastRegister(@Body() body: dtos.postPreCameraDto): Promise<generalResponse> {
+    return this.cameraService.postFastRegister(body);
+  }
+
   @Post('/is_added')
   @AccountRoles('camera_add')
   @UseGuards(accountGaurd)

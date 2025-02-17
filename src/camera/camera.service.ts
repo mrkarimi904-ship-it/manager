@@ -220,7 +220,7 @@ export class CameraService {
       const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: temp.id } } } })
       const is_restart_required = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0] || temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
       // get profiles from onvif service
-      const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', body)]);
+      const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', temp), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', temp)]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
         // get profile rtsp data
         const high = onvif_response.data.filter(x => x.token === body.profile_high).map(x => { return x.stream?.rtsp })
@@ -388,6 +388,96 @@ export class CameraService {
         }
       } else {
         throw { message: 'invalid onvif data' }
+      }
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async postFastRegister(body: dtos.postPreCameraDto): Promise<generalResponse> {
+    try {
+      // get profiles from onvif service
+      const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', body)]);
+      if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
+        const profiles = [];
+        onvif_response.data.forEach(element => {
+          profiles.push({
+            profile: element.token,
+            rtsp: element.stream.rtsp,
+            video: element.video?.source ? true : false,
+            video_framerate: element.video?.encoder?.framerate,
+            video_bitrate: element.video?.encoder?.bitrate,
+            video_encoding: element.video?.encoder?.encoding,
+            video_width: element.video?.encoder?.resolution?.width,
+            video_height: element.video?.encoder?.resolution?.height,
+            audio: element.audio? true : false,
+            audio_samplerate: element.audio?.encoder?.samplerate,
+            audio_bitrate: element.audio?.encoder?.bitrate,
+            audio_encoding: element.audio?.encoder?.encoding,
+            ptz: element.ptz ? true : false
+          });
+        });
+        // find min and max width
+        const video_profiles = profiles.filter(x => { return x.video === true })
+        const sorted = video_profiles.sort((a,b) => { return a.video_width < b.video_width ? 1 : -1 })
+        const high = sorted.length > 0 ? sorted[0] : null
+        const low = sorted.length > 0 ? sorted[sorted.length - 1] : null
+        // check
+        if (sorted.length < 1) { throw { message: 'no profile found on camera' } }
+        // prepare
+        const high_profile = high.profile
+        const low_profile = low.profile
+        const high_rtsp = high.rtsp
+        const low_rtsp = low.rtsp
+        // camera service
+        const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
+        if (!cameraserviceID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera serive available' }; }
+        // camera recorder
+        const cameraRecorderID = await this.camerarecorder.getFreeCameraRecorderId()
+        if (!cameraRecorderID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera recorder available' }; }
+        // get ptz info
+        const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
+        const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
+        // make sure port is included in url to prevent duplication
+        if (body.url.includes(':')) { body.url = body.url } else { body.url = body.url + ':80' }
+        // add
+        const temp: dtos.cameraDto = await this.db.camera.create({
+          data: {
+            url: body.url, username: body.username, password: body.password,
+            camera_info: {
+              create: [
+                { key: 'name', value: body.url },
+                { key: 'type', value: 'UNKNOWN' },
+                { key: 'description', value: '' },
+                { key: 'address', value: '' },
+                { key: 'brand', value: '' },
+                { key: 'partnumber', value: '' },
+                { key: 'map_lat', value: '' },
+                { key: 'map_lng', value: '' },
+                { key: 'profile_low', value: low_profile },
+                { key: 'profile_live_rtsp', value: low_rtsp },
+                { key: 'profile_high', value: high_profile },
+                { key: 'profile_record_rtsp', value: high_rtsp },
+                { key: 'ptz_pan_tilt', value: ptzPanTilt ? 'true' : 'false' },
+                { key: 'ptz_zoom', value: ptzZoom? 'true' : 'false' }
+              ]
+            }
+          }});
+        // add info to camera service
+        await this.db.camera_service_camera.create({ data: { type: 'live', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
+        await this.db.camera_service_camera.create({ data: { type: 'record', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
+        await this.db.camera_recorder_camera.create({ data: { status: '', session: '', camera: { connect: { id: temp.id } }, camera_recorder: { connect: { id: cameraRecorderID } } } })
+        // start stream
+        // todo : start camera streams and recorder if needed
+        // await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'LOW' })
+        // await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'HIGH' })
+        // await this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp.id })
+        // generate response
+        const response: generalResponse = { status: true, data: temp, error: null, msg: null };
+        return response;
+
+      } else {
+        throw { message: 'invalid onfiv data' }
       }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
