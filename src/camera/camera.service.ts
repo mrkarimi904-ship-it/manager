@@ -162,6 +162,32 @@ export class CameraService {
     }
   }
 
+  async getSnapshot(user, id: string): Promise<generalResponse> {
+    try {
+      // prepare where
+      const where = { id: id, AND: [] }
+      // check if user is limited
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
+      // get results
+      const temp: dtos.cameraDto = await this.db.camera.findUnique({ where });
+      // check resuts
+      if (!temp) { return { status: false, data: null, error: null, msg: null }; }
+      // get health
+      const onvif_response = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/snapshot', temp);
+      const response: generalResponse = { status: true, data: { data: onvif_response.data }, error: null, msg: null }
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
   async putSingle(id: string, body: dtos.editCameraDto, user: any): Promise<generalResponse> {
     try {
       // prepare where

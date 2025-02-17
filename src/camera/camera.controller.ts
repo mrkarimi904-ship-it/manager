@@ -43,6 +43,13 @@ export class CameraController {
     return this.cameraService.getProfiles(user, id);
   }
 
+  @Get(':id/snapshot')
+  @AccountRoles('camera_list')
+  @UseGuards(accountGaurd)
+  async getSnapshot(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.cameraService.getSnapshot(user, id);
+  }
+
   @Put(':id')
   @AccountRoles('camera_edit')
   @UseGuards(accountGaurd)
