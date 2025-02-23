@@ -1,12 +1,13 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import * as dtos from './dtos';import { generalResponse } from 'src/app.consts';
 import { DbService } from 'src/db/db.service';
+import { LoggerService } from 'src/logger/logger.service';
 ;
 
 @Injectable()
 export class AssignService {
 
-  constructor(private db: DbService) {}
+  constructor(private db: DbService, private loggerService: LoggerService) {}
 
 
 
@@ -19,8 +20,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { user_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('user assigned to user group', 0, user, el_from, el_to)
             } else {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { user_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user unassigned from user group', 0, user, el_from, el_to)
             }
           }
         }));
@@ -41,8 +44,10 @@ export class AssignService {
           await Promise.all(usergroups.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { user_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('user assigned to user group', 0, user, el_from, el_to)
             } else {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { user_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user unassigned from user group', 0, user, el_from, el_to)
             }
           }));
         }
@@ -62,8 +67,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera: { connect: { id: el_to } } } })
+              this.loggerService.log('user assigned to camera', 0, user, el_from, undefined, el_to)
             } else {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user unassigned from camera', 0, user, el_from, undefined, el_to)
             }
           }
         }));
@@ -84,8 +91,10 @@ export class AssignService {
           await Promise.all(cameras.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera: { connect: { id: el_to } } } })
+              this.loggerService.log('user assigned to camera', 0, user, el_from, undefined, el_to)
             } else {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user unassigned from camera', 0, user, el_from, undefined, el_to)
             }
           }));
         }
@@ -105,8 +114,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('user assigned to camera group', 0, user, el_from, undefined, undefined, el_to)
             } else {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user unassigned from camera group', 0, user, el_from, undefined, undefined, el_to)
             }
           }
         }));
@@ -127,8 +138,10 @@ export class AssignService {
           await Promise.all(cameragroups.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('user assigned to camera group', 0, user, el_from, undefined, undefined, el_to)
             } else {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user unassigned from camera group', 0, user, el_from, undefined, undefined, el_to)
             }
           }));
         }
@@ -150,8 +163,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.user_groups.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
+              this.loggerService.log('user group assigned to user', 0, user, el_to, el_from)
             } else {
               await this.db.user_groups.update({ where: { id: el_from }, data: { user_accounts: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user group unassigned from user', 0, user, el_to, el_from)
             }
           }
         }));
@@ -172,8 +187,10 @@ export class AssignService {
           await Promise.all(users.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.user_groups.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
+              this.loggerService.log('user group assigned to user', 0, user, el_to, el_from)
             } else {
               await this.db.user_groups.update({ where: { id: el_from }, data: { user_accounts: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user group unassigned from user', 0, user, el_to, el_from)
             }
           }));
         }
@@ -193,8 +210,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.user_groups.update({ where: { id: el_from }, data: { camera: { connect: { id: el_to } } } })
+              this.loggerService.log('user group assigned to camera', 0, user, undefined, el_from, el_to)
             } else {
               await this.db.user_groups.update({ where: { id: el_from }, data: { camera: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user group unassigned from camera', 0, user, undefined, el_from, el_to)
             }
           }
         }));
@@ -215,8 +234,10 @@ export class AssignService {
           await Promise.all(cameras.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.user_groups.update({ where: { id: el_from }, data: { camera: { connect: { id: el_to } } } })
+              this.loggerService.log('user group assigned to camera', 0, user, undefined, el_from, el_to)
             } else {
               await this.db.user_groups.update({ where: { id: el_from }, data: { camera: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user group unassigned from camera', 0, user, undefined, el_from, el_to)
             }
           }));
         }
@@ -236,8 +257,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.user_groups.update({ where: { id: el_from }, data: { camera_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('user group assigned to camera group', 0, user, undefined, el_from, undefined, el_to)
             } else {
               await this.db.user_groups.update({ where: { id: el_from }, data: { camera_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user group unassigned from camera group', 0, user, undefined, el_from, undefined, el_to)
             }
           }
         }));
@@ -258,8 +281,10 @@ export class AssignService {
           await Promise.all(cameragroups.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.user_groups.update({ where: { id: el_from }, data: { camera_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('user group assigned to camera group', 0, user, undefined, el_from, undefined, el_to)
             } else {
               await this.db.user_groups.update({ where: { id: el_from }, data: { camera_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('user group unassigned from camera group', 0, user, undefined, el_from, undefined, el_to)
             }
           }));
         }
@@ -281,8 +306,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.camera.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
+              this.loggerService.log('camera assigned to user', 0, user, el_to, undefined, el_from)
             } else {
               await this.db.camera.update({ where: { id: el_from }, data: { user_accounts: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera unassigned from user', 0, user, el_to, undefined, el_from)
             }
           }
         }));
@@ -303,8 +330,10 @@ export class AssignService {
           await Promise.all(users.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.camera.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
+              this.loggerService.log('camera assigned to user', 0, user, el_to, undefined, el_from)
             } else {
               await this.db.camera.update({ where: { id: el_from }, data: { user_accounts: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera unassigned from user', 0, user, el_to, undefined, el_from)
             }
           }));
         }
@@ -324,8 +353,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.camera.update({ where: { id: el_from }, data: { user_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('camera assigned to user group', 0, user, undefined, el_to, el_from)
             } else {
               await this.db.camera.update({ where: { id: el_from }, data: { user_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera unassigned from user group', 0, user, undefined, el_to, el_from)
             }
           }
         }));
@@ -346,8 +377,10 @@ export class AssignService {
           await Promise.all(usergroups.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.camera.update({ where: { id: el_from }, data: { user_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('camera assigned to user group', 0, user, undefined, el_to, el_from)
             } else {
               await this.db.camera.update({ where: { id: el_from }, data: { user_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera unassigned from user group', 0, user, undefined, el_to, el_from)
             }
           }));
         }
@@ -367,8 +400,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.camera.update({ where: { id: el_from }, data: { camera_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('camera assigned to camera group', 0, user, undefined, undefined, el_from, el_to)
             } else {
               await this.db.camera.update({ where: { id: el_from }, data: { camera_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera unassigned from camera group', 0, user, undefined, undefined, el_from, el_to)
             }
           }
         }));
@@ -389,8 +424,10 @@ export class AssignService {
           await Promise.all(cameragroups.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.camera.update({ where: { id: el_from }, data: { camera_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('camera assigned to camera group', 0, user, undefined, undefined, el_from, el_to)
             } else {
               await this.db.camera.update({ where: { id: el_from }, data: { camera_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera unassigned from camera group', 0, user, undefined, undefined, el_from, el_to)
             }
           }));
         }
@@ -412,8 +449,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
+              this.loggerService.log('camera group assigned to user', 0, user, el_to, undefined, undefined, el_from)
             } else {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { user_accounts: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera group unassigned from user', 0, user, el_to, undefined, undefined, el_from)
             }
           }
         }));
@@ -434,8 +473,10 @@ export class AssignService {
           await Promise.all(users.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
+              this.loggerService.log('camera group assigned to user', 0, user, el_to, undefined, undefined, el_from)
             } else {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { user_accounts: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera group unassigned from user', 0, user, el_to, undefined, undefined, el_from)
             }
           }));
         }
@@ -455,8 +496,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { user_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('camera group assigned to user group', 0, user, undefined, el_to, undefined, el_from)
             } else {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { user_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera group unassigned from user group', 0, user, undefined, el_to, undefined, el_from)
             }
           }
         }));
@@ -477,8 +520,10 @@ export class AssignService {
           await Promise.all(usergroups.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { user_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('camera group assigned to user group', 0, user, undefined, el_to, undefined, el_from)
             } else {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { user_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera group unassigned from user group', 0, user, undefined, el_to, undefined, el_from)
             }
           }));
         }
@@ -498,8 +543,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { camera: { connect: { id: el_to } } } })
+              this.loggerService.log('camera group assigned to camera', 0, user, undefined, undefined, el_to, el_from)
             } else {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { camera: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera group unassigned from camera', 0, user, undefined, undefined, el_to, el_from)
             }
           }
         }));
@@ -520,8 +567,10 @@ export class AssignService {
           await Promise.all(camera.map(async (el_to) => {
             if (data.action === 'add') {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { camera: { connect: { id: el_to } } } })
+              this.loggerService.log('camera group assigned to camera', 0, user, undefined, undefined, el_to, el_from)
             } else {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { camera: { disconnect: { id: el_to } } } })
+              this.loggerService.log('camera group unassigned from camera', 0, user, undefined, undefined, el_to, el_from)
             }
           }));
         }
@@ -543,8 +592,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.user_roles.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
+              this.loggerService.log('role assigned to user', 0, user, el_to)
             } else {
               await this.db.user_roles.update({ where: { id: el_from }, data: { user_accounts: { disconnect: { id: el_to } } } })
+              this.loggerService.log('role unassigned from user', 0, user, el_to)
             }
           }
         }));
@@ -565,8 +616,10 @@ export class AssignService {
           if (u) {
             if (data.action === 'add') {
               await this.db.user_roles.update({ where: { id: el_from }, data: { user_groups: { connect: { id: el_to } } } })
+              this.loggerService.log('role assigned to user group', 0, user, undefined, el_to)
             } else {
               await this.db.user_roles.update({ where: { id: el_from }, data: { user_groups: { disconnect: { id: el_to } } } })
+              this.loggerService.log('role unassigned from user group', 0, user, undefined, el_to)
             }
           }
         }));

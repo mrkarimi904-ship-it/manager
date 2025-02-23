@@ -5,10 +5,11 @@ import { DbService } from 'src/db/db.service';
 import { groupSearchQuery } from './account_group.dto';
 
 import { generalResponse } from 'src/app.consts';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class AccountGroupService {
-  constructor(private db: DbService) {}
+  constructor(private db: DbService, private loggerService: LoggerService) {}
 
   async allGroups(user: any, query: groupSearchQuery): Promise<generalResponse> {
     try {
@@ -38,11 +39,12 @@ export class AccountGroupService {
     }
   }
 
-  async postGroups(body): Promise<generalResponse> {
+  async postGroups(user: any, body): Promise<generalResponse> {
     try {
-      const roles = await this.db.user_groups.create({ data: { name: body.name } });
+      const usergroup = await this.db.user_groups.create({ data: { name: body.name } });
       // response
-      const response: generalResponse = { status: true, data: roles, error: null, msg: null };
+      this.loggerService.log('user group created', 0, user, undefined, usergroup.id)
+      const response: generalResponse = { status: true, data: usergroup, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -65,25 +67,27 @@ export class AccountGroupService {
     }
   }
 
-  async putGroups(group_id: string, body): Promise<generalResponse> {
+  async putGroups(user: any, group_id: string, body): Promise<generalResponse> {
     try {
-      const roles = await this.db.user_groups.update({ where:{ id: group_id }, data: { name: body.name }, include: {
+      const usergroup = await this.db.user_groups.update({ where:{ id: group_id }, data: { name: body.name }, include: {
         user_roles: { select: { id: true, name: true, description: true } },
         user_accounts: { select: { id: true, username: true, firstname: true, lastname: true } },
       } });
       // response
-      const response: generalResponse = { status: true, data: roles, error: null, msg: null };
+      this.loggerService.log('user group edited', 0, user, undefined, usergroup.id)
+      const response: generalResponse = { status: true, data: usergroup, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
-  async deleteGroups(group_id: string): Promise<generalResponse> {
+  async deleteGroups(user: any, group_id: string): Promise<generalResponse> {
     try {
-      const roles = await this.db.user_groups.delete({ where: { id: group_id } });
+      const usergroup = await this.db.user_groups.delete({ where: { id: group_id } });
       // response
-      const response: generalResponse = { status: true, data: roles, error: null, msg: null };
+      this.loggerService.log('user group removed', 0, user, undefined, usergroup.id)
+      const response: generalResponse = { status: true, data: usergroup, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

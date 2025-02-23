@@ -9,10 +9,18 @@ import * as dtos from './camera_group.dtos';
 import { generalResponse } from 'src/app.consts';
 import { RecorderService } from 'src/recorder/recorder.service';
 import { StreamService } from 'src/stream/stream.service';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class CameraGroupService {
-  constructor(private db: DbService, private readonly axios: HttpService, private cameraservice: CameraServiceService, private recorderservice: RecorderService, private streamService: StreamService) {}
+  constructor(
+    private db: DbService,
+    private readonly axios: HttpService,
+    private cameraservice: CameraServiceService,
+    private recorderservice: RecorderService,
+    private streamService: StreamService,
+    private loggerService: LoggerService
+  ) {}
 
   async allGroups(user: any, query: dtos.groupSearchQuery): Promise<generalResponse> {
     try {
@@ -42,11 +50,12 @@ export class CameraGroupService {
     }
   }
 
-  async postGroups(body): Promise<generalResponse> {
+  async postGroups(user: any, body): Promise<generalResponse> {
     try {
-      const roles = await this.db.camera_groups.create({ data: { name: body.name } });
+      const cameragroup = await this.db.camera_groups.create({ data: { name: body.name } });
       // response
-      const response: generalResponse = { status: true, data: roles, error: null, msg: null };
+      this.loggerService.log('camera group added', 0, user, undefined, undefined, undefined, cameragroup.id)
+      const response: generalResponse = { status: true, data: cameragroup, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -55,35 +64,37 @@ export class CameraGroupService {
 
   async getGroups(group_id: string): Promise<generalResponse> {
     try {
-      const roles = await this.db.camera_groups.findUnique({ where: { id: group_id }, include: {
+      const cameragroup = await this.db.camera_groups.findUnique({ where: { id: group_id }, include: {
         user_accounts: { select: { id: true, username: true, firstname: true, lastname: true } },
         user_groups: { select: { id: true, name: true } },
         camera: { select: { id: true } },
       } });
       // response
-      const response: generalResponse = { status: true, data: roles, error: null, msg: null };
+      const response: generalResponse = { status: true, data: cameragroup, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
-  async putGroups(group_id: string, body): Promise<generalResponse> {
+  async putGroups(user: any, group_id: string, body): Promise<generalResponse> {
     try {
-      const roles = await this.db.camera_groups.update({ where:{ id: group_id }, data: { name: body.name }, include: { camera: { select: { id: true } } } });
+      const cameragroup = await this.db.camera_groups.update({ where:{ id: group_id }, data: { name: body.name }, include: { camera: { select: { id: true } } } });
       // response
-      const response: generalResponse = { status: true, data: roles, error: null, msg: null };
+      this.loggerService.log('camera group edited', 0, user, undefined, undefined, undefined, group_id)
+      const response: generalResponse = { status: true, data: cameragroup, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
-  async deleteGroups(group_id: string): Promise<generalResponse> {
+  async deleteGroups(user: any, group_id: string): Promise<generalResponse> {
     try {
-      const roles = await this.db.camera_groups.delete({ where: { id: group_id } });
+      const cameragroup = await this.db.camera_groups.delete({ where: { id: group_id } });
       // response
-      const response: generalResponse = { status: true, data: roles, error: null, msg: null };
+      this.loggerService.log('camera group removed', 0, user, undefined, undefined, group_id)
+      const response: generalResponse = { status: true, data: cameragroup, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

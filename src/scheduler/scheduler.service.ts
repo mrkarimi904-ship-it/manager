@@ -3,17 +3,19 @@ import { DbService } from 'src/db/db.service';
 import * as dtos from './scheduler.dtos';
 import * as cronParser from 'cron-parser'
 import { generalResponse } from 'src/app.consts';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class SchedulerService {
 
-  constructor(private db: DbService) {}
+  constructor(private db: DbService, private loggerService: LoggerService) {}
 
   async post_user_account(user: any, user_id: string, scheduleBody: dtos.scheduleDto): Promise<generalResponse> {
     try {
       cronParser.parseExpression(scheduleBody.from);
       cronParser.parseExpression(scheduleBody.to);
       const temp = await this.db.scheduler_user_account.create({ data: { title: scheduleBody.title, from: scheduleBody.from, to: scheduleBody.to, user_accounts: { connect: { id: user_id } } } })
+      this.loggerService.log('scheduler user added', 0, user, user_id)
       return { status: true, data: temp, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -58,6 +60,7 @@ export class SchedulerService {
       cronParser.parseExpression(scheduleBody.from);
       cronParser.parseExpression(scheduleBody.to);
       const temp = await this.db.scheduler_user_account.update({ where: { id: id, user_accounts: { some: { id: user_id } } }, data: { title: scheduleBody.title, from: scheduleBody.from, to: scheduleBody.to} })
+      this.loggerService.log('scheduler user edited', 0, user, user_id)
       return { status: true, data: temp, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -67,6 +70,7 @@ export class SchedulerService {
   async delete_user_account(user: any, user_id: string, id: string): Promise<generalResponse> {
     try {
       await this.db.scheduler_user_account.delete({ where: { id: id, user_accounts: { some: { id: user_id } } } });
+      this.loggerService.log('scheduler user removed', 0, user, user_id)
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -83,6 +87,7 @@ export class SchedulerService {
       cronParser.parseExpression(scheduleBody.from);
       cronParser.parseExpression(scheduleBody.to);
       const temp = await this.db.scheduler_user_group.create({ data: { title: scheduleBody.title, from: scheduleBody.from, to: scheduleBody.to, user_groups: { connect: { id: group_id } } } })
+      this.loggerService.log('scheduler user group added', 0, user, undefined, group_id)
       return { status: true, data: temp, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -127,6 +132,7 @@ export class SchedulerService {
       cronParser.parseExpression(scheduleBody.from);
       cronParser.parseExpression(scheduleBody.to);
       const temp = await this.db.scheduler_user_group.update({ where: { id: id, user_groups: { some: { id: group_id } } }, data: { title: scheduleBody.title, from: scheduleBody.from, to: scheduleBody.to} })
+      this.loggerService.log('scheduler user group edited', 0, user, undefined, group_id)
       return { status: true, data: temp, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -136,6 +142,7 @@ export class SchedulerService {
   async delete_user_group(user: any, group_id: string, id: string): Promise<generalResponse> {
     try {
       await this.db.scheduler_user_group.delete({ where: { id: id, user_groups: { some: { id: group_id } } } });
+      this.loggerService.log('scheduler user group removed', 0, user, undefined, group_id)
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -157,6 +164,7 @@ export class SchedulerService {
       if (scheduleBody.typee === 'ip') { if (!this.isValidIPWithSubnet(scheduleBody.value)) { throw new Error('Invalid IP Address') } }
       if (scheduleBody.typee === 'mac') { if (!this.isValidMACAddress(scheduleBody.value)) { throw new Error('Invalid Mac Address') } }
       const temp = await this.db.scheduler_ip_mac.create({ data: { title: scheduleBody.title, typee: scheduleBody.typee, value: scheduleBody.value, user_accounts: { connect: { id: user_id } } } })
+      this.loggerService.log('scheduler ip/mac added', 0, user, user_id)
       return { status: true, data: temp, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -202,6 +210,7 @@ export class SchedulerService {
       if (scheduleBody.typee === 'ip') { if (!this.isValidIPWithSubnet(scheduleBody.value)) { throw new Error('Invalid IP Address') } }
       if (scheduleBody.typee === 'mac') { if (!this.isValidMACAddress(scheduleBody.value)) { throw new Error('Invalid Mac Address') } }
       const temp = await this.db.scheduler_ip_mac.update({ where: { id: id, user_accounts: { some: { id: user_id } } }, data: { title: scheduleBody.title, typee: scheduleBody.typee, value: scheduleBody.value} })
+      this.loggerService.log('scheduler ip/mac edited', 0, user, user_id)
       return { status: true, data: temp, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -211,6 +220,7 @@ export class SchedulerService {
   async delete_ip_mac(user: any, user_id: string, id: string): Promise<generalResponse> {
     try {
       await this.db.scheduler_ip_mac.delete({ where: { id: id, user_accounts: { some: { id: user_id } } } });
+      this.loggerService.log('scheduler ip/mac removed', 0, user, user_id)
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

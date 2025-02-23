@@ -229,6 +229,8 @@ export class CameraService {
       await this.db.camera.update({ where: { id: id }, data: { url: body.url, username: body.username, password: body.password }});
 
       const cam = await this.getSingle(user, id)
+      // return
+      this.loggerService.log('camera edited', 0, user, undefined, undefined, id)
       return { status: true, data: cam, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -294,6 +296,7 @@ export class CameraService {
           }
           const cam = await this.getSingle(user, id)
           // generate response
+          this.loggerService.log('camera profile edited', 0, user, undefined, undefined, id)
           const response: generalResponse = { status: true, data: cam, error: null, msg: null };
           return response;
         } catch (error) {
@@ -360,7 +363,7 @@ export class CameraService {
     }
   }
 
-  async postSingle(body: dtos.postCameraDto): Promise<generalResponse> {
+  async postSingle(user: any, body: dtos.postCameraDto): Promise<generalResponse> {
     try {
       // check license
       if (await this.settingsService.can_add_new_camera() === false) { return { status: false, data: null, error: 'error_adding_camera', msg: 'License limit' }; }
@@ -417,6 +420,7 @@ export class CameraService {
           // await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'HIGH' })
           // await this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp.id })
           // generate response
+          this.loggerService.log('camera added', 0, user, undefined, undefined, temp.id)
           const response: generalResponse = { status: true, data: temp, error: null, msg: null };
           return response;
         } catch (error) {
@@ -432,7 +436,7 @@ export class CameraService {
     }
   }
 
-  async postFastRegister(body: dtos.postPreCameraDto): Promise<generalResponse> {
+  async postFastRegister(user: any, body: dtos.postPreCameraDto): Promise<generalResponse> {
     try {
       // check license
       if (await this.settingsService.can_add_new_camera() === false) { return { status: false, data: null, error: 'error_adding_camera', msg: 'License limit' }; }
@@ -513,6 +517,7 @@ export class CameraService {
         // await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'HIGH' })
         // await this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp.id })
         // generate response
+        this.loggerService.log('camera addeed', 0, user, undefined, undefined, temp.id)
         const response: generalResponse = { status: true, data: temp, error: null, msg: null };
         return response;
 
@@ -554,6 +559,7 @@ export class CameraService {
       // delete camera
       const temp: dtos.cameraDto = await this.db.camera.delete({ where: { id: id } });
       // generate response
+      this.loggerService.log('camera removed', 0, user, undefined, undefined, id)
       const response: generalResponse = { status: true, data: temp, error: null, msg: null };
       return response;
     } catch (error) {

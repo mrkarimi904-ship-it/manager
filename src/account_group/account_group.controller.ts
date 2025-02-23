@@ -25,8 +25,8 @@ export class AccountGroupController {
   @Post('')
   @AccountRoles('usergroup_add')
   @UseGuards(accountGaurd)
-  async postGroups(@Body() body: nameDto): Promise<generalResponse> {
-    return await this.accountGroupService.postGroups(body);
+  async postGroups(@User() user, @Body() body: nameDto): Promise<generalResponse> {
+    return await this.accountGroupService.postGroups(user, body);
   }
 
   @Get(':group_id')
@@ -46,15 +46,15 @@ export class AccountGroupController {
   @Put(':group_id')
   @AccountRoles('usergroup_edit')
   @UseGuards(accountGaurd)
-  async putGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Body() body: nameDto): Promise<generalResponse> {
-    return await this.accountGroupService.putGroups(group_id, body);
+  async putGroups(@User() user, @Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Body() body: nameDto): Promise<generalResponse> {
+    return await this.accountGroupService.putGroups(user, group_id, body);
   }
 
   @Delete(':group_id')
   @AccountRoles('usergroup_delete')
   @UseGuards(accountGaurd)
-  async deleteGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
-    return await this.accountGroupService.deleteGroups(group_id);
+  async deleteGroups(@User() user, @Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
+    return await this.accountGroupService.deleteGroups(user, group_id);
   }
 
 }

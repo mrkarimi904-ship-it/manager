@@ -11,10 +11,11 @@ import { StreamService } from 'src/stream/stream.service';
 
 import { HttpService } from '@nestjs/axios';
 import { Cron } from '@nestjs/schedule';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class CameraServiceService {
-  constructor(private db: DbService, private recorderservice: RecorderService, private streamService: StreamService, private readonly axios: HttpService) {}
+  constructor(private db: DbService, private recorderservice: RecorderService, private streamService: StreamService, private readonly axios: HttpService, private loggerService: LoggerService) {}
 
   async getAll(): Promise<generalResponse> {
     try {
@@ -50,6 +51,7 @@ export class CameraServiceService {
         });
       });
       // return
+      this.loggerService.log('camera service instance registered', 0)
       const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
       return response;
     } catch (error) {
@@ -60,6 +62,8 @@ export class CameraServiceService {
   async deleteSingle(id: string): Promise<generalResponse> {
     try {
       const camerasService: dtos.cameraServiceDto = await this.db.camera_service.delete({ where: { id: id } })
+      // return
+      this.loggerService.log('camera service instance removed', 0)
       const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
       return response;
     } catch (error) {

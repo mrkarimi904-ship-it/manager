@@ -16,8 +16,8 @@ export class PlaybackController {
   @Post()
   @AccountRoles('actions_playback')
   @UseGuards(accountGaurd)
-  async playback_create(@Body() body: any): Promise<generalResponse> {
-    return this.playbackService.playback_create(body);
+  async playback_create(@User() user, @Body() body: any): Promise<generalResponse> {
+    return this.playbackService.playback_create(user, body);
   }
 
   @Get(':playback_session/info')

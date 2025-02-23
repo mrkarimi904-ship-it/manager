@@ -9,10 +9,11 @@ import { generalResponse } from 'src/app.consts';
 import { RecorderService } from 'src/recorder/recorder.service';
 
 import { HttpService } from '@nestjs/axios';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class CameraPlaybackService {
-  constructor(private db: DbService, private recorderservice: RecorderService, private readonly axios: HttpService) {}
+  constructor(private db: DbService, private recorderservice: RecorderService, private readonly axios: HttpService, private loggerService: LoggerService) {}
 
   async getAll(): Promise<generalResponse> {
     try {
@@ -47,6 +48,7 @@ export class CameraPlaybackService {
         // });
       // });
       // return
+      this.loggerService.log('camera playbak instance registered', 0)
       const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
       return response;
     } catch (error) {
@@ -57,6 +59,8 @@ export class CameraPlaybackService {
   async deleteSingle(id: string): Promise<generalResponse> {
     try {
       const camerasService: dtos.cameraPlaybackDto = await this.db.camera_playback.delete({ where: { id: id } })
+      // return
+      this.loggerService.log('camera playback instance removed', 0)
       const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
       return response;
     } catch (error) {

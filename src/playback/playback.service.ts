@@ -4,11 +4,12 @@ import { generalResponse } from 'src/app.consts';
 
 import { DbService } from 'src/db/db.service';
 import { HttpService } from '@nestjs/axios';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class PlaybackService {
 
-  constructor(private db: DbService, private readonly axios: HttpService) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService) {}
 
   async get_playback() {
     const p = await this.db.camera_playback.findFirst()
@@ -19,10 +20,12 @@ export class PlaybackService {
     }
   }
 
-  async playback_create(body: any): Promise<generalResponse> {
+  async playback_create(user: any, body: any): Promise<generalResponse> {
     try {
       const base_url = await this.get_playback()
       const results = await this.axios.axiosRef.post(base_url, body)
+      // return
+      this.loggerService.log('camera playback requested', 0, user)
       const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {

@@ -7,11 +7,12 @@ import { HttpService } from '@nestjs/axios';
 
 import { DbService } from 'src/db/db.service';
 import { generalResponse } from 'src/app.consts';
+import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class SettingsService {
 
-  constructor(private db: DbService, @Inject(CACHE_MANAGER) private cacheManager: Cache, private readonly axios: HttpService) {}
+  constructor(private db: DbService, @Inject(CACHE_MANAGER) private cacheManager: Cache, private readonly axios: HttpService, private loggerService: LoggerService) {}
 
   async getPasswordComplexities(user: any): Promise<generalResponse> {
     try {
@@ -74,6 +75,7 @@ export class SettingsService {
         digitsRegex: '[0-9]',
         passwordRegex: passwordRegex
       }
+      this.loggerService.log('password complexity changed', 0, user)
       return { status: true, data:result, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

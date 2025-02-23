@@ -74,8 +74,8 @@ export class CameraController {
   @Post('/fast_register')
   @AccountRoles('camera_add')
   @UseGuards(accountGaurd)
-  async postFastRegister(@Body() body: dtos.postPreCameraDto): Promise<generalResponse> {
-    return this.cameraService.postFastRegister(body);
+  async postFastRegister(@User() user, @Body() body: dtos.postPreCameraDto): Promise<generalResponse> {
+    return this.cameraService.postFastRegister(user, body);
   }
 
   @Post('/is_added')
@@ -88,8 +88,8 @@ export class CameraController {
   @Post()
   @AccountRoles('camera_add')
   @UseGuards(accountGaurd)
-  async postSingle(@Body() body: dtos.postCameraDto): Promise<generalResponse> {
-    return this.cameraService.postSingle(body);
+  async postSingle(@User() user, @Body() body: dtos.postCameraDto): Promise<generalResponse> {
+    return this.cameraService.postSingle(user, body);
   }
 
   @Delete(':id')

@@ -101,10 +101,11 @@ export class AccountService {
     }
   }
 
-  async deleteAccountTokens(id: string, token_id: string): Promise<generalResponse> {
+  async deleteAccountTokens(user: any, id: string, token_id: string): Promise<generalResponse> {
     try {
       const accounts = await this.db.user_tokens.delete({ where: { id: token_id, user_accounts: { every: { id: id } } } })
       // response
+      this.loggerService.log('access token revoked', 0, user, id)
       const response: generalResponse = { status: true, data: accounts, error: null, msg: null };
       return response;
     } catch (error) {
@@ -114,21 +115,15 @@ export class AccountService {
 
   async putAccount(id: string, body: editDto, user: any): Promise<generalResponse> {
     try {
-      console.log('edit user request', body)
       const account = await this.db.user_accounts.findUnique({ where: { id: id }, omit: { password: true } })
       if (body.password && body.password !== '' && user.isSuperAdmin === true) { body.password = await bcrypt.hash(body.password, hash_secret); }
-      // if (account.expireInterval !== body.expireInterval && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
-      // if (account.expired === false && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
-      // if (account.expired === true && body.expired === false && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
-      // if (account.expired === false && body.expired === true && body.expireInterval !== 0) { body['expire_at'] = null }
       if (body.expireInterval && body.expireInterval !== 0) { body['expire_at'] = new Date(new Date().setDate(new Date().getDate() + body.expireInterval)).toISOString() }
       if (body.expireInterval && body.expireInterval === 0) { body['expire_at'] = null }
       if (body.expired && body.expired === true) { body['expire_at'] = null }
       if (body.isSuperAdmin && user.isSuperAdmin === false) { body.isSuperAdmin = false }
-      console.log('edit user current', account)
-      console.log('edit user final', body)
       const account2 = await this.db.user_accounts.update({ where: { id: id }, data: body, omit: { password: true } })
       // response
+      this.loggerService.log('user edited', 0, user, account.id)
       const response: generalResponse = { status: true, data: account2, error: null, msg: null };
       return response;
     } catch (error) {
@@ -140,6 +135,7 @@ export class AccountService {
     try {
       const account = await this.db.user_accounts.update({ where: { id: id }, data: { expired: true }, omit: { password: true } })
       // response
+      this.loggerService.log('user expired', 0, user, account.id)
       const response: generalResponse = { status: true, data: account, error: null, msg: null };
       return response;
     } catch (error) {
@@ -147,10 +143,11 @@ export class AccountService {
     }
   }
 
-  async deleteAccount(id: string): Promise<generalResponse> {
+  async deleteAccount(user: any, id: string): Promise<generalResponse> {
     try {
       const account = await this.db.user_accounts.delete({ where: { id: id }, omit: { password: true } })
       // response
+      this.loggerService.log('user removed', 0, user, account.id)
       const response: generalResponse = { status: true, data: account, error: null, msg: null };
       return response;
     } catch (error) {
@@ -254,9 +251,8 @@ export class AccountService {
     try {
       const token = req.authorization?.replace('Bearer ', '')
       await this.db.user_tokens.deleteMany({ where: { token: token } })
-      // log
-      this.loggerService.log('user signed out', 0, user, user.id)
       // response
+      this.loggerService.log('user signed out', 0, user, user.id)
       const response: generalResponse = { status: true, data: null, error: null, msg: null };
       return response;
     } catch (error) {
@@ -344,6 +340,8 @@ export class AccountService {
       }
       const new_password = await bcrypt.hash(password, hash_secret);
       await this.db.user_accounts.update({ where: { id : id}, data: { password: new_password, mustchangepassword: true } })
+      // response
+      this.loggerService.log('new password for user generated', 0, user, id)
       const response: generalResponse = { status: true, data: { password: password }, error: null, msg: null };
       return response;
     } catch (error) {
@@ -458,6 +456,7 @@ export class AccountService {
         console.log(url)
       }
       // response
+      this.loggerService.log('user totp status changed', 0, user, account.id)
       const response: generalResponse = { status: true, data: result, error: null, msg: null };
       return response;
     } catch (error) {

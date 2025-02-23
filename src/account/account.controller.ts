@@ -46,15 +46,14 @@ export class AccountController {
   @Delete(':id/tokens/:token_id')
   @AccountRoles()
   @UseGuards(accountGaurd)
-  async deleteAccountTokens(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Param('token_id', new ParseUUIDPipe({ version: "4" })) token_id: string): Promise<generalResponse> {
-    return await this.accountService.deleteAccountTokens(id, token_id);
+  async deleteAccountTokens(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Param('token_id', new ParseUUIDPipe({ version: "4" })) token_id: string): Promise<generalResponse> {
+    return await this.accountService.deleteAccountTokens(user, id, token_id);
   }
 
   @Put(':id')
   @AccountRoles('account_edit')
   @UseGuards(accountGaurd)
   async putAccount(@User() user, @Body() body: editDto, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
-    console.log(body,id)
     return await this.accountService.putAccount(id, body, user);
   }
 
@@ -89,16 +88,15 @@ export class AccountController {
   @Delete(':id')
   @AccountRoles('account_delete')
   @UseGuards(accountGaurd)
-  async deleteAccount(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
-    return await this.accountService.deleteAccount(id);
+  async deleteAccount(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return await this.accountService.deleteAccount(user, id);
   }
 
   @Post('')
   @AccountRoles('account_add')
   @UseGuards(accountGaurd)
   async signUp(@User() user,@Body() body: signUpDto): Promise<generalResponse> {
-    const output = await this.accountService.signUp(body, user);
-    return output;
+    return await this.accountService.signUp(body, user);
   }
 
   @Get('/access/verify')

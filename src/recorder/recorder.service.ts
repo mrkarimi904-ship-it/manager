@@ -10,7 +10,7 @@ import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class RecorderService {
-  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService ) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService) {}
 
   async status(user, body: dtos.recorderDto): Promise<generalResponse> {
     try {
