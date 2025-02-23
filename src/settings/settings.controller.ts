@@ -4,7 +4,10 @@ import * as dtos from './dtos';
 import { AccountRoles, User } from 'src/account/account.decorator';
 import { accountGaurd } from 'src/account/account.gaurd';
 import { generalResponse } from 'src/app.consts';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiBearerAuth()
+@ApiTags('15. settings')
 @Controller('settings')
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
@@ -15,10 +18,24 @@ export class SettingsController {
   }
 
   @Put('PasswordComplexities')
-  @AccountRoles('account_edit')
+  @AccountRoles('settings_password')
   @UseGuards(accountGaurd)
   async setPasswordComplexities(@User() user, @Body() updateSettingDto: dtos.passwordComplexityDto): Promise<generalResponse> {
     return await this.settingsService.setPasswordComplexities(user, updateSettingDto);
+  }
+
+  @Get('license')
+  @AccountRoles('settings_license')
+  @UseGuards(accountGaurd)
+  async getlicense(@User() user): Promise<generalResponse> {
+    return await this.settingsService.getlicense(user);
+  }
+
+  @Get('license/code')
+  @AccountRoles('settings_license')
+  @UseGuards(accountGaurd)
+  async getlicenseCode(@User() user): Promise<generalResponse> {
+    return await this.settingsService.getlicenseCode(user);
   }
 
 }

@@ -1,5 +1,9 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, Inject, Injectable } from '@nestjs/common';
 import * as dtos from './dtos';
+
+import { Cache } from 'cache-manager';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { HttpService } from '@nestjs/axios';
 
 import { DbService } from 'src/db/db.service';
 import { generalResponse } from 'src/app.consts';
@@ -7,7 +11,7 @@ import { generalResponse } from 'src/app.consts';
 @Injectable()
 export class SettingsService {
 
-  constructor(private db: DbService) {}
+  constructor(private db: DbService, @Inject(CACHE_MANAGER) private cacheManager: Cache, private readonly axios: HttpService) {}
 
   async getPasswordComplexities(user: any): Promise<generalResponse> {
     try {
@@ -102,6 +106,58 @@ export class SettingsService {
     if (haveDigits) { regexComponents.push('(?=.*\\d)'); }
     const regexPattern = `^${minLength}${regexComponents.join('')}.*$`;
     return new RegExp(regexPattern);
-}
+  }
+
+
+  async getlicense(user: any): Promise<generalResponse> {
+    try {
+      let license = await this.cacheManager.get(`license`) as any;
+      let license_data = await this.cacheManager.get(`license_data`) as any;
+      if (!license || !license_data) {
+        try {
+          license = await this.axios.axiosRef.get('http://host.docker.internal:3030/license')
+          license_data = license.data
+          license = 'valid'
+        } catch (error_axios) {
+          if (error_axios?.response?.data) { license_data = error_axios?.response?.data } else { license_data = 'unknown' }
+          license = 'trial'
+        }
+        await this.cacheManager.set(`license`, license)
+        await this.cacheManager.set(`license_data`, license_data)
+      }
+      if (!license) { throw { message: 'Unknown license' } }
+      return { status: true, data:{ license: license, info: license_data }, error: null, msg: null };
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async getlicenseCode(user: any): Promise<generalResponse> {
+    try {
+      const hid = await this.axios.axiosRef.get('http://host.docker.internal:3030/hardware-id')
+      return { status: true, data:{ id: hid.data }, error: null, msg: null };
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async can_add_new_camera(): Promise<boolean> {
+    let license_data = await this.cacheManager.get(`license_data`) as any;
+    if (!license_data) {
+      try {
+        license_data = await this.axios.axiosRef.get('http://host.docker.internal:3030/license')
+        license_data = license_data.data
+      } catch (error_axios) {
+        console.log(error_axios)
+        return false
+      }
+      await this.cacheManager.set(`license_data`, license_data)
+    }
+    const available_cameras = license_data.num_cameras
+    const total_cameras = await this.db.camera.count()
+    if (total_cameras < 5) { return true }
+    if (available_cameras > total_cameras) { return true }
+    return false
+  }
 
 }
