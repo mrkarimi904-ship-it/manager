@@ -51,15 +51,15 @@ export class PlaybackController {
   @Post(':playback_session/pause')
   @AccountRoles('actions_playback')
   @UseGuards(accountGaurd)
-  async playback_pause(@Param('playback_session') id: string, @Body() body: any): Promise<generalResponse> {
-    return this.playbackService.playback_pause(id, body);
+  async playback_pause(@Param('playback_session') id: string): Promise<generalResponse> {
+    return this.playbackService.playback_pause(id);
   }
 
   @Post(':playback_session/resume')
   @AccountRoles('actions_playback')
   @UseGuards(accountGaurd)
-  async playback_resume(@Param('playback_session') id: string, @Body() body: any): Promise<generalResponse> {
-    return this.playbackService.playback_resume(id, body);
+  async playback_resume(@Param('playback_session') id: string): Promise<generalResponse> {
+    return this.playbackService.playback_resume(id);
   }
 
   @Delete(':playback_session/stop')

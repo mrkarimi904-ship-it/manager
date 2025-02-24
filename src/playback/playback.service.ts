@@ -80,10 +80,10 @@ export class PlaybackService {
     }
   }
 
-  async playback_pause(id: string, body: any): Promise<generalResponse> {
+  async playback_pause(id: string): Promise<generalResponse> {
     try {
       const base_url = await this.get_playback()
-      const results = await this.axios.axiosRef.post(base_url + '/' + id + '/pause', body)
+      const results = await this.axios.axiosRef.post(base_url + '/' + id + '/pause')
       const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {
@@ -91,10 +91,10 @@ export class PlaybackService {
     }
   }
 
-  async playback_resume(id: string, body: any): Promise<generalResponse> {
+  async playback_resume(id: string): Promise<generalResponse> {
     try {
       const base_url = await this.get_playback()
-      const results = await this.axios.axiosRef.post(base_url + '/' + id + '/resume', body)
+      const results = await this.axios.axiosRef.post(base_url + '/' + id + '/resume')
       const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {

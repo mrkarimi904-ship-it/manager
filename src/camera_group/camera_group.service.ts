@@ -1,24 +1,16 @@
 import { HttpException, Injectable } from '@nestjs/common';
 
 import { DbService } from 'src/db/db.service';
-import { HttpService } from '@nestjs/axios';
-import { CameraServiceService } from 'src/camera_service/camera_service.service';
 
 import * as dtos from './camera_group.dtos';
 
 import { generalResponse } from 'src/app.consts';
-import { RecorderService } from 'src/recorder/recorder.service';
-import { StreamService } from 'src/stream/stream.service';
 import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class CameraGroupService {
   constructor(
     private db: DbService,
-    private readonly axios: HttpService,
-    private cameraservice: CameraServiceService,
-    private recorderservice: RecorderService,
-    private streamService: StreamService,
     private loggerService: LoggerService
   ) {}
 

@@ -7,15 +7,16 @@ import * as dtos from './recorder.dtos';
 
 import { generalResponse } from 'src/app.consts';
 import { LoggerService } from 'src/logger/logger.service';
+import { CameraRecorderService } from 'src/camera_recorder/camera_recorder.service';
+import { StreamService } from 'src/stream/stream.service';
 
 @Injectable()
 export class RecorderService {
-  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService, private camera_recorder_service: CameraRecorderService, private steamService: StreamService) {}
 
-  async status(user, body: dtos.recorderDto): Promise<generalResponse> {
+  async get_list(user: any, camera_id: string): Promise<generalResponse> {
     try {
-      // check if camera available
-      const where = { id: body.cameraId, AND: [] }
+      const where = { id: camera_id, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
@@ -26,152 +27,292 @@ export class RecorderService {
       }
       const camera = await this.db.camera.findUnique({ where });
       if (!camera) { throw new ConflictException() }
-      // get status
-      const cameraServiceInfo = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: body.cameraId } }, type: 'record' }, include: { camera_service: true } })
-      const cameraService = await this.db.camera_service.findUnique({ where: { id: cameraServiceInfo.camera_service[0].id } })
-      const cameraRecorderCamera = await this.db.camera_recorder_camera.findFirst({ where: { camera: { some: { id: body.cameraId }}  }, include: { camera_recorder: true } })
-      const cameraRecorder = await this.db.camera_recorder.findUnique({ where: { id: cameraRecorderCamera.camera_recorder[0].id } })
 
-      const cameraRecorderUrl = cameraRecorder.url;
-      const cameraRecorderPort = cameraRecorder.port;
-      const uurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder`
-      const results = await this.axios.axiosRef.get(uurl)
-      const result = results.data.recorders.filter(x => x.session_id === cameraRecorderCamera.session).map(x => { return { status: x.status, session: x.session_id } })
-      const response: generalResponse = { status: true, data: {
-        status: result.length > 0 ? result[0].status : null,
-        session: result.length > 0 ? result[0].session : null,
-        cameraServiceInfo: cameraServiceInfo,
-        cameraService: cameraService,
-        cameraRecorderCamera: cameraRecorderCamera,
-        cameraRecorder: cameraRecorder,
-        camera: camera,
-      }, error: null, msg: null };
-      return response;
+      const list = await this.db.camera_recorder_camera.findMany({ where: { camera: { some: { id: camera_id }} } })
+      return { status: true, data: list, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
-  async start(user, body: dtos.recorderDto): Promise<generalResponse> {
+  async add_item(user: any, camera_id: string, body: dtos.recorderPostDto): Promise<generalResponse> {
     try {
-      // check if camera available
-      const { data } = await this.status(user, body);
-
-      const cameraService = data['cameraService']
-      const cameraServiceInfo = data['cameraServiceInfo']
-      const cameraRecorderCamera = data['cameraRecorderCamera']
-      const cameraRecorder = data['cameraRecorder']
-
-      // check if already started
-      if (cameraRecorderCamera.status === 'RUNNING') {
-        return { status: true, data: { status: true, session: cameraRecorderCamera.session }, error: null, msg: null };
+      const where = { id: camera_id, AND: [] }
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
       }
+      const camera = await this.db.camera.findUnique({ where });
+      if (!camera) { throw new ConflictException() }
 
-      const cameraRecorderUrl = cameraRecorder.url;
-      const cameraRecorderPort = cameraRecorder.port;
-      if (cameraRecorderCamera.session === '')
+      const free_service = await this.camera_recorder_service.getFreeCameraRecorderId()
+
+      const item = await this.db.camera_recorder_camera.create({ data: { ...body, camera: { connect: { id: camera_id } }, camera_recorder: { connect: { id: free_service }} } })
+      return { status: true, data: item, error: null, msg: null }
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async get_item(user: any, camera_id: string, recorder_id: string): Promise<generalResponse> {
+    try {
+      const where = { id: camera_id, AND: [] }
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
+      const camera = await this.db.camera.findUnique({ where });
+      if (!camera) { throw new ConflictException() }
+
+      const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} }, include: { camera_recorder: true } })
+      if (!list) { throw new ConflictException() }
+
+      if (list.status === 'RUNNING') { return { status: true, data: list, error: null, msg: null } }
+
+      const service_url = list.camera_recorder[0].url
+      const service_port = list.camera_recorder[0].port
+      const service = `http://${service_url}:${service_port}/camera_recorder/`
+
+      // const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: camera_id } }, type: 'record' }, include: { camera_service: true } })
+      // const stream = await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } })
+      // const stream_url = stream.url
+      // const stream_port = stream_service.port
+
+      const uurl = service + `recorder`
+      const results = await this.axios.axiosRef.get(uurl)
+      const result = results.data.recorders.filter(x => x.session_id === list.session).map(x => { return { status: x.status, session: x.session_id } })
+      return { status: true, data: {result: result, ...list }, error: null, msg: null }
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async put_item(user: any, camera_id: string, recorder_id: string, body: dtos.recorderPutDto): Promise<generalResponse> {
+    try {
+      const where = { id: camera_id, AND: [] }
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
+      const camera = await this.db.camera.findUnique({ where });
+      if (!camera) { throw new ConflictException() }
+
+      const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} } })
+      if (!list) { throw new ConflictException() }
+
+      await this.stop_item(user, camera_id, recorder_id)
+
+      const list2 = await this.db.camera_recorder_camera.update({ where: { id: recorder_id }, data: { title: body.title, enable_rotation: body.enable_rotation } })
+
+      await this.start_item(user, camera_id, recorder_id)
+
+      return { status: true, data: list2, error: null, msg: null }
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async delete_item(user: any, camera_id: string, recorder_id: string): Promise<generalResponse> {
+    try {
+      const where = { id: camera_id, AND: [] }
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
+      const camera = await this.db.camera.findUnique({ where });
+      if (!camera) { throw new ConflictException() }
+
+      const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} } })
+      if (!list) { throw new ConflictException() }
+
+      await this.stop_item(user, camera_id, recorder_id)
+      await this.clear_item(user, camera_id, recorder_id)
+
+      const list2 = await this.db.camera_recorder_camera.delete({ where: { id: recorder_id, camera: { some: { id: camera_id } } } })
+
+      return { status: true, data: list2, error: null, msg: null }
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async start_item(user: any, camera_id: string, recorder_id: string): Promise<generalResponse> {
+    try {
+      const where = { id: camera_id, AND: [] }
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
+      const camera = await this.db.camera.findUnique({ where });
+      if (!camera) { throw new ConflictException() }
+
+      const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} }, include: { camera_recorder: true } })
+      if (!list) { throw new ConflictException() }
+
+      if (list.status === 'RUNNING') { return { status: true, data: list, error: null, msg: null } }
+
+      await this.steamService.start(user, { cameraId: camera_id, type: 'HIGH' })
+
+      const service_url = list.camera_recorder[0].url
+      const service_port = list.camera_recorder[0].port
+      const service = `http://${service_url}:${service_port}/camera_recorder/`
+
+      const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: camera_id } }, type: 'record' }, include: { camera_service: true } })
+      const stream = await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } })
+      const stream_url = stream.url
+      const stream_port = stream_service.port
+
+      if (list.session === 'none')
       {
-        const newurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder/start`
-        const cc = await this.axios.axiosRef.post(newurl, { storage_path: '/storage', quota: 10000, block_size:100, stream_host: cameraService.url, stream_port: cameraServiceInfo.port, enable_rotation: true })
-        await this.db.camera_recorder_camera.update({ where: { id: cameraRecorderCamera.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
-        this.loggerService.log('Recorder started', 0, user, undefined, undefined, body.cameraId, undefined)
+        const newurl = service + `recorder/start`
+        const cc = await this.axios.axiosRef.post(newurl, { name: list.title, camera_id: camera_id, storage_path: list.storage_path, quota: list.quota, block_size:list.block_size, stream_host: stream_url, stream_port:stream_port, enable_rotation: list.enable_rotation })
+        await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
+        this.loggerService.log('Recorder started', 0, user, undefined, undefined, camera_id, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
       } else {
-        const newurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder/` + cameraRecorderCamera.session + `/start`
-        const cc = await this.axios.axiosRef.post(newurl, { stream_host: cameraService.url, stream_port: cameraServiceInfo.port, enable_rotation: true })
-        await this.db.camera_recorder_camera.update({ where: { id: cameraRecorderCamera.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
-        this.loggerService.log('Recorder started', 0, user, undefined, undefined, body.cameraId, undefined)
+        const newurl = service + `recorder/` + list.session + `/start`
+        const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, enable_rotation: list.enable_rotation })
+        await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
+        this.loggerService.log('Recorder started', 0, user, undefined, undefined, camera_id, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
       }
-
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
-  async restart(body: dtos.recorderDto): Promise<generalResponse> {
-    // try {
-    //   // check if camera available
-    //   const { data } = await this.status({ isSuperAdmin: true }, body);
-    //   // const subscribers = data['subscribers'];
-    //   const port = data['port'];
-    //   // const status = data['status'];
-    //   const cameraService = data['cameraService'];
-    //   const cameraServiceInfoId = data['id']
-    //   const camera = data['camera'];
-    //   const cameraRTSPUrl = data['rtsp'];
-
-    //   const cameraUsername = camera.username;
-    //   const cameraPassword = camera.password;
-    //   const cameraServiceUrl = cameraService.url;
-    //   const cameraServicePort = cameraService.port;
-    //   const completeRTSP = cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", function() { return `rtsp://${cameraUsername}:${cameraPassword}@` })
-    //   const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
-
-    //   const x1 = await this.axios.axiosRef.post(uurl, { url: completeRTSP, port: port, id: body.cameraId })
-    //   const new_port = x1.data?.data[0]?.port ? x1.data.data[0].port : 0
-
-    //   await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: true, port: new_port } })
-    //   return { status: true, data: { status: true, port: new_port }, error: null, msg: null };
-    // } catch (error) {
-      throw new HttpException({ status: false, data: null, error: null, msg: null }, 406);
-    // }
-  }
-
-  async stop(user, body: dtos.recorderDto): Promise<generalResponse> {
+  async stop_item(user: any, camera_id: string, recorder_id: string): Promise<generalResponse> {
     try {
-      // check if camera available
-      const { data } = await this.status(user, body);
+      const where = { id: camera_id, AND: [] }
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
+      const camera = await this.db.camera.findUnique({ where });
+      if (!camera) { throw new ConflictException() }
 
-      const cameraService = data['cameraService']
-      const cameraServiceInfo = data['cameraServiceInfo']
-      const cameraRecorderCamera = data['cameraRecorderCamera']
-      const cameraRecorder = data['cameraRecorder']
+      const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} }, include: { camera_recorder: true } })
+      if (!list) { throw new ConflictException() }
 
-      // check if already started
-      if (cameraRecorderCamera.session === 'STOPPED') { return { status: true, data: { status: false, session: cameraRecorderCamera.session }, error: null, msg: null }; }
+      if (list.status === 'STOPPED') { return { status: true, data: list, error: null, msg: null } }
 
-      const cameraRecorderUrl = cameraRecorder.url;
-      const cameraRecorderPort = cameraRecorder.port;
+      const service_url = list.camera_recorder[0].url
+      const service_port = list.camera_recorder[0].port
+      const service = `http://${service_url}:${service_port}/camera_recorder/`
 
-      const newurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder/` + cameraRecorderCamera.session
+      // const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: camera_id } }, type: 'record' }, include: { camera_service: true } })
+      // const stream = await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } })
+      // const stream_url = stream.url
+      // const stream_port = stream_service.port
+
+      const newurl = service + `recorder/` + list.session
       const cc = await this.axios.axiosRef.delete(newurl)
-      await this.db.camera_recorder_camera.update({ where: { id: cameraRecorderCamera.id }, data: { status: 'STOPPED' } })
-
-      this.loggerService.log('Recorder stopped', 0, user, undefined, undefined, body.cameraId, undefined)
-
-      return { status: true, data: { status: false, session: cameraRecorderCamera.session }, error: null, msg: null };
-
+      const list2 = await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: 'STOPPED' } })
+      this.loggerService.log('Recorder stopped', 0, user, undefined, undefined, camera_id, undefined)
+      return { status: true, data: list2, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
 
-  async force_stop(user, body: dtos.recorderDto): Promise<generalResponse> {
-    // try {
-    //   // check if camera available
-    //   const { data } = await this.status(user, body);
-    //   // const subscribers = data['subscribers'];
-    //   // const port = data['port'];
-    //   // const status = data['status'];
-    //   const cameraService = data['cameraService'];
-    //   const cameraServiceInfoId = data['id']
-    //   const camera = data['camera'];
-    //   const cameraRTSPUrl = data['rtsp'];
+  async clear_item(user: any, camera_id: string, recorder_id: string): Promise<generalResponse> {
+    try {
+      const where = { id: camera_id, AND: [] }
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
+      const camera = await this.db.camera.findUnique({ where });
+      if (!camera) { throw new ConflictException() }
 
-    //   const cameraUsername = camera.username;
-    //   const cameraPassword = camera.password;
-    //   const cameraServiceUrl = cameraService.url;
-    //   const cameraServicePort = cameraService.port;
-    //   const completeRTSP = cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", function() { return `rtsp://${cameraUsername}:${cameraPassword}@` })
+      const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} }, include: { camera_recorder: true } })
+      if (!list) { throw new ConflictException() }
 
-    //   const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service/remove`
-    //   await this.axios.axiosRef.post(uurl, { url: completeRTSP, id: body.cameraId })
+      await this.stop_item(user, camera_id, recorder_id)
 
-    //   await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: false } })
-    //   return { status: true, data: null, error: null, msg: null };
-    // } catch (error) {
-      throw new HttpException({ status: false, data: null, error: null, msg: null }, 406);
-    // }
+      const service_url = list.camera_recorder[0].url
+      const service_port = list.camera_recorder[0].port
+      const service = `http://${service_url}:${service_port}/camera_recorder/`
+
+      // const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: camera_id } }, type: 'record' }, include: { camera_service: true } })
+      // const stream = await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } })
+      // const stream_url = stream.url
+      // const stream_port = stream_service.port
+
+      const newurl = service + `data/` + list.session
+      const cc = await this.axios.axiosRef.delete(newurl)
+      this.loggerService.log('Recorder records removed', 0, user, undefined, undefined, camera_id, undefined)
+      return { status: true, data: list, error: null, msg: null }
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  // async start_after_restart(recorder_id: string): Promise<generalResponse> {
+  //   try {
+  //     const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id }, include: { camera_recorder: true, camera: true } })
+  //     if (list.status === 'RUNNING') {
+  //       const service_url = list.camera_recorder[0].url
+  //       const service_port = list.camera_recorder[0].port
+  //       const service = `http://${service_url}:${service_port}/camera_recorder/`
+
+  //       const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: list.camera[0].id } }, type: 'record' }, include: { camera_service: true } })
+  //       const stream = await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } })
+  //       const stream_url = stream.url
+  //       const stream_port = stream_service.port
+
+  //       const newurl = service + `recorder/` + list.session + `/start`
+  //       const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, enable_rotation: list.enable_rotation })
+  //       await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
+  //     }
+  //     return { status: true, data: null, error: null, msg: null }
+  //   } catch (error) {
+  //     throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+  //   }
+  // }
+
+  async delete_all(user: any, camera_id: string): Promise<generalResponse> {
+    try {
+
+      const list = await this.db.camera_recorder_camera.findMany({ where: { camera: { some: { id: camera_id }} }, include: { camera_recorder: true } })
+
+      await Promise.all(list.map(async (item) => {
+        await this.stop_item(user, camera_id, item.id)
+        await this.clear_item(user, camera_id, item.id)
+        await this.delete_item(user, camera_id, item.id)
+      }));
+
+      return { status: true, data: null, error: null, msg: null }
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
   }
 }

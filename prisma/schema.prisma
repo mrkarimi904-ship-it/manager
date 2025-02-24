@@ -136,9 +136,14 @@ model camera_recorder {
 }
 
 model camera_recorder_camera {
-  id                          String        @id @default(uuid())
-  status                      String @default("none")
-  session                     String @default("none")
+  id                          String      @id @default(uuid())
+  title                       String
+  storage_path                String
+  quota                       Int
+  block_size                  Int
+  enable_rotation             Boolean
+  status                      String      @default("none")
+  session                     String      @default("none")
   camera_recorder             camera_recorder[]
   camera                      camera[]
 }

@@ -6,7 +6,6 @@ import * as dtos from './camera_recorder.dtos';
 
 import { generalResponse } from 'src/app.consts';
 
-import { RecorderService } from 'src/recorder/recorder.service';
 import { StreamService } from 'src/stream/stream.service';
 
 import { HttpService } from '@nestjs/axios';
@@ -15,7 +14,7 @@ import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class CameraRecorderService {
-  constructor(private db: DbService, private recorderservice: RecorderService, private streamService: StreamService, private readonly axios: HttpService, private loggerService: LoggerService) {}
+  constructor(private db: DbService, private streamService: StreamService, private readonly axios: HttpService, private loggerService: LoggerService) {}
 
   async getAll(): Promise<generalResponse> {
     try {
@@ -40,17 +39,29 @@ export class CameraRecorderService {
   async postSingle(body: dtos.postCameraRecorderDto): Promise<generalResponse> {
     try {
       const camerasService: dtos.cameraRecorderDto = await this.db.camera_recorder.upsert({ where: { id: body.id}, update: { port: body.swagger_port, url: body.url }, create: { id: body.id, url: body.url, port: body.swagger_port } })
+
       // try to start currently registered cameras
-      // const allCameraRecorders = await this.db.camera_recorder.findMany()
-      // allCameraRecorders.forEach(async element => {
-        // const temp_id = element.id;
-        // const allCameras = await this.db.camera_recorder_camera.findMany({ where: { camera_recorder_id: temp_id } })
-        // allCameras.forEach(element => {
-        //   if (element.type === 'live') { this.streamService.restart({ cameraId: element.camera_id }) } else { this.recorderservice.restart({ cameraId: element.camera_id }) }
-        // });
-      // });
+      const active_recorders = await this.db.camera_recorder_camera.findMany({ where: { camera_recorder: { some: { id: camerasService.id }}, status: 'RUNNING' }, include: { camera_recorder: true, camera: true } })
+      await Promise.all(active_recorders.map(async (item) => {
+
+        await this.streamService.start(null, { cameraId: item.camera[0].id, type: 'HIGH' })
+
+        const service_url = item.camera_recorder[0].url
+        const service_port = item.camera_recorder[0].port
+        const service = `http://${service_url}:${service_port}/camera_recorder/`
+
+        const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: item.camera[0].id } }, type: 'record' }, include: { camera_service: true } })
+        const stream = await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } })
+        const stream_url = stream.url
+        const stream_port = parseInt(stream.port)
+
+        const newurl = service + `recorder/` + item.session + `/start`
+        const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, enable_rotation: item.enable_rotation })
+        await this.db.camera_recorder_camera.update({ where: { id: item.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
+      }));
+
       // return
-      this.loggerService.log('camera recorder instance removed', 0)
+      this.loggerService.log('camera recorder instance registered', 0)
       const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
       return response;
     } catch (error) {
@@ -77,7 +88,7 @@ export class CameraRecorderService {
       await Promise.all(cameraRecorder.map(async (element) => {
         const id = element.id
         const used_ports = await this.db.camera_recorder_camera.findMany({ where: { camera_recorder: { some: { id: id } } } });
-        const available_ports = 2000
+        const available_ports = 100
         result = result + available_ports - used_ports.length;
       }));
       const response: generalResponse = { status: true, data: { count: result }, error: null, msg: null };
@@ -94,7 +105,7 @@ export class CameraRecorderService {
       await Promise.all(cameraRecorder.map(async (element) => {
         const id = element.id
         const used_ports = await this.db.camera_recorder_camera.findMany({ where: { camera_recorder: { some: { id: id } } } });
-        const available_ports = 2000
+        const available_ports = 100
         if (used_ports.length < available_ports) { result = id; return true }
       }));
       return result;

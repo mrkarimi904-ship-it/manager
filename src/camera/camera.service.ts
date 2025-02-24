@@ -413,12 +413,6 @@ export class CameraService {
           // add info to camera service
           await this.db.camera_service_camera.create({ data: { type: 'live', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
           await this.db.camera_service_camera.create({ data: { type: 'record', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
-          await this.db.camera_recorder_camera.create({ data: { status: '', session: '', camera: { connect: { id: temp.id } }, camera_recorder: { connect: { id: cameraRecorderID } } } })
-          // start stream
-          // todo : start camera streams and recorder if needed
-          // await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'LOW' })
-          // await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'HIGH' })
-          // await this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp.id })
           // generate response
           this.loggerService.log('camera added', 0, user, undefined, undefined, temp.id)
           const response: generalResponse = { status: true, data: temp, error: null, msg: null };
@@ -510,12 +504,6 @@ export class CameraService {
         // add info to camera service
         await this.db.camera_service_camera.create({ data: { type: 'live', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
         await this.db.camera_service_camera.create({ data: { type: 'record', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
-        await this.db.camera_recorder_camera.create({ data: { status: '', session: '', camera: { connect: { id: temp.id } }, camera_recorder: { connect: { id: cameraRecorderID } } } })
-        // start stream
-        // todo : start camera streams and recorder if needed
-        // await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'LOW' })
-        // await this.streamService.start({ isSuperAdmin: true }, { cameraId: temp.id, type: 'HIGH' })
-        // await this.recorderservice.start({ isSuperAdmin: true }, { cameraId: temp.id })
         // generate response
         this.loggerService.log('camera addeed', 0, user, undefined, undefined, temp.id)
         const response: generalResponse = { status: true, data: temp, error: null, msg: null };
@@ -548,8 +536,10 @@ export class CameraService {
       if (!camOk) { return { status: false, data: null, error: null, msg: null }; }
       // stop live
       await this.streamService.stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
-      // stop recorder
+      // stop high
       await this.streamService.stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
+      // stop recorder
+      await this.recorderservice.delete_all(user, id)
       // delete related data from other tables
       await this.db.$transaction([
         this.db.camera_info.deleteMany({ where: { camera: { some: { id: id } } } }),

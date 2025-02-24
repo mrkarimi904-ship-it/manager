@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, UseGuards } from '@nestjs/common';
 
 import { RecorderService } from './recorder.service';
 
@@ -15,24 +15,60 @@ import { accountGaurd } from 'src/account/account.gaurd';
 export class RecorderController {
   constructor(private readonly recorderService: RecorderService) {}
 
-  @Post('status')
+  @Get(':camera_id')
   @AccountRoles('actions_recorder')
   @UseGuards(accountGaurd)
-  async status(@User() user, @Body() body: dtos.recorderDto): Promise<generalResponse> {
-    return this.recorderService.status(user, body);
+  async get_list(@User() user, @Param('camera_id', new ParseUUIDPipe({ version: "4" })) camera_id: string): Promise<generalResponse> {
+    return this.recorderService.get_list(user, camera_id);
   }
 
-  @Post('start')
+  @Post(':camera_id')
   @AccountRoles('actions_recorder')
   @UseGuards(accountGaurd)
-  async start(@User() user, @Body() body: dtos.recorderDto): Promise<generalResponse> {
-    return this.recorderService.start(user, body);
+  async add_item(@User() user, @Param('camera_id', new ParseUUIDPipe({ version: "4" })) camera_id: string, @Body() body: dtos.recorderPostDto): Promise<generalResponse> {
+    return this.recorderService.add_item(user, camera_id, body);
   }
 
-  @Post('stop')
+  @Get(':camera_id/:recorder_id')
   @AccountRoles('actions_recorder')
   @UseGuards(accountGaurd)
-  async stop(@User() user, @Body() body: dtos.recorderDto): Promise<generalResponse> {
-    return this.recorderService.stop(user, body);
+  async get_item(@User() user, @Param('camera_id', new ParseUUIDPipe({ version: "4" })) camera_id: string , @Param('recorder_id', new ParseUUIDPipe({ version: "4" })) recorder_id: string): Promise<generalResponse> {
+    return this.recorderService.get_item(user, camera_id, recorder_id);
   }
+
+  @Put(':camera_id/:recorder_id')
+  @AccountRoles('actions_recorder')
+  @UseGuards(accountGaurd)
+  async put_item(@User() user, @Param('camera_id', new ParseUUIDPipe({ version: "4" })) camera_id: string , @Param('recorder_id', new ParseUUIDPipe({ version: "4" })) recorder_id: string, @Body() body: dtos.recorderPutDto): Promise<generalResponse> {
+    return this.recorderService.put_item(user, camera_id, recorder_id, body);
+  }
+
+  @Delete(':camera_id/:recorder_id')
+  @AccountRoles('actions_recorder')
+  @UseGuards(accountGaurd)
+  async delete_item(@User() user, @Param('camera_id', new ParseUUIDPipe({ version: "4" })) camera_id: string , @Param('recorder_id', new ParseUUIDPipe({ version: "4" })) recorder_id: string): Promise<generalResponse> {
+    return this.recorderService.delete_item(user, camera_id, recorder_id);
+  }
+
+  @Post(':camera_id/:recorder_id/start')
+  @AccountRoles('actions_recorder')
+  @UseGuards(accountGaurd)
+  async start_item(@User() user, @Param('camera_id', new ParseUUIDPipe({ version: "4" })) camera_id: string , @Param('recorder_id', new ParseUUIDPipe({ version: "4" })) recorder_id: string): Promise<generalResponse> {
+    return this.recorderService.start_item(user, camera_id, recorder_id);
+  }
+
+  @Post(':camera_id/:recorder_id/stop')
+  @AccountRoles('actions_recorder')
+  @UseGuards(accountGaurd)
+  async stop_item(@User() user, @Param('camera_id', new ParseUUIDPipe({ version: "4" })) camera_id: string , @Param('recorder_id', new ParseUUIDPipe({ version: "4" })) recorder_id: string): Promise<generalResponse> {
+    return this.recorderService.stop_item(user, camera_id, recorder_id);
+  }
+
+  @Post(':camera_id/:recorder_id/clear')
+  @AccountRoles('actions_recorder')
+  @UseGuards(accountGaurd)
+  async clear_item(@User() user, @Param('camera_id', new ParseUUIDPipe({ version: "4" })) camera_id: string , @Param('recorder_id', new ParseUUIDPipe({ version: "4" })) recorder_id: string): Promise<generalResponse> {
+    return this.recorderService.clear_item(user, camera_id, recorder_id);
+  }
+
 }
