@@ -228,6 +228,20 @@ export class CameraService {
       ])
       await this.db.camera.update({ where: { id: id }, data: { url: body.url, username: body.username, password: body.password, tcp: body.tcp }});
 
+      // check if restart is required
+      const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: id } } } })
+      const is_restart_required = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0] || temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
+      if (is_restart_required) {
+        // stop stream
+        await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
+        await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
+        // wait
+        await new Promise(r => setTimeout(r, 1000))
+        // start stream
+        await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
+        await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
+      }
+
       const cam = await this.getSingle(user, id)
       // return
       this.loggerService.log('camera edited', 0, user, undefined, undefined, id)
