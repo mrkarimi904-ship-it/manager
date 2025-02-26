@@ -230,15 +230,22 @@ export class CameraService {
 
       // check if restart is required
       const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: id } } } })
-      const is_restart_required = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0] || temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
-      if (is_restart_required) {
+      const is_restart_required_live = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0]
+      const is_restart_required_record = temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
+      if (is_restart_required_live) {
         // stop stream
         await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
-        await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
         // wait
         await new Promise(r => setTimeout(r, 1000))
         // start stream
         await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
+      }
+      if (is_restart_required_record) {
+        // stop stream
+        await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
+        // wait
+        await new Promise(r => setTimeout(r, 1000))
+        // start stream
         await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
       }
 
@@ -270,7 +277,8 @@ export class CameraService {
       if (!temp) { return { status: false, data: null, error: null, msg: null }; }
       // check if restart is required
       const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: temp.id } } } })
-      const is_restart_required = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0] || temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
+      const is_restart_required_live = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0]
+      const is_restart_required_record = temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
       // get profiles from onvif service
       const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', temp), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', temp)]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
@@ -287,11 +295,12 @@ export class CameraService {
         const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
         // add camera to db
         try {
-          if (is_restart_required) {
-            // stop stream
+          if (is_restart_required_live) {
             await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
+            await new Promise(r => setTimeout(r, 1000))
+          }
+          if (is_restart_required_record) {
             await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
-            // wait
             await new Promise(r => setTimeout(r, 1000))
           }
           // update
@@ -303,7 +312,7 @@ export class CameraService {
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_pan_tilt' }, data: { value: ptzPanTilt ? 'true' : 'false' } }),
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_zoom' }, data: { value: ptzZoom? 'true' : 'false' } }),
           ])
-          if (is_restart_required) {
+          if (is_restart_required_live || is_restart_required_record) {
             // start stream
             await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
             await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
