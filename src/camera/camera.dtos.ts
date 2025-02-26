@@ -91,6 +91,10 @@ export class postCameraDto {
   @IsString()
   @ApiProperty()
   map_lng: string;
+
+  @IsBoolean()
+  @ApiProperty()
+  tcp: boolean;
 }
 
 export class cameraSearchQuery {
@@ -255,6 +259,10 @@ export class editCameraDto {
   @IsString()
   @ApiProperty()
   map_lng: string;
+
+  @IsBoolean()
+  @ApiProperty()
+  tcp: boolean;
 }
 
 export class editCameraProfileDto {

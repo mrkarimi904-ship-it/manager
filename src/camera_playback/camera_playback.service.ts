@@ -8,6 +8,7 @@ import { generalResponse } from 'src/app.consts';
 
 import { HttpService } from '@nestjs/axios';
 import { LoggerService } from 'src/logger/logger.service';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class CameraPlaybackService {
@@ -65,5 +66,28 @@ export class CameraPlaybackService {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
+
+  @Cron('0 */5 * * * *')
+  async handleCron() {
+    if (process.env.NODE_ENV) { return true }
+    try {
+      console.debug('scanning playbackservices ...', new Date().toString());
+      const cameraPlaybacks = await this.db.camera_playback.findMany();
+      await Promise.all(cameraPlaybacks.map(async (element) => {
+        const serviceUrl = element.url;
+        const servicePort = element.port;
+        const uurl = `http://${serviceUrl}:${servicePort}/camera_playback`
+        const results = await this.axios.axiosRef.get(uurl)
+        await Promise.all(results.data.playbacks.map(async (elm) => {
+          if (elm.subscribers === 0) {
+            await this.axios.axiosRef.delete(uurl + '/' + elm.session_id + '/stop')
+          }
+        }));
+      }));
+    } catch (error) {
+      console.log('error scanning playbackservices', error)
+    }
+  }
+
 
 }

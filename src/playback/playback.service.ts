@@ -147,7 +147,7 @@ export class PlaybackService {
           cam.record_result = 'no_session'
         }
         delete cam.camera_recorder_camera
-        final_result.push(cam)
+        if (cam.record_data.length > 0) { final_result.push(cam) }
       }))
       const result = { status: true, data: final_result, error: null, msg: null }
       return result;

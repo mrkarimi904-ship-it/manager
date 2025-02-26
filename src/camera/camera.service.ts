@@ -226,7 +226,7 @@ export class CameraService {
         this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'map_lat' }, data: { value: body.map_lat } }),
         this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'map_lng' }, data: { value: body.map_lng } }),
       ])
-      await this.db.camera.update({ where: { id: id }, data: { url: body.url, username: body.username, password: body.password }});
+      await this.db.camera.update({ where: { id: id }, data: { url: body.url, username: body.username, password: body.password, tcp: body.tcp }});
 
       const cam = await this.getSingle(user, id)
       // return
@@ -390,7 +390,7 @@ export class CameraService {
         try {
           const temp: dtos.cameraDto = await this.db.camera.create({
             data: {
-              url: body.url, username: body.username, password: body.password,
+              url: body.url, username: body.username, password: body.password, tcp: body.tcp,
               camera_info: {
                 create: [
                   { key: 'name', value: body.name },
@@ -481,7 +481,7 @@ export class CameraService {
         // add
         const temp: dtos.cameraDto = await this.db.camera.create({
           data: {
-            url: body.url, username: body.username, password: body.password,
+            url: body.url, username: body.username, password: body.password, tcp: true,
             camera_info: {
               create: [
                 { key: 'name', value: body.url },
@@ -566,33 +566,6 @@ export class CameraService {
       const cameras = await this.db.camera.findMany();
       await this.db.camera.updateMany({ data: { status: 'loading' } })
       await Promise.all(cameras.map(async (element) => {
-        // const cam_id = element.id;
-        // const cam_fullurl = element.url;
-        // const cam_username = element.username;
-        // const cam_password = element.password;
-        // const old_status = element.status;
-        // let cam_ip = '';
-        // let cam_port = '';
-        // if (cam_fullurl.includes(':')) {
-        //   cam_ip = cam_fullurl.split(':')[0];
-        //   cam_port = cam_fullurl.split(':')[1];
-        // } else {
-        //   cam_ip = cam_fullurl;
-        //   cam_port = '80';
-        // }
-        // const temp = { username: cam_username, password: cam_password, ip: cam_ip, port: cam_port }
-        // const health = await this.axios.axiosRef.post(process.env.HEALTH_SERVICE + '/check_camera', temp);
-        // if (health.data.status === 'true') {
-        //   if (old_status !== 'ok' && old_status !== 'loading') {
-        //     await this.db.camera.update({ where: { id: cam_id }, data: { status: 'ok' } })
-        //     this.loggerService.log(`Camera connected`, 1, undefined, undefined, undefined, cam_id, undefined);
-        //   }
-        // } else {
-        //   await this.db.camera.update({ where: { id: cam_id }, data: { status: health.data.error } })
-        //   if (old_status === 'ok' || old_status === 'loading') {
-        //     this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, cam_id, undefined);
-        //   }
-        // }
         try {
           const health = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera', element);
           if (health.data.status === 'up') {

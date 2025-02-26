@@ -68,7 +68,7 @@ export class StreamService {
       const completeRTSP = cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", function() { return `rtsp://${cameraUsername}:${cameraPassword}@` })
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
 
-      const x1 = await this.axios.axiosRef.post(uurl, { url: completeRTSP, port: port, id: body.cameraId })
+      const x1 = await this.axios.axiosRef.post(uurl, { url: completeRTSP, port: port, id: body.cameraId, tcp: camera.tcp })
       const new_port = x1.data?.data[0]?.port ? x1.data.data[0].port : 0
 
       this.loggerService.log(`Stream ${body.type} started`, 0, user, undefined, undefined, body.cameraId, undefined)
@@ -99,7 +99,7 @@ export class StreamService {
       const completeRTSP = cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", function() { return `rtsp://${cameraUsername}:${cameraPassword}@` })
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
 
-      const x1 = await this.axios.axiosRef.post(uurl, { url: completeRTSP, port: port, id: body.cameraId })
+      const x1 = await this.axios.axiosRef.post(uurl, { url: completeRTSP, port: port, id: body.cameraId, tcp: camera.tcp })
       const new_port = x1.data?.data[0]?.port ? x1.data.data[0].port : 0
 
       await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: true, port: new_port } })

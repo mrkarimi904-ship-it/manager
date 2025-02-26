@@ -52,6 +52,7 @@ export class RecorderService {
       const free_service = await this.camera_recorder_service.getFreeCameraRecorderId()
 
       const item = await this.db.camera_recorder_camera.create({ data: { ...body, camera: { connect: { id: camera_id } }, camera_recorder: { connect: { id: free_service }} } })
+      this.loggerService.log(`Recorder added`, 0, user, undefined, undefined, camera_id, undefined)
       return { status: true, data: item, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -118,6 +119,7 @@ export class RecorderService {
 
       await this.start_item(user, camera_id, recorder_id)
 
+      this.loggerService.log(`Recorder edited`, 0, user, undefined, undefined, camera_id, undefined)
       return { status: true, data: list2, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -146,6 +148,7 @@ export class RecorderService {
 
       const list2 = await this.db.camera_recorder_camera.delete({ where: { id: recorder_id, camera: { some: { id: camera_id } } } })
 
+      this.loggerService.log(`Recorder removed`, 0, user, undefined, undefined, camera_id, undefined)
       return { status: true, data: list2, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

@@ -78,6 +78,7 @@ model camera {
   username                    String
   password                    String
   status                      String      @default("ok")
+  tcp                         Boolean     @default(true)
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
   camera_info                 camera_info[]
