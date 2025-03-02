@@ -409,6 +409,8 @@ export class CameraService {
         const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
         // make sure port is included in url to prevent duplication
         if (body.url.includes(':')) { body.url = body.url } else { body.url = body.url + ':80' }
+        // check for duplicate camera
+        if (await this.db.camera.count({ where: { url: body.url } })) { throw { message: 'Camera already added.' } }
         // add camera to db
         try {
           const temp: dtos.cameraDto = await this.db.camera.create({
@@ -501,6 +503,8 @@ export class CameraService {
         const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
         // make sure port is included in url to prevent duplication
         if (body.url.includes(':')) { body.url = body.url } else { body.url = body.url + ':80' }
+        // check for duplicate camera
+        if (await this.db.camera.count({ where: { url: body.url } })) { throw { message: 'Camera already added.' } }
         // add
         const temp: dtos.cameraDto = await this.db.camera.create({
           data: {
