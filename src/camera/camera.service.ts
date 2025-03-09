@@ -274,7 +274,7 @@ export class CameraService {
       // get results
       const temp: dtos.cameraDto = await this.db.camera.findUnique({ where });
       // check resuts
-      if (!temp) { return { status: false, data: null, error: null, msg: null }; }
+      if (!temp) { throw { message: 'camera not found or user has no access to camera' }; }
       // check if restart is required
       const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: temp.id } } } })
       const is_restart_required_live = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0]
@@ -284,12 +284,12 @@ export class CameraService {
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
         // get profile rtsp data
         const high = onvif_response.data.filter(x => x.token === body.profile_high).map(x => { return x.stream?.rtsp })
-        if (high.length < 1) { return { status: false, data: null, error: 'error_adding_camera', msg: 'High profile is not valid' }; }
+        if (high.length < 1) { throw { message: 'High profile is not valid' }; }
         const low = onvif_response.data.filter(x => x.token === body.profile_low).map(x => { return x.stream?.rtsp })
-        if (low.length < 1) { return { status: false, data: null, error: 'error_adding_camera', msg: 'Low profile is not valid' }; }
+        if (low.length < 1) { throw { message: 'Low profile is not valid' }; }
         // camera service
         const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
-        if (!cameraserviceID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera serive available' }; }
+        if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
         // get ptz info
         const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
         const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
