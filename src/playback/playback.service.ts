@@ -1,22 +1,32 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, Inject, Injectable } from '@nestjs/common';
 // import { CreatePlaybackDto } from './playback.dtos';
 import { generalResponse } from 'src/app.consts';
 
 import { DbService } from 'src/db/db.service';
 import { HttpService } from '@nestjs/axios';
 import { LoggerService } from 'src/logger/logger.service';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class PlaybackService {
 
-  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService, @Inject(CACHE_MANAGER) private cacheManager: Cache) {}
 
   async get_playback() {
-    const p = await this.db.camera_playback.findFirst()
-    if (p) {
+    let p = await this.cacheManager.get(`camera_playback_list`) as any;
+    if (p)
+    {
       return `http://${p.url}:${p.port}/camera_playback`
-    } else {
-      throw new HttpException({ status: false, data: null, error: 'no playback service found', msg: 'no playback service found' }, 406);
+    }
+    if (!p) {
+      p = await this.db.camera_playback.findFirst()
+      if (p) {
+        await this.cacheManager.set(`camera_playback_list`, p)
+        return `http://${p.url}:${p.port}/camera_playback`
+      } else {
+        throw new HttpException({ status: false, data: null, error: 'no playback service found', msg: 'no playback service found' }, 406);
+      }
     }
   }
 
@@ -36,7 +46,11 @@ export class PlaybackService {
   async playback_info(id: string): Promise<generalResponse> {
     try {
       const base_url = await this.get_playback()
-      const results = await this.axios.axiosRef.get(base_url + '/' + id)
+      let results = await this.cacheManager.get(`camera_playback_${id}`) as any;
+      if (!results) {
+        results = await this.axios.axiosRef.get(base_url + '/' + id)
+        await this.cacheManager.set(`camera_playback_${id}`, results)
+      }
       const result = { status: true, data: results.data, error: null, msg: null }
       return result;
     } catch (error) {
@@ -115,7 +129,6 @@ export class PlaybackService {
 
   async playback_list(user: any, from: number, to: number): Promise<generalResponse> {
     try {
-
       const where = {}
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
