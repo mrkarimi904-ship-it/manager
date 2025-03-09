@@ -56,7 +56,7 @@ export class CameraRecorderService {
         const stream_port = parseInt(stream.port)
 
         const newurl = service + `recorder/` + item.session + `/start`
-        const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, enable_rotation: item.enable_rotation })
+        const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, rotation: item.enable_rotation })
         await this.db.camera_recorder_camera.update({ where: { id: item.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
       }));
 

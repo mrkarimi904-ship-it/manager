@@ -28,6 +28,7 @@ import { SettingsModule } from './settings/settings.module';
 import { LoggerModule } from './logger/logger.module';
 import { PlaybackModule } from './playback/playback.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { BookmarkModule } from './bookmark/bookmark.module';
 
 @Module({
   imports: [
@@ -41,7 +42,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     DbModule, AccountModule, AccountGroupModule, CameraModule,
     CameraGroupModule, StreamModule, RecorderModule, CameraServiceModule,
     CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule,
-    LoggerModule, PlaybackModule, SchedulerModule],
+    LoggerModule, PlaybackModule, SchedulerModule, BookmarkModule],
   controllers: [AppController],
   providers: [
     AppService,

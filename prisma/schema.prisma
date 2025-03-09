@@ -87,6 +87,7 @@ model camera {
   user_accounts               user_accounts[]
   camera_groups               camera_groups[]
   user_groups                 user_groups[]
+  camera_bookmark             camera_bookmark[]
 }
 
 model camera_groups {
@@ -155,6 +156,19 @@ model camera_playback {
   port                        String
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
+}
+
+model camera_bookmark {
+  id                          String        @id @default(uuid())
+  from                        Int
+  to                          Int
+  type                        String      @default("")
+  title                       String      @default("")
+  description                 String      @default("")
+  lock                        Boolean     @default(false)
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  camera                      camera[]
 }
 
 model setting_password_complexity {

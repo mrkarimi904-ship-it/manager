@@ -188,13 +188,13 @@ export class RecorderService {
       if (list.session === 'none')
       {
         const newurl = service + `recorder/start`
-        const cc = await this.axios.axiosRef.post(newurl, { name: list.title, camera_id: camera_id, storage_path: list.storage_path, quota: list.quota, block_size:list.block_size, stream_host: stream_url, stream_port:stream_port, enable_rotation: list.enable_rotation })
+        const cc = await this.axios.axiosRef.post(newurl, { name: list.title, camera_id: camera_id, storage_path: list.storage_path, quota: list.quota, block_size:list.block_size, stream_host: stream_url, stream_port:stream_port, rotation: list.enable_rotation })
         await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
         this.loggerService.log('Recorder started', 0, user, undefined, undefined, camera_id, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
       } else {
         const newurl = service + `recorder/` + list.session + `/start`
-        const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, enable_rotation: list.enable_rotation })
+        const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, rotation: list.enable_rotation })
         await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
         this.loggerService.log('Recorder started', 0, user, undefined, undefined, camera_id, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
@@ -293,7 +293,7 @@ export class RecorderService {
   //       const stream_port = stream_service.port
 
   //       const newurl = service + `recorder/` + list.session + `/start`
-  //       const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, enable_rotation: list.enable_rotation })
+  //       const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, rotation: list.enable_rotation })
   //       await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
   //     }
   //     return { status: true, data: null, error: null, msg: null }
