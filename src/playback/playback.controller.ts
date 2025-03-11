@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards } from '@nestjs/common';
 import { PlaybackService } from './playback.service';
 // import { CreatePlaybackDto } from './playback.dtos';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -13,60 +13,60 @@ import { accountGaurd } from 'src/account/account.gaurd';
 export class PlaybackController {
   constructor(private readonly playbackService: PlaybackService) {}
 
-  @Post()
-  @AccountRoles('actions_playback')
-  @UseGuards(accountGaurd)
-  async playback_create(@User() user, @Body() body: any): Promise<generalResponse> {
-    return this.playbackService.playback_create(user, body);
-  }
-
-  @Get(':playback_session/info')
-  @AccountRoles('actions_playback')
-  @UseGuards(accountGaurd)
-  async playback_info(@Param('playback_session') id: string): Promise<generalResponse> {
-    return this.playbackService.playback_info(id);
-  }
-
-  @Get(':recorder_session/data')
+  @Get(':recorder_session')
   @AccountRoles('actions_playback')
   @UseGuards(accountGaurd)
   async playback_data(@Param('recorder_session') id: string): Promise<generalResponse> {
     return this.playbackService.playback_data(id);
   }
 
-  @Post(':playback_session/start')
+  @Post(':recorder_session')
   @AccountRoles('actions_playback')
   @UseGuards(accountGaurd)
-  async playback_start(@Param('playback_session') id: string, @Body() body: any): Promise<generalResponse> {
-    return this.playbackService.playback_start(id, body);
+  async playback_create(@User() user, @Param('recorder_session') recorder_session: string, @Body() body: any): Promise<generalResponse> {
+    return this.playbackService.playback_create(user, recorder_session, body);
   }
 
-  @Post(':playback_session/speed')
+  @Get(':recorder_session/:playback_session')
   @AccountRoles('actions_playback')
   @UseGuards(accountGaurd)
-  async playback_speed(@Param('playback_session') id: string, @Body() body: any): Promise<generalResponse> {
-    return this.playbackService.playback_speed(id, body);
+  async playback_info(@Param('recorder_session') recorder_session: string, @Param('playback_session') id: string): Promise<generalResponse> {
+    return this.playbackService.playback_info(recorder_session, id);
   }
 
-  @Post(':playback_session/pause')
+  @Post(':recorder_session/:playback_session/start')
   @AccountRoles('actions_playback')
   @UseGuards(accountGaurd)
-  async playback_pause(@Param('playback_session') id: string): Promise<generalResponse> {
-    return this.playbackService.playback_pause(id);
+  async playback_start(@Param('recorder_session') recorder_session: string, @Param('playback_session') id: string, @Body() body: any): Promise<generalResponse> {
+    return this.playbackService.playback_start(recorder_session, id, body);
   }
 
-  @Post(':playback_session/resume')
+  @Post(':recorder_session/:playback_session/speed')
   @AccountRoles('actions_playback')
   @UseGuards(accountGaurd)
-  async playback_resume(@Param('playback_session') id: string): Promise<generalResponse> {
-    return this.playbackService.playback_resume(id);
+  async playback_speed(@Param('recorder_session') recorder_session: string, @Param('playback_session') id: string, @Body() body: any): Promise<generalResponse> {
+    return this.playbackService.playback_speed(recorder_session, id, body);
   }
 
-  @Delete(':playback_session/stop')
+  @Post(':recorder_session/:playback_session/pause')
   @AccountRoles('actions_playback')
   @UseGuards(accountGaurd)
-  async playback_stop(@Param('playback_session') id: string): Promise<generalResponse> {
-    return this.playbackService.playback_stop(id);
+  async playback_pause(@Param('recorder_session') recorder_session: string, @Param('playback_session') id: string): Promise<generalResponse> {
+    return this.playbackService.playback_pause(recorder_session, id);
+  }
+
+  @Post(':recorder_session/:playback_session/resume')
+  @AccountRoles('actions_playback')
+  @UseGuards(accountGaurd)
+  async playback_resume(@Param('recorder_session') recorder_session: string, @Param('playback_session') id: string): Promise<generalResponse> {
+    return this.playbackService.playback_resume(recorder_session, id);
+  }
+
+  @Delete(':recorder_session/:playback_session/stop')
+  @AccountRoles('actions_playback')
+  @UseGuards(accountGaurd)
+  async playback_stop(@Param('recorder_session') recorder_session: string, @Param('playback_session') id: string): Promise<generalResponse> {
+    return this.playbackService.playback_stop(recorder_session, id);
   }
 
   @Get('all/:from/:to')

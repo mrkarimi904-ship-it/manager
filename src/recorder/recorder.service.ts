@@ -49,9 +49,10 @@ export class RecorderService {
       const camera = await this.db.camera.findUnique({ where });
       if (!camera) { throw new ConflictException() }
 
-      const free_service = await this.camera_recorder_service.getFreeCameraRecorderId()
+      const server = body.recorder
+      delete body.recorder
 
-      const item = await this.db.camera_recorder_camera.create({ data: { ...body, camera: { connect: { id: camera_id } }, camera_recorder: { connect: { id: free_service }} } })
+      const item = await this.db.camera_recorder_camera.create({ data: { ...body, camera: { connect: { id: camera_id } }, camera_recorder: { connect: { id: server }} } })
       this.loggerService.log(`Recorder added`, 0, user, undefined, undefined, camera_id, undefined)
       return { status: true, data: item, error: null, msg: null }
     } catch (error) {

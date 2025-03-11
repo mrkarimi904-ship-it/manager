@@ -11,6 +11,10 @@ export class recorderDto {
 export class recorderPostDto {
   @IsString()
   @ApiProperty()
+  recorder: string;
+
+  @IsString()
+  @ApiProperty()
   title: string;
 
   @IsString()

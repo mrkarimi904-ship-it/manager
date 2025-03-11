@@ -81,39 +81,6 @@ export class CameraRecorderService {
     }
   }
 
-  async getAvailable(): Promise<generalResponse> {
-    try {
-      let result = 0
-      const cameraRecorder: dtos.cameraRecorderDto[] = await this.db.camera_recorder.findMany({ include: { camera_recorder_camera: true } });
-      await Promise.all(cameraRecorder.map(async (element) => {
-        const id = element.id
-        const used_ports = await this.db.camera_recorder_camera.findMany({ where: { camera_recorder: { some: { id: id } } } });
-        const available_ports = 100
-        result = result + available_ports - used_ports.length;
-      }));
-      const response: generalResponse = { status: true, data: { count: result }, error: null, msg: null };
-      return response;
-    } catch (error) {
-      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
-    }
-  }
-
-  async getFreeCameraRecorderId(): Promise<string> {
-    try {
-      let result = null
-      const cameraRecorder: dtos.cameraRecorderDto[] = await this.db.camera_recorder.findMany();
-      await Promise.all(cameraRecorder.map(async (element) => {
-        const id = element.id
-        const used_ports = await this.db.camera_recorder_camera.findMany({ where: { camera_recorder: { some: { id: id } } } });
-        const available_ports = 100
-        if (used_ports.length < available_ports) { result = id; return true }
-      }));
-      return result;
-    } catch (error) {
-      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
-    }
-  }
-
   @Cron('30 */5 * * * *')
   async handleCron() {
     if (process.env.NODE_ENV) { return true }

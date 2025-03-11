@@ -401,9 +401,6 @@ export class CameraService {
         // camera service
         const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
         if (!cameraserviceID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera serive available' }; }
-        // camera recorder
-        const cameraRecorderID = await this.camerarecorder.getFreeCameraRecorderId()
-        if (!cameraRecorderID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera recorder available' }; }
         // get ptz info
         const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
         const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
@@ -495,9 +492,6 @@ export class CameraService {
         // camera service
         const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
         if (!cameraserviceID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera serive available' }; }
-        // camera recorder
-        const cameraRecorderID = await this.camerarecorder.getFreeCameraRecorderId()
-        if (!cameraRecorderID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera recorder available' }; }
         // get ptz info
         const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
         const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
