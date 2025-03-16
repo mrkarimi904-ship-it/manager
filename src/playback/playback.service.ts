@@ -35,7 +35,7 @@ export class PlaybackService {
       if (!p1) { throw { message: 'invalid recorder session id' } }
       const p2 = p1.camera_recorder[0]
       if (!p2) { throw { message: 'invalid recorder service' } }
-      const p3 = await this.db.camera_playback.findFirst({ where: { port: p2.url } })
+      const p3 = await this.db.camera_playback.findFirst({ where: { url: p2.url } })
       if (!p3) { throw { message: 'invalid playback service' } }
       const base_url = `http://${p3.url}:${p3.port}/camera_playback`
       await this.cacheManager.set(`camera_playback_url_${session_id}`, base_url)
@@ -56,9 +56,13 @@ export class PlaybackService {
     try {
       const base_url = await this.get_playback_url(recorder_session)
       const results = await this.axios.axiosRef.post(base_url, body)
+      // prepare url of playback service so client knows where to connect
+      const p1 = await this.db.camera_recorder_camera.findFirst({ where: { session: recorder_session }, include: { camera_recorder: true } })
+      const p2 = p1.camera_recorder[0]
+      const p3 = await this.db.camera_playback.findFirst({ where: { url: p2.url } })
       // return
       this.loggerService.log('camera playback requested', 0, user)
-      const result = { status: true, data: results.data, error: null, msg: null }
+      const result = { status: true, data: { result: results.data, url: p3.url }, error: null, msg: null }
       return result;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

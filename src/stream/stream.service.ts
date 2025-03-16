@@ -59,7 +59,7 @@ export class StreamService {
       const cameraRTSPUrl = data['rtsp'];
 
       // check if already started
-      if (port !== 0 && status === true) { return { status: true, data: { status: true, port: port }, error: null, msg: null }; }
+      if (port !== 0 && status === true) { return { status: true, data: { status: true, port: port, cameraService: cameraService }, error: null, msg: null }; }
 
       const cameraUsername = camera.username;
       const cameraPassword = camera.password;
@@ -74,7 +74,7 @@ export class StreamService {
       this.loggerService.log(`Stream ${body.type} started`, 0, user, undefined, undefined, body.cameraId, undefined)
 
       await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: true, port: new_port } })
-      return { status: true, data: { status: true, port: new_port }, error: null, msg: null };
+      return { status: true, data: { status: true, port: new_port, cameraService: cameraService }, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
@@ -103,7 +103,7 @@ export class StreamService {
       const new_port = x1.data?.data[0]?.port ? x1.data.data[0].port : 0
 
       await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: true, port: new_port } })
-      return { status: true, data: { status: true, port: new_port }, error: null, msg: null };
+      return { status: true, data: { status: true, port: new_port, cameraService: cameraService }, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
@@ -122,9 +122,9 @@ export class StreamService {
       const cameraRTSPUrl = data['rtsp'];
 
       // check if already started
-      if (port === 0 && status === false) { return { status: true, data: { status: false, port: 0 }, error: null, msg: null }; }
+      if (port === 0 && status === false) { return { status: true, data: { status: false, port: 0, cameraService: cameraService }, error: null, msg: null }; }
       // if already have subscribers
-      if (parseInt(subscribers) > 1) { return { status: true, data: { status: true, port: port }, error: null, msg: null } }
+      if (parseInt(subscribers) > 1) { return { status: true, data: { status: true, port: port, cameraService: cameraService }, error: null, msg: null } }
 
       const cameraUsername = camera.username;
       const cameraPassword = camera.password;
@@ -138,7 +138,7 @@ export class StreamService {
       this.loggerService.log(`Stream ${body.type} stopped`, 0, user, undefined, undefined, body.cameraId, undefined)
 
       await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: false } })
-      return { status: true, data: { status: false, port: port }, error: null, msg: null };
+      return { status: true, data: { status: false, port: port, cameraService: cameraService }, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
