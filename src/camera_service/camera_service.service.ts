@@ -11,10 +11,11 @@ import { StreamService } from 'src/stream/stream.service';
 import { HttpService } from '@nestjs/axios';
 import { Cron } from '@nestjs/schedule';
 import { LoggerService } from 'src/logger/logger.service';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 
 @Injectable()
 export class CameraServiceService {
-  constructor(private db: DbService, private streamService: StreamService, private readonly axios: HttpService, private loggerService: LoggerService) {}
+  constructor(private db: DbService, private streamService: StreamService, private readonly axios: HttpService, private loggerService: LoggerService, private eventEmitter: EventEmitter2) {}
 
   async getAll(): Promise<generalResponse> {
     try {
@@ -40,15 +41,7 @@ export class CameraServiceService {
     try {
       if (parseInt(body.port_to) - parseInt(body.port_from) <= 0 ) { throw new HttpException({ status: false, data: null, error: 'invalid port', msg: 'invalid port' }, 406) }
       const camerasService: dtos.cameraServiceDto = await this.db.camera_service.upsert({ where: { id: body.id}, update: { port_from: body.port_from, port_to: body.port_to, port: body.swagger_port, url: body.url }, create: { id: body.id, url: body.url, port_from: body.port_from, port_to: body.port_to, port: body.swagger_port } })
-      // try to start currently registered cameras
-      // TODO : ...
-      const camera_service_camera = await this.db.camera_service_camera.findMany({ where: { camera_service: { some: { id: camerasService.id }}, status: true }, include: { camera: true } })
-      camera_service_camera.forEach(async element => {
-        const allCameras = element.camera
-        allCameras.forEach(cam => {
-          if (element.type === 'live') { this.streamService.restart({ cameraId: cam.id, type: 'LOW' }) } else { this.streamService.restart({ cameraId: cam.id, type: 'HIGH' }) }
-        });
-      });
+      this.eventEmitter.emit('background.camera_service', body);
       // return
       this.loggerService.log('camera service instance registered', 0)
       const response: generalResponse = { status: true, data: camerasService, error: null, msg: null };
@@ -132,4 +125,19 @@ export class CameraServiceService {
       console.log('error scanning cameraservices', error)
     }
   }
+
+  @OnEvent('background.camera_service')
+    async handleBackgroundTask(body: any) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('start backgrount task to start streams', body)
+      const camerasService = await this.db.camera_service.findUnique({ where: { id: body.id} })
+      // try to start currently registered cameras
+      const camera_service_camera = await this.db.camera_service_camera.findMany({ where: { camera_service: { some: { id: camerasService.id }}, status: true }, include: { camera: true } })
+      camera_service_camera.forEach(async element => {
+        const allCameras = element.camera
+        allCameras.forEach(cam => {
+          if (element.type === 'live') { this.streamService.restart({ cameraId: cam.id, type: 'LOW' }) } else { this.streamService.restart({ cameraId: cam.id, type: 'HIGH' }) }
+        });
+      });
+    }
 }

@@ -24,18 +24,4 @@ export class SettingsController {
     return await this.settingsService.setPasswordComplexities(user, updateSettingDto);
   }
 
-  @Get('license')
-  @AccountRoles('settings_license')
-  @UseGuards(accountGaurd)
-  async getlicense(@User() user): Promise<generalResponse> {
-    return await this.settingsService.getlicense(user);
-  }
-
-  @Get('license/code')
-  @AccountRoles('settings_license')
-  @UseGuards(accountGaurd)
-  async getlicenseCode(@User() user): Promise<generalResponse> {
-    return await this.settingsService.getlicenseCode(user);
-  }
-
 }

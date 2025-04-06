@@ -266,14 +266,13 @@ export class RecorderService {
       const service_port = list.camera_recorder[0].port
       const service = `http://${service_url}:${service_port}/camera_recorder/`
 
-      // const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: camera_id } }, type: 'record' }, include: { camera_service: true } })
-      // const stream = await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } })
-      // const stream_url = stream.url
-      // const stream_port = stream_service.port
-
       const newurl = service + `data/` + list.session
       const cc = await this.axios.axiosRef.delete(newurl)
+
       this.loggerService.log('Recorder records removed', 0, user, undefined, undefined, camera_id, undefined)
+
+      await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { session: 'none' } })
+
       return { status: true, data: list, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

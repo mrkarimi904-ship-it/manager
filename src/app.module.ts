@@ -10,6 +10,7 @@ import { AppService } from './app.service';
 
 import { CacheModule } from '@nestjs/cache-manager';
 import { DbModule } from './db/db.module';
+import { EventEmitterModule } from '@nestjs/event-emitter'
 
 import { AccountModule } from './account/account.module';
 import { AccountGroupModule } from './account_group/account_group.module';
@@ -29,6 +30,7 @@ import { LoggerModule } from './logger/logger.module';
 import { PlaybackModule } from './playback/playback.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { BookmarkModule } from './bookmark/bookmark.module';
+import { LicenseModule } from './license/license.module';
 
 @Module({
   imports: [
@@ -39,10 +41,11 @@ import { BookmarkModule } from './bookmark/bookmark.module';
     }),
     CacheModule.register({ ttl: 30000, isGlobal: true, max: 1000 }),
     ConfigModule.forRoot(),
+    EventEmitterModule.forRoot(),
     DbModule, AccountModule, AccountGroupModule, CameraModule,
     CameraGroupModule, StreamModule, RecorderModule, CameraServiceModule,
     CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule,
-    LoggerModule, PlaybackModule, SchedulerModule, BookmarkModule],
+    LoggerModule, PlaybackModule, SchedulerModule, BookmarkModule, LicenseModule],
   controllers: [AppController],
   providers: [
     AppService,

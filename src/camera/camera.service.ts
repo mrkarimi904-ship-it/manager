@@ -12,7 +12,7 @@ import { RecorderService } from 'src/recorder/recorder.service';
 import { StreamService } from 'src/stream/stream.service';
 import { Cron } from '@nestjs/schedule';
 import { LoggerService } from 'src/logger/logger.service';
-import { SettingsService } from 'src/settings/settings.service';
+import { LicenseService } from 'src/license/license.service';
 
 @Injectable()
 export class CameraService {
@@ -24,7 +24,7 @@ export class CameraService {
     private recorderservice: RecorderService,
     private streamService: StreamService,
     private loggerService: LoggerService,
-    private settingsService: SettingsService
+    private licenseService: LicenseService
   ) {}
 
   async getAll(user, query: dtos.cameraSearchQuery): Promise<generalResponse> {
@@ -389,7 +389,7 @@ export class CameraService {
   async postSingle(user: any, body: dtos.postCameraDto): Promise<generalResponse> {
     try {
       // check license
-      if (await this.settingsService.can_add_new_camera() === false) { return { status: false, data: null, error: 'error_adding_camera', msg: 'License limit' }; }
+      if (await this.licenseService.can_add_new_camera() === false) { return { status: false, data: null, error: 'error_adding_camera', msg: 'License limit' }; }
       // get profiles from onvif service
       const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', body)]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
@@ -455,7 +455,7 @@ export class CameraService {
   async postFastRegister(user: any, body: dtos.postPreCameraDto): Promise<generalResponse> {
     try {
       // check license
-      if (await this.settingsService.can_add_new_camera() === false) { return { status: false, data: null, error: 'error_adding_camera', msg: 'License limit' }; }
+      if (await this.licenseService.can_add_new_camera() === false) { return { status: false, data: null, error: 'error_adding_camera', msg: 'License limit' }; }
       // get profiles from onvif service
       const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', body)]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
