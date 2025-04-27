@@ -16,10 +16,11 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 import * as speakeasy from 'speakeasy';
 import * as qrcode from 'qrcode';
+import { LicenseService } from 'src/license/license.service';
 
 @Injectable()
 export class AccountService {
-  constructor(private db: DbService, private settings: SettingsService, private loggerService: LoggerService, @Inject(CACHE_MANAGER) private cacheManager: Cache, private scheduler: SchedulerService ) {}
+  constructor(private db: DbService, private settings: SettingsService, private loggerService: LoggerService, @Inject(CACHE_MANAGER) private cacheManager: Cache, private scheduler: SchedulerService, private licenseService: LicenseService ) {}
 
   async allAccounts(user, query: accountSearchQuery): Promise<generalResponse> {
     try {
@@ -235,6 +236,8 @@ export class AccountService {
         const concurrentIds = concurrent.map(item => item.id)
         await this.db.user_tokens.deleteMany({ where: { user_accounts: { some: { id: account.id } }, id: { in: concurrentIds} } })
       }
+      // check if expired
+      if (service !== 'Configtool' && await this.licenseService.is_not_expired() === false) { throw { message: 'License error' } }
       // save token to db
       await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })
       // send notif

@@ -108,16 +108,26 @@ export class LicenseService {
 
 
 
+
+
+
+
   async getHardwareId(): Promise<string> {
     if (this.cachedHardwareId) return this.cachedHardwareId;
 
-    const isDocker = await this.isRunningInDocker();
+    // These identifiers will persist across container recreations
     const identifiers = {
-      environment: isDocker ? 'docker' : 'os',
-      identifiers: isDocker
-        ? await this.getDockerIdentifiers()
-        : await this.getOsIdentifiers(),
-      commonIdentifiers: await this.getCommonIdentifiers(),
+      // 1. Host machine identifiers (works in Docker when properly mounted)
+      hostMachineId: await this.getHostMachineId(),
+      hostCpuInfo: await this.getHostCpuInfo(),
+      hostDiskInfo: await this.getHostDiskInfo(),
+
+      // 2. Fallback identifiers that are stable in most environments
+      stableNetworkHash: this.getStableNetworkHash(),
+      systemUUID: await this.getSystemUUID(),
+
+      // 3. Environment context
+      environment: await this.getEnvironmentContext(),
     };
 
     const hash = crypto.createHash('sha256');
@@ -127,7 +137,72 @@ export class LicenseService {
     return this.cachedHardwareId;
   }
 
-  // Private helper methods for hardware ID generation
+  private async getHostMachineId(): Promise<string> {
+    try {
+      // Try to get the host's machine-id (exists on most Linux systems)
+      const { stdout } = await execAsync('cat /host/etc/machine-id 2>/dev/null || cat /etc/machine-id 2>/dev/null || echo no-machine-id');
+      return stdout.trim();
+    } catch {
+      return 'machine-id-error';
+    }
+  }
+
+  private async getHostCpuInfo(): Promise<string> {
+    try {
+      // Get CPU information that's consistent across containers
+      const { stdout } = await execAsync('cat /host/proc/cpuinfo 2>/dev/null || cat /proc/cpuinfo 2>/dev/null | grep -m 1 "model name" | awk -F": " \'{print $2}\'');
+      return stdout.trim() || 'no-cpu-info';
+    } catch {
+      return 'cpu-info-error';
+    }
+  }
+
+  private async getHostDiskInfo(): Promise<string> {
+    try {
+      // Get root filesystem UUID which is host-stable
+      const { stdout } = await execAsync('(findmnt -n -o SOURCE / | xargs blkid -o value -s UUID 2>/dev/null) || echo no-disk-uuid');
+      return stdout.trim();
+    } catch {
+      return 'disk-info-error';
+    }
+  }
+
+  private getStableNetworkHash(): string {
+    try {
+      // Create hash from all physical network interfaces
+      const interfaces = os.networkInterfaces();
+      const physicalInterfaces = Object.values(interfaces)
+        .flat()
+        .filter(i => !i.internal && i.mac && i.mac !== '00:00:00:00:00:00');
+
+      const hash = crypto.createHash('sha256');
+      physicalInterfaces.forEach(i => hash.update(i.mac));
+      return hash.digest('hex').substring(0, 8);
+    } catch {
+      return 'network-hash-error';
+    }
+  }
+
+  private async getSystemUUID(): Promise<string> {
+    try {
+      // Try to get DMI system UUID (works on physical/virtual machines)
+      const { stdout } = await execAsync('cat /host/sys/class/dmi/id/product_uuid 2>/dev/null || cat /sys/class/dmi/id/product_uuid 2>/dev/null || echo no-system-uuid');
+      return stdout.trim();
+    } catch {
+      return 'system-uuid-error';
+    }
+  }
+
+  private async getEnvironmentContext(): Promise<string> {
+    try {
+      const isDocker = await this.isRunningInDocker();
+      const isK8s = process.env.KUBERNETES_SERVICE_HOST ? 'k8s' : 'no';
+      return `${isDocker ? 'docker' : 'bare'}-${isK8s}`;
+    } catch {
+      return 'env-context-error';
+    }
+  }
+
   private async isRunningInDocker(): Promise<boolean> {
     try {
       if (require('fs').existsSync('/.dockerenv')) return true;
@@ -136,135 +211,19 @@ export class LicenseService {
         return cgroup.includes('docker') || cgroup.includes('kubepods');
       }
       return false;
-    } catch (e) {
+    } catch {
       return false;
     }
   }
 
-  private async getDockerIdentifiers(): Promise<Record<string, string>> {
-    return {
-      containerId: this.getContainerId(),
-      imageId: process.env.IMAGE_ID || 'unknown',
-      hostHostname: process.env.HOST_HOSTNAME || await this.getHostHostname(),
-    };
-  }
 
-  private async getOsIdentifiers(): Promise<Record<string, string>> {
-    return {
-      macAddress: this.getMacAddress(),
-      cpuId: await this.getCpuId(),
-      diskSerial: await this.getDiskSerial(),
-      motherboardInfo: await this.getMotherboardInfo(),
-    };
-  }
 
-  private async getCommonIdentifiers(): Promise<Record<string, string>> {
-    return {
-      hostname: os.hostname(),
-      osPlatform: os.platform(),
-      osArch: os.arch(),
-      totalMemory: os.totalmem().toString(),
-      nodeId: process.env.NODE_ID || 'default-node',
-      networkInterfaces: this.getNetworkInterfacesHash(),
-    };
-  }
 
-  private getContainerId(): string {
-    try {
-      if (process.platform === 'linux') {
-        const cgroup = execSync('cat /proc/self/cgroup').toString();
-        const match = cgroup.match(/([0-9a-f]{64})/);
-        if (match) return match[1];
-      }
-      return os.hostname();
-    } catch (e) {
-      return 'unknown-container';
-    }
-  }
 
-  private async getHostHostname(): Promise<string> {
-    try {
-      if (process.platform === 'linux') {
-        const { stdout } = await execAsync('cat /etc/hostname');
-        return stdout.trim();
-      }
-      return 'unknown-host';
-    } catch (e) {
-      return 'hostname-error';
-    }
-  }
 
-  private getMacAddress(): string {
-    try {
-      const networkInterfaces = os.networkInterfaces();
-      for (const [, interfaces] of Object.entries(networkInterfaces)) {
-        for (const iface of interfaces) {
-          if (!iface.internal && iface.mac && iface.mac !== '00:00:00:00:00:00') {
-            return iface.mac;
-          }
-        }
-      }
-      return 'no-mac-address';
-    } catch (e) {
-      return 'mac-address-error';
-    }
-  }
 
-  private async getCpuId(): Promise<string> {
-    try {
-      if (process.platform === 'win32') {
-        const { stdout } = await execAsync('wmic cpu get ProcessorId');
-        return stdout.replace('ProcessorId', '').trim();
-      } else if (process.platform === 'linux') {
-        const { stdout } = await execAsync('cat /proc/cpuinfo | grep -m 1 "serial" | awk \'{print $3}\'');
-        return stdout.trim() || 'no-cpu-serial';
-      }
-      return 'unsupported-platform';
-    } catch (e) {
-      return 'cpu-id-error';
-    }
-  }
 
-  private async getDiskSerial(): Promise<string> {
-    try {
-      if (process.platform === 'win32') {
-        const { stdout } = await execAsync('wmic diskdrive get serialnumber');
-        return stdout.replace('SerialNumber', '').trim();
-      } else if (process.platform === 'linux') {
-        const { stdout } = await execAsync('lsblk -o serial -d -n');
-        return stdout.trim() || 'no-disk-serial';
-      }
-      return 'unsupported-platform';
-    } catch (e) {
-      return 'disk-serial-error';
-    }
-  }
 
-  private async getMotherboardInfo(): Promise<string> {
-    try {
-      if (process.platform === 'win32') {
-        const { stdout } = await execAsync('wmic baseboard get serialnumber');
-        return stdout.replace('SerialNumber', '').trim();
-      } else if (process.platform === 'linux') {
-        const { stdout } = await execAsync('dmidecode -t baseboard | grep "Serial Number"');
-        return stdout.replace('Serial Number:', '').trim() || 'no-mb-serial';
-      }
-      return 'unsupported-platform';
-    } catch (e) {
-      return 'motherboard-error';
-    }
-  }
-
-  private getNetworkInterfacesHash(): string {
-    try {
-      const interfaces = os.networkInterfaces();
-      const hash = crypto.createHash('sha256');
-      hash.update(JSON.stringify(interfaces));
-      return hash.digest('hex').substring(0, 8);
-    } catch (e) {
-      return 'network-hash-error';
-    }
-  }
 
 
 
@@ -274,14 +233,12 @@ export class LicenseService {
 
 
   async can_add_new_camera(): Promise<boolean> {
-
     const license = await this.db.license.findUnique({ where: { id: 'main' } })
     if (!license) { return false }
     const total_cameras = await this.db.camera.count()
     if (license.key === '' || license.license === '') {
       if (total_cameras < 5) { return true } else { return false }
     }
-
     if (license.key !== '' && license.license !== '') {
       const license_data: LicensePayload = JSON.parse(license.license)
       const exp = new Date(license_data.expiryDate)
@@ -293,7 +250,27 @@ export class LicenseService {
       const cam_count = parseInt(feature[0].value.toString())
       if (cam_count > total_cameras) { return true }
     }
-
     return false
+  }
+
+
+  async is_not_expired(): Promise<boolean> {
+    try {
+      const license = await this.db.license.findUnique({ where: { id: 'main' } })
+      if (license.key !== '' && license.license !== '') {
+        const license_data: LicensePayload = JSON.parse(license.license)
+        const exp = new Date(license_data.expiryDate)
+        const today = new Date()
+        today.setHours(0,0,0,0)
+        if (exp > today) {
+          return true
+        } else {
+          return false
+        }
+      }
+      return false
+    } catch (error) {
+      return false
+    }
   }
 }
