@@ -95,6 +95,23 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
     this.isProcessing = false;
   }
 
+  /**
+   * Check if plate was seen for this LPR within threshold (Redis lpr_repeat key). If yes, log; then set key with TTL.
+   * Fire-and-forget safe; errors are caught and logged.
+   */
+  private checkRepeatAndLog(lprId: string, thresholdSec: number, plate: string): void {
+    if (!this.client || !thresholdSec) return;
+    const key = `lpr_repeat:${lprId}:${plate}`;
+    this.client.get(key)
+      .then((val) => {
+        if (val != null) {
+          console.log(`[LPR repeat] plate=${plate} lprId=${lprId} repeat within threshold`);
+        }
+        return this.client.set(key, '1', { EX: thresholdSec });
+      })
+      .catch((err) => console.error('checkRepeatAndLog error:', err?.message || err));
+  }
+
   private async batchPopItems(queueName: string, batchSize: number): Promise<string[]> {
     if (!this.client || !this.redisConnected) {
       return [];
@@ -296,6 +313,10 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
 
         if (result.p2) {
           delete result.p2.id;
+        }
+
+        if (s1.repeat_detection === true && s1.repeat_threshold_seconds > 0) {
+          setImmediate(() => this.checkRepeatAndLog(s1.id, s1.repeat_threshold_seconds, db1.ocr));
         }
 
         // Prepare driver info and images for Redis output

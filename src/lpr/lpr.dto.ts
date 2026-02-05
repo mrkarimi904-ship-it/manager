@@ -5,7 +5,7 @@ export class CreateLprDto {
     @IsString()
     @ApiProperty()
     lpr_id: string;
-  
+
     @IsString()
     @ApiProperty()
     title: string;
@@ -41,47 +41,47 @@ export class CreateLprDto {
     @IsBoolean()
     @ApiProperty()
     useDetection: boolean;
-    
+
     @IsNumber()
     @ApiProperty()
     detectionConfidenceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     segmentationConfidenceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     ocrConfidenceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     alprConfidenceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     postProcessConfidenceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     postProcessSkipLevelTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     processStopLevelTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     maxSuccessfulAnalysisCount: number;
-    
+
     @IsNumber()
     @ApiProperty()
     maxAnalysisCount: number;
-    
+
     @IsNumber()
     @ApiProperty()
     minPlateWidth: number;
-    
+
     @IsNumber()
     @ApiProperty()
     min2AnalysisInterval: number;
@@ -89,11 +89,11 @@ export class CreateLprDto {
     @IsBoolean()
     @ApiProperty()
     useTypeAndModelRecognition: boolean;
-    
+
     @IsNumber()
     @ApiProperty()
     typeModelRecognitionSkipLevelTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     typeModelRecognitionStopLevelTh: number;
@@ -101,30 +101,40 @@ export class CreateLprDto {
     @IsBoolean()
     @ApiProperty()
     useColorRecognition: boolean;
-    
+
     @IsNumber()
     @ApiProperty()
     colorRecognitionSkipLevelTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     colorRecognitionStopLevelTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     trackingDistanceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     trackingInactiveTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     trackingActiveTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     tickCount: number;
+
+    @IsOptional()
+    @IsBoolean()
+    @ApiProperty({ required: false })
+    repeat_detection?: boolean;
+
+    @IsOptional()
+    @IsNumber()
+    @ApiProperty({ required: false })
+    repeat_threshold_seconds?: number;
 }
 
 export class UpdateLprDto {
@@ -163,47 +173,47 @@ export class UpdateLprDto {
     @IsBoolean()
     @ApiProperty()
     useDetection: boolean;
-    
+
     @IsNumber()
     @ApiProperty()
     detectionConfidenceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     segmentationConfidenceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     ocrConfidenceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     alprConfidenceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     postProcessConfidenceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     postProcessSkipLevelTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     processStopLevelTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     maxSuccessfulAnalysisCount: number;
-    
+
     @IsNumber()
     @ApiProperty()
     maxAnalysisCount: number;
-    
+
     @IsNumber()
     @ApiProperty()
     minPlateWidth: number;
-    
+
     @IsNumber()
     @ApiProperty()
     min2AnalysisInterval: number;
@@ -211,11 +221,11 @@ export class UpdateLprDto {
     @IsBoolean()
     @ApiProperty()
     useTypeAndModelRecognition: boolean;
-    
+
     @IsNumber()
     @ApiProperty()
     typeModelRecognitionSkipLevelTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     typeModelRecognitionStopLevelTh: number;
@@ -223,28 +233,38 @@ export class UpdateLprDto {
     @IsBoolean()
     @ApiProperty()
     useColorRecognition: boolean;
-    
+
     @IsNumber()
     @ApiProperty()
     colorRecognitionSkipLevelTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     colorRecognitionStopLevelTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     trackingDistanceTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     trackingInactiveTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     trackingActiveTh: number;
-    
+
     @IsNumber()
     @ApiProperty()
     tickCount: number;
+
+    @IsOptional()
+    @IsBoolean()
+    @ApiProperty({ required: false })
+    repeat_detection?: boolean;
+
+    @IsOptional()
+    @IsNumber()
+    @ApiProperty({ required: false })
+    repeat_threshold_seconds?: number;
 }

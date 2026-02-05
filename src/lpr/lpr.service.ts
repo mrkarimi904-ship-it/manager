@@ -1,4 +1,6 @@
-import { ConflictException, HttpException, Injectable } from '@nestjs/common';
+import { ConflictException, HttpException, Injectable, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import * as dtos from './lpr.dto';
 import { generalResponse } from 'src/app.consts';
 import { DbService } from 'src/db/db.service';
@@ -11,7 +13,13 @@ import * as Jimp from 'jimp';
 
 @Injectable()
 export class LprService {
-  constructor(private db: DbService, private readonly axios: HttpService, private stream: StreamService, private licenseService: LicenseService) {}
+  constructor(
+    private db: DbService,
+    private readonly axios: HttpService,
+    private stream: StreamService,
+    private licenseService: LicenseService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {}
 
   /** ONVIF service base URL without trailing slash (same as onvif.service proxy). */
   private getOnvifBase(): string {
@@ -114,7 +122,9 @@ export class LprService {
         trackingDistanceTh: body.trackingDistanceTh,
         trackingInactiveTh: body.trackingInactiveTh,
         trackingActiveTh: body.trackingActiveTh,
-        tickCount: body.tickCount
+        tickCount: body.tickCount,
+        repeat_detection: body.repeat_detection ?? false,
+        repeat_threshold_seconds: body.repeat_threshold_seconds ?? 0
       }
 
       const res = await this.db.camera_lpr_camera.create({ data: { ...new_body, camera: { connect: { id: camera_id } }, camera_lpr: { connect: { id: lpr.id } } } })
@@ -177,10 +187,14 @@ export class LprService {
         trackingDistanceTh: body.trackingDistanceTh,
         trackingInactiveTh: body.trackingInactiveTh,
         trackingActiveTh: body.trackingActiveTh,
-        tickCount: body.tickCount
+        tickCount: body.tickCount,
+        repeat_detection: body.repeat_detection ?? false,
+        repeat_threshold_seconds: body.repeat_threshold_seconds ?? 0
       }
 
       const res = await this.db.camera_lpr_camera.update({ where: { id: lpr_id}, data: { ...new_body } })
+
+      await this.cacheManager.del(`camera_lpr_session_${lpr_id}`)
 
       return { status: true, data: res, error: null, msg: null };
     } catch (error) {

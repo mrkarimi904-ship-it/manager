@@ -308,6 +308,8 @@ model camera_lpr_camera {
   status                      String      @default("none")
   session                     String      @default("none")
   isActive                    Boolean     @default(false)
+  repeat_detection            Boolean     @default(false)
+  repeat_threshold_seconds    Int         @default(0)
   roi                         String?
   roiData                     String?
   camera_lpr                  camera_lpr[]
