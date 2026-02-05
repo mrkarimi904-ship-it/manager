@@ -25,7 +25,7 @@ export class LoggerGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const user_id = user_token.id;
       const user = await this.db.user_accounts.findUnique({ where: { id: user_id } });
       if (!user) { client.disconnect(); return false; }
-      const stored_token = await this.db.user_tokens.findFirst({ where: { token: token, user_accounts: { every: { id: user.id } } }})
+      const stored_token = await this.db.user_tokens.findFirst({ where: { token: token, user_accounts: { some: { id: user.id } } }})
       if (!stored_token) { client.disconnect(); return false; }
       client['user'] = user
       this.clients.push(client)

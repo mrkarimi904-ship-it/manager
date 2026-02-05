@@ -31,6 +31,17 @@ import { PlaybackModule } from './playback/playback.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { BookmarkModule } from './bookmark/bookmark.module';
 import { LicenseModule } from './license/license.module';
+import { LprQueueModule } from './lpr_queue/lpr_queue.module';
+import { LprServiceModule } from './lpr_service/lpr_service.module';
+import { LprModule } from './lpr/lpr.module';
+import { LprResultsModule } from './lpr_results/lpr_results.module';
+import { LprListModule } from './lpr_list/lpr_list.module';
+import { DevicesModule } from './devices/devices.module';
+import { OperationsModule } from './operations/operations.module';
+import { MismatchServiceModule } from './mismatch_service/mismatch_service.module';
+import { MismatchModule } from './mismatch/mismatch.module';
+import { TileviewModule } from './tileview/tileview.module';
+import { OnvifModule } from './onvif/onvif.module';
 
 @Module({
   imports: [
@@ -45,7 +56,9 @@ import { LicenseModule } from './license/license.module';
     DbModule, AccountModule, AccountGroupModule, CameraModule,
     CameraGroupModule, StreamModule, RecorderModule, CameraServiceModule,
     CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule,
-    LoggerModule, PlaybackModule, SchedulerModule, BookmarkModule, LicenseModule],
+    LoggerModule, PlaybackModule, SchedulerModule, BookmarkModule, LicenseModule,
+    LprServiceModule, LprQueueModule, LprModule, LprResultsModule, LprListModule,
+    DevicesModule, OperationsModule, MismatchServiceModule, MismatchModule, TileviewModule, OnvifModule],
   controllers: [AppController],
   providers: [
     AppService,

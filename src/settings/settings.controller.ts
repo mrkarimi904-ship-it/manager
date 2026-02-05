@@ -2,7 +2,7 @@ import { Controller, Get, Body, Put, UseGuards } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import * as dtos from './dtos';
 import { AccountRoles, User } from 'src/account/account.decorator';
-import { accountGaurd } from 'src/account/account.gaurd';
+import { AccountGuard } from 'src/account/account.guard';
 import { generalResponse } from 'src/app.consts';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
@@ -19,7 +19,7 @@ export class SettingsController {
 
   @Put('PasswordComplexities')
   @AccountRoles('settings_password')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async setPasswordComplexities(@User() user, @Body() updateSettingDto: dtos.passwordComplexityDto): Promise<generalResponse> {
     return await this.settingsService.setPasswordComplexities(user, updateSettingDto);
   }

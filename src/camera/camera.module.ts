@@ -9,9 +9,10 @@ import { StreamModule } from 'src/stream/stream.module';
 import { CameraRecorderModule } from 'src/camera_recorder/camera_recorder.module';
 import { LoggerModule } from 'src/logger/logger.module';
 import { LicenseModule } from 'src/license/license.module';
+import { LprModule } from 'src/lpr/lpr.module';
 
 @Module({
-  imports: [DbModule, HttpModule, CameraServiceModule, RecorderModule, StreamModule, CameraRecorderModule, LoggerModule, LicenseModule],
+  imports: [DbModule, HttpModule, CameraServiceModule, RecorderModule, StreamModule, CameraRecorderModule, LoggerModule, LicenseModule, LprModule],
   controllers: [CameraController],
   providers: [CameraService]
 })

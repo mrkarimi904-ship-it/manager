@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsNumber, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsEnum, IsNumber, IsOptional, IsBoolean, Matches, MaxLength } from 'class-validator';
 import { ApiParam, ApiProperty, ApiQuery, getSchemaPath } from "@nestjs/swagger";
 
 enum cameraTypeDto {
@@ -101,16 +101,19 @@ export class cameraSearchQuery {
   @ApiProperty({ default: 20, required: false })
   @IsOptional()
   @IsString()
+  @Matches(/^[1-9]\d*$/, { message: 'pageSize must be a positive integer' })
   pageSize?: string;
 
   @ApiProperty({ default: 1, required: false })
   @IsOptional()
   @IsString()
+  @Matches(/^[1-9]\d*$/, { message: 'pageIndex must be a positive integer' })
   pageIndex: string;
 
   @ApiProperty({ default: '', required: false })
   @IsOptional()
   @IsString()
+  @MaxLength(200, { message: 'search string must be less than 200 characters' })
   search: string;
 
   @ApiProperty({ default: '', required: false })
@@ -147,6 +150,51 @@ export class cameraSearchQuery {
   @IsOptional()
   @IsString()
   directOnly: string;
+
+  @ApiProperty({ default: 'false', required: false })
+  @IsOptional()
+  @IsString()
+  deletedIncluded: string;
+
+  @ApiProperty({ required: false, description: 'Camera type filter: DOME, BULLET, UNKNOWN (comma-separated)' })
+  @IsOptional()
+  @IsString()
+  cameraType?: string;
+
+  @ApiProperty({ required: false, description: 'Connection: Local or ThirdParty' })
+  @IsOptional()
+  @IsString()
+  connectionType?: string;
+
+  @ApiProperty({ required: false, description: 'Profile type: Low or High' })
+  @IsOptional()
+  @IsString()
+  cameraProfileType?: string;
+
+  @ApiProperty({ required: false, description: 'Has ONVIF profile: true or false' })
+  @IsOptional()
+  @IsString()
+  hasProfile?: string;
+
+  @ApiProperty({ required: false, description: 'Connection status: Connected or Disconnected' })
+  @IsOptional()
+  @IsString()
+  connectionStatus?: string;
+
+  @ApiProperty({ required: false, description: 'Recorder status: Recording, NotRecording, NoRecorder (comma-separated)' })
+  @IsOptional()
+  @IsString()
+  recorderStatus?: string;
+
+  @ApiProperty({ required: false, description: 'PTZ type: Fixed, Motorized, PTZ (comma-separated)' })
+  @IsOptional()
+  @IsString()
+  ptzType?: string;
+
+  @ApiProperty({ required: false, description: 'LPR status: Running, NotRunning, NoLpr (comma-separated)' })
+  @IsOptional()
+  @IsString()
+  lprStatus?: string;
 }
 
 export class nameDto {

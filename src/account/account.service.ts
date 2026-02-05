@@ -1,8 +1,9 @@
 import { HttpException, Inject, Injectable } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 
 import { DbService } from 'src/db/db.service';
 
-import { accountSearchQuery, editDto, PasswordDto, roleSearchQuery, signUpDto, singInDto } from './account.dto';
+import { accountSearchQuery, editDto, PasswordDto, preferenceDto, roleSearchQuery, signUpDto, singInDto } from './account.dto';
 
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
@@ -44,6 +45,10 @@ export class AccountService {
         this.db.user_accounts.count({ where }),
         this.db.user_accounts.findMany({ where, skip, take, include, orderBy: [{ created_at: 'desc' }], omit: { password: true } })
       ])
+      const temp_current_time = new Date().getTime()
+      temp.forEach(element => {
+        if (element.online_at && (temp_current_time - new Date(element.online_at).getTime()) < 1 * 60 * 1000) { element['online'] = true } else { element['online'] = false }
+      });
       // response
       const response: generalResponse = { status: true, data: { total, data: temp }, error: null, msg: null };
       return response;
@@ -74,8 +79,31 @@ export class AccountService {
       roles.forEach(element => { element.selected = false })
 
       const account = await this.db.user_accounts.findUnique({ where: { id: id }, select: { isSuperAdmin: true, user_roles: { select: { id: true, name: true, description: true } } , user_groups: { select: { user_roles: { select: { id: true, name: true, description: true } } } }} })
-      account.user_roles.forEach(element => { if (roles.find(x => x.id === element.id)) { roles.find(x => x.id === element.id).selected = true } })
-      account.user_groups.forEach(element => { element.user_roles.forEach(element2 => { if (roles.find(x => x.id === element2.id)) { roles.find(x => x.id === element2.id).selected = true } }) })
+
+      // Optimize: Use Map for O(1) lookups instead of O(n) find operations
+      const rolesMap: any = new Map(roles.map(r => [r.id, r]));
+      const selectedRoleIds = new Set<string>();
+
+      // Collect all role IDs from direct user roles
+      account.user_roles.forEach(element => {
+        if (rolesMap.has(element.id)) {
+          selectedRoleIds.add(element.id);
+        }
+      });
+
+      // Collect all role IDs from user groups
+      account.user_groups.forEach(element => {
+        element.user_roles.forEach(element2 => {
+          if (rolesMap.has(element2.id)) {
+            selectedRoleIds.add(element2.id);
+          }
+        });
+      });
+
+      // Set selected flag using Set for O(1) lookup
+      selectedRoleIds.forEach(roleId => {
+        rolesMap.get(roleId).selected = true;
+      });
 
       // superadmin has all roles
       if (account.isSuperAdmin === true) { roles.forEach(element => { element.selected = true })  }
@@ -90,7 +118,7 @@ export class AccountService {
 
   async getAccountTokens(id: string, token: string): Promise<generalResponse> {
     try {
-      const accounts = await this.db.user_tokens.findMany({ where: { user_accounts: { every: { id: id } } }, orderBy: [{ created_at: 'desc' }] })
+      const accounts = await this.db.user_tokens.findMany({ where: { user_accounts: { some: { id: id } } }, orderBy: [{ created_at: 'desc' }] })
       accounts.forEach(element => {
         if (element.token === token) { element.token = 'current' } else { element.token = '' }
       });
@@ -104,7 +132,9 @@ export class AccountService {
 
   async deleteAccountTokens(user: any, id: string, token_id: string): Promise<generalResponse> {
     try {
-      const accounts = await this.db.user_tokens.delete({ where: { id: token_id, user_accounts: { every: { id: id } } } })
+      const accounts = await this.db.user_tokens.delete({ where: { id: token_id, user_accounts: { some: { id: id } } } } )
+      // reset cache
+      await this.cacheManager.del(`user_token_${id}`)
       // response
       this.loggerService.log('access token revoked', 0, user, id)
       const response: generalResponse = { status: true, data: accounts, error: null, msg: null };
@@ -123,6 +153,10 @@ export class AccountService {
       if (body.expired && body.expired === true) { body['expire_at'] = null }
       if (body.isSuperAdmin && user.isSuperAdmin === false) { body.isSuperAdmin = false }
       const account2 = await this.db.user_accounts.update({ where: { id: id }, data: body, omit: { password: true } })
+      // reset cache
+      await this.cacheManager.del(`user_${id}`)
+      await this.cacheManager.del(`user_token_${id}`)
+      await this.cacheManager.del(`user_scheduler_${id}`)
       // response
       this.loggerService.log('user edited', 0, user, account.id)
       const response: generalResponse = { status: true, data: account2, error: null, msg: null };
@@ -135,6 +169,10 @@ export class AccountService {
   async putAccountExpire(id: string, user: any): Promise<generalResponse> {
     try {
       const account = await this.db.user_accounts.update({ where: { id: id }, data: { expired: true }, omit: { password: true } })
+      // reset cache
+      await this.cacheManager.del(`user_${id}`)
+      await this.cacheManager.del(`user_token_${id}`)
+      await this.cacheManager.del(`user_scheduler_${id}`)
       // response
       this.loggerService.log('user expired', 0, user, account.id)
       const response: generalResponse = { status: true, data: account, error: null, msg: null };
@@ -147,6 +185,10 @@ export class AccountService {
   async deleteAccount(user: any, id: string): Promise<generalResponse> {
     try {
       const account = await this.db.user_accounts.delete({ where: { id: id }, omit: { password: true } })
+      // reset cache
+      await this.cacheManager.del(`user_${id}`)
+      await this.cacheManager.del(`user_token_${id}`)
+      await this.cacheManager.del(`user_scheduler_${id}`)
       // response
       this.loggerService.log('user removed', 0, user, account.id)
       const response: generalResponse = { status: true, data: account, error: null, msg: null };
@@ -158,6 +200,7 @@ export class AccountService {
 
   async signUp(body: signUpDto, user: any): Promise<generalResponse> {
     try {
+      body.username = body.username.toLowerCase()
       // check if user already exist
       const existingUser = await this.db.user_accounts.findUnique({ where: { username: body.username } });
       if (existingUser) { throw { message: 'username not valid'  } }
@@ -183,6 +226,7 @@ export class AccountService {
 
   async signIn(req: any, body: singInDto): Promise<generalResponse> {
     try {
+      body.username = body.username.toLowerCase()
       // check if user email is valid
       let account = await this.db.user_accounts.findFirst({ where: { username: body.username, isActive: true } });
       if (!account) { throw { message: 'Unauthorized user' } }
@@ -228,7 +272,6 @@ export class AccountService {
       if (service === 'Client' && account.isSuperAdmin === true)  { expiresIn = 24 * 60 * 60 * 365 }
       if (service === 'Client' && account.isSuperAdmin === false)  { expiresIn = 24 * 60 * 60 }
       if (service === 'Other')  { expiresIn = 10 * 60 }
-      const token = jwt.sign(account, jwt_secret, { expiresIn: expiresIn });
       // prepare for concurrent logins
       if (account.concurrent > 0)
       {
@@ -239,11 +282,18 @@ export class AccountService {
       // check if expired
       if (service !== 'Configtool' && await this.licenseService.is_not_expired() === false) { throw { message: 'License error' } }
       // save token to db
+      const token = jwt.sign(account, jwt_secret, { expiresIn: expiresIn });
       await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })
+      if (service.toLowerCase() === 'client') {
+        await this.db.user_accounts.update({ where: { id: account.id }, data: { online_at: new Date() } })
+      }
+      // reset cache
+      await this.cacheManager.del(`user_token_${user_id}`)
       // send notif
       this.loggerService.log('user sign in', 0, account)
       // response
-      const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
+      const claims = (await this.getAccountRoles(user_id))
+      const response: generalResponse = { status: true, data: { token: token, id: user_id, claims: claims.data }, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 401);
@@ -254,6 +304,8 @@ export class AccountService {
     try {
       const token = req.authorization?.replace('Bearer ', '')
       await this.db.user_tokens.deleteMany({ where: { token: token } })
+      // reset cache
+      await this.cacheManager.del(`user_token_${user.id}`)
       // response
       this.loggerService.log('user signed out', 0, user, user.id)
       const response: generalResponse = { status: true, data: null, error: null, msg: null };
@@ -265,6 +317,7 @@ export class AccountService {
 
   async changePass(req: any, body: PasswordDto): Promise<generalResponse> {
     try {
+      body.username = body.username.toLowerCase()
       // check if user email is valid
       let account = await this.db.user_accounts.findFirst({ where: { username: body.username, isActive: true } });
       if (!account) { throw { message: 'Unauthorized' } }
@@ -319,6 +372,9 @@ export class AccountService {
       const token = jwt.sign(account, jwt_secret, { expiresIn: expiresIn });
       // save token to db
       await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })
+      // reset cache
+      await this.cacheManager.del(`user_${account.id}`)
+      await this.cacheManager.del(`user_token_${account.id}`)
       // response
       const response: generalResponse = { status: true, data: { token: token }, error: null, msg: null };
       return response;
@@ -343,6 +399,8 @@ export class AccountService {
       }
       const new_password = await bcrypt.hash(password, hash_secret);
       await this.db.user_accounts.update({ where: { id : id}, data: { password: new_password, mustchangepassword: true } })
+      // reset cache
+      await this.cacheManager.del(`user_${id}`)
       // response
       this.loggerService.log('new password for user generated', 0, user, id)
       const response: generalResponse = { status: true, data: { password: password }, error: null, msg: null };
@@ -456,14 +514,94 @@ export class AccountService {
         result["enable"] = true
         result["qr"] = await qrcode.toDataURL(account2.totp_url)
         result["secret"] = account2.totp_secret
-        console.log(url)
       }
+      // reset cache
+      await this.cacheManager.del(`user_${id}`)
       // response
       this.loggerService.log('user totp status changed', 0, user, account.id)
       const response: generalResponse = { status: true, data: result, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+
+
+
+
+
+
+  async getPreferences(user: any): Promise<generalResponse> {
+    try {
+      const items = await this.db.user_preference.findMany({ where: { user_accounts: { some: { id : user.id }} } })
+      const response: generalResponse = { status: true, data: items, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async getPreference(key: string, user: any): Promise<generalResponse> {
+    try {
+      const t = await this.db.user_preference.findMany({ where: { key: key, user_accounts: { some: { id : user.id }} } })
+      if (t.length !== 1) {
+        throw { message: 'Key not found' }
+      }
+      const item = await this.db.user_preference.findUnique({ where: { id: t[0].id } })
+      const response: generalResponse = { status: true, data: item, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async putPreference(key: string, user: any, body: preferenceDto): Promise<generalResponse> {
+    try {
+      const t = await this.getPreference(key, user)
+      const id = t.data['id']
+      const item = await this.db.user_preference.update({ where: { id: id, key: key, user_accounts: { some: { id : user.id }} }, data: body })
+      const response: generalResponse = { status: true, data: item, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async deletePreference(key: string, user: any): Promise<generalResponse> {
+    try {
+      const t = await this.getPreference(key, user)
+      const id = t.data['id']
+      const item = await this.db.user_preference.delete({ where: { id: id, key: key, user_accounts: { some: { id : user.id }} } })
+      const response: generalResponse = { status: true, data: item, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async postPreference(user: any, body: preferenceDto): Promise<generalResponse> {
+    try {
+      const item = await this.db.user_preference.create({ data: { key: body.key, value: body.value, user_accounts: { connect: { id: user.id } } } })
+      const response: generalResponse = { status: true, data: item, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  // Cleanup expired tokens every 5 minutes (instead of on every request)
+  @Cron('*/5 * * * *')
+  async cleanupExpiredTokens() {
+    try {
+      const deleted = await this.db.user_tokens.deleteMany({
+        where: { expiration: { lt: new Date() } }
+      });
+      if (deleted.count > 0) {
+        console.debug(`Cleaned up ${deleted.count} expired tokens`);
+      }
+    } catch (error) {
+      console.error('Error cleaning up expired tokens:', error);
     }
   }
 }

@@ -13,6 +13,6 @@ WORKDIR /app
 COPY --from=build /app /app
 RUN npm install --omit=dev
 RUN npx prisma generate
-# RUN chmod +x startup.sh
-# CMD ["startup.sh"]
-CMD ["node", "dist/main"]
+COPY startup.sh /app/startup.sh
+RUN chmod +x /app/startup.sh
+CMD ["/app/startup.sh"]

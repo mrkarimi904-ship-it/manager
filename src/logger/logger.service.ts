@@ -41,13 +41,13 @@ export class LoggerService {
       const where = { AND: [] }
       if (query.level) { where['AND'].push({ level: { equals: parseInt(query.level) } }) }
       if (query.search) { where['AND'].push({ log: { contains: query.search, mode: 'insensitive' } }) }
-      if (query.byId) { where['AND'].push({ OR: [ { by: {  equals: query.byId }} ] }) }
-      if (query.userId) { where['AND'].push({ OR: [ { user: {  equals: query.userId }} ] }) }
-      if (query.userGroupId) { where['AND'].push({ OR: [ { user_group: {  equals: query.userGroupId }} ] }) }
-      if (query.cameraId) { where['AND'].push({ OR: [ { camera: {  equals: query.cameraId }} ] }) }
-      if (query.cameraGroupId) { where['AND'].push({ OR: [ { camera_group: {  equals: query.cameraGroupId }} ] }) }
-      if (query.from) { where['AND'].push({ OR: [ { created_at: {  gte: new Date(query.from) }} ] }) }
-      if (query.to) { where['AND'].push({ OR: [ { created_at: {  lte: new Date(query.to) }} ] }) }
+      if (query.byId) { where['AND'].push({ by: { equals: query.byId } }) }
+      if (query.userId) { where['AND'].push({ user: { equals: query.userId } }) }
+      if (query.userGroupId) { where['AND'].push({ user_group: { equals: query.userGroupId } }) }
+      if (query.cameraId) { where['AND'].push({ camera: { equals: query.cameraId } }) }
+      if (query.cameraGroupId) { where['AND'].push({ camera_group: { equals: query.cameraGroupId } }) }
+      if (query.from) { where['AND'].push({ created_at: { gte: new Date(query.from) } }) }
+      if (query.to) { where['AND'].push({ created_at: { lte: new Date(query.to) } }) }
       // run query
       const [total, temp] = await this.db.$transaction([
         this.db.logger_logs.count({ where }),
@@ -88,14 +88,14 @@ export class LoggerService {
     }
   }
 
-  @Cron('0 0 * * * *')
-    async handleCron() {
-      if (process.env.NODE_ENV) { return true }
-      try {
-        console.debug('cleaning logger ...', new Date().toString());
-        await this.cleanUp()
-      } catch (error) {
-        console.log('error cleaning logger', error)
-      }
-    }
+  // @Cron('0 0 * * * *')
+  //   async handleCron() {
+  //     if (process.env.NODE_ENV) { return true }
+  //     try {
+  //       console.debug('cleaning logger ...', new Date().toString());
+  //       await this.cleanUp()
+  //     } catch (error) {
+  //       console.log('error cleaning logger', error)
+  //     }
+  //   }
 }

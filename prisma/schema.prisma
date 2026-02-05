@@ -26,6 +26,7 @@ model user_accounts {
   totp_status                 Boolean     @default(false)
   totp_secret                 String      @default("")
   totp_url                    String      @default("")
+  online_at                   DateTime    @default(now())
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
   camera                      camera[]
@@ -35,6 +36,9 @@ model user_accounts {
   camera_groups               camera_groups[]
   scheduler_user_account      scheduler_user_account[]
   scheduler_ip_mac            scheduler_ip_mac[]
+  user_preference             user_preference[]
+  tileview                    tileview[] @relation("TileviewOwner")
+  tileview_user               tileview[] @relation("TileviewUser")
 }
 
 model user_groups {
@@ -47,6 +51,7 @@ model user_groups {
   camera                      camera[]
   camera_groups               camera_groups[]
   scheduler_user_group        scheduler_user_group[]
+  tileview                    tileview[] @relation("TileviewUserGroup")
 }
 
 model user_roles {
@@ -70,6 +75,18 @@ model user_tokens {
   created_at                  DateTime      @default(now())
   updated_at                  DateTime      @updatedAt()
   user_accounts               user_accounts[]
+
+  @@index([expiration])
+  @@index([token])
+}
+
+model user_preference {
+  id                          String      @id @default(uuid())
+  key                         String
+  value                       String
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  user_accounts               user_accounts[]
 }
 
 model camera {
@@ -79,15 +96,24 @@ model camera {
   password                    String
   status                      String      @default("ok")
   tcp                         Boolean     @default(true)
+  thirdParty                  Boolean     @default(false)
+  deleted                     Boolean     @default(false)
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
   camera_info                 camera_info[]
   camera_service_camera       camera_service_camera[]
   camera_recorder_camera      camera_recorder_camera[]
+  camera_lpr_camera           camera_lpr_camera[]
+  mismatch_camera1            mismatch[] @relation("Camera1")
+  mismatch_camera2            mismatch[] @relation("Camera2")
+  lpr_result                  lpr_result[]
   user_accounts               user_accounts[]
   camera_groups               camera_groups[]
   user_groups                 user_groups[]
   camera_bookmark             camera_bookmark[]
+
+  @@index([deleted, status])
+  @@index([created_at])
 }
 
 model camera_groups {
@@ -146,8 +172,11 @@ model camera_recorder_camera {
   enable_rotation             Boolean
   status                      String      @default("none")
   session                     String      @default("none")
+  isActive                    Boolean     @default(false)
   camera_recorder             camera_recorder[]
   camera                      camera[]
+
+  @@index([isActive, status])
 }
 
 model camera_playback {
@@ -182,8 +211,16 @@ model setting_password_complexity {
 
 model license {
   id                          String @id @default("main")
-  key                         String @default("")
-  license                     String @default("")
+  key                         String @default("") // Encrypted license string (base64url)
+  license                     String @default("") // Decrypted license payload JSON (for quick access)
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+}
+
+model license_keys {
+  id                          String @id @default("main")
+  public_key                  String @default("") // Ed25519 public key (PEM format)
+  private_key                 String @default("") // Ed25519 private key (PEM format) - only for backend generation
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
 }
@@ -225,4 +262,206 @@ model scheduler_ip_mac {
   value                       String
   created_at                  DateTime    @default(now())
   user_accounts               user_accounts[]
+}
+
+model camera_lpr {
+  id                          String        @id @default(uuid())
+  url                         String        @unique()
+  port                        String
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  camera_lpr_camera           camera_lpr_camera[]
+}
+
+model camera_lpr_camera {
+  id                          String      @id @default(uuid())
+  title                       String
+  processType                 Float
+  country                     Float
+  useROI                      Boolean
+  usePlateAlignment           Boolean
+  mustMatchPattern            Boolean
+  useGPU                      Boolean
+  maxFPS                      Float
+  useDetection                Boolean
+  detectionConfidenceTh       Float
+  segmentationConfidenceTh    Float
+  ocrConfidenceTh             Float
+  alprConfidenceTh            Float
+  postProcessConfidenceTh     Float
+  postProcessSkipLevelTh      Float
+  processStopLevelTh          Float
+  maxSuccessfulAnalysisCount  Float
+  maxAnalysisCount            Float
+  minPlateWidth               Float
+  min2AnalysisInterval        Float
+  useTypeAndModelRecognition  Boolean
+  typeModelRecognitionSkipLevelTh Float
+  typeModelRecognitionStopLevelTh Float
+  useColorRecognition         Boolean
+  colorRecognitionSkipLevelTh Float
+  colorRecognitionStopLevelTh Float
+  trackingDistanceTh          Float
+  trackingInactiveTh          Float
+  trackingActiveTh            Float
+  tickCount                   Float
+  status                      String      @default("none")
+  session                     String      @default("none")
+  isActive                    Boolean     @default(false)
+  roi                         String?
+  roiData                     String?
+  camera_lpr                  camera_lpr[]
+  camera                      camera[]
+
+  @@index([session])
+  @@index([isActive, status])
+}
+
+model mismatch_service {
+  id                          String        @id @default(uuid())
+  url                         String        @unique()
+  port                        String
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  mismatch                    mismatch[]
+}
+
+model mismatch {
+  id                          String      @id @default(uuid())
+  title                       String
+  camera1_id                  String
+  camera2_id                  String
+  delay                       Float       @default(60)
+  status                      String      @default("STOPPED")
+  session                     String      @default("none")
+  isActive                    Boolean     @default(false)
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  mismatch_service            mismatch_service[]
+  camera1                     camera      @relation("Camera1", fields: [camera1_id], references: [id])
+  camera2                     camera      @relation("Camera2", fields: [camera2_id], references: [id])
+}
+
+model lpr_result {
+  id                          String      @id @default(uuid())
+  country                     String
+  direction                   String
+  lineid                      String
+  ocr                         String
+  platetype                   String
+  trackid                     String
+  vehiclebrand                String
+  vehiclecolor                String
+  vehiclemodel                String
+  vehicletype                 String
+  time                        String
+  isBlackList                 Boolean
+  isWhiteList                 Boolean
+  isNotifable                 Boolean     @default(false)
+  camAddress                  String      @default("")
+  camMapLat                   String      @default("")
+  camMapLng                   String      @default("")
+  created_at                  DateTime    @default(now())
+  lpr_result_image            lpr_result_image[]
+  camera                      camera[]
+
+  @@index([created_at])
+  @@index([ocr])
+  @@index([isBlackList, isWhiteList, isNotifable])
+  @@index([vehiclebrand, vehiclecolor, vehiclemodel, vehicletype])
+}
+
+model lpr_result_image {
+  id                          String      @id @default(uuid())
+  plateimage                  String
+  vehicleimage                String
+  frame                       String
+  generatedplateimage         String
+  created_at                  DateTime    @default(now())
+  lpr_result                  lpr_result[]
+}
+
+model lpr_list {
+  id                          String      @id @default(uuid())
+  ocr                         String
+  vehiclebrand                String
+  vehiclecolor                String
+  vehiclemodel                String
+  vehicletype                 String
+  drivername                  String
+  driverfamily                String
+  driverphone                 String
+  driverdesc                  String
+  alarmText                   String
+  alarmColor                  String
+  isBlackList                 Boolean
+  isWhiteList                 Boolean
+  isPartial                   Boolean
+  isNotifable                 Boolean
+  created_at                  DateTime    @default(now())
+  lpr_list_image              lpr_list_image[]
+  operations                  operations[]
+
+  @@index([ocr])
+  @@index([isPartial, isBlackList, isWhiteList])
+}
+
+model lpr_list_image {
+  id                          String      @id @default(uuid())
+  image                       String
+  created_at                  DateTime    @default(now())
+  lpr_list                    lpr_list[]
+}
+
+model device {
+  id                          String      @id @default(uuid())
+  name                        String      @default("")
+  url                         String      @unique()
+  username                    String
+  password                    String
+  port_count                  Int         @default(6)
+  status                      String      @default("ok")
+  deleted                     Boolean     @default(false)
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  operations                  operations[]
+}
+
+model operations {
+  id                          String      @id @default(uuid())
+  lpr_list_id                 String
+  device_id                   String
+  name                        String
+  enabled_from                String
+  enabled_to                  String
+  active                      Boolean     @default(true)
+  status                      String      @default("idle")
+  port                        Int
+  step1_action                String
+  step1_delay_ms              Int
+  step2_action                String?
+  step2_delay_ms              Int?
+  cameras                     Json?
+  deleted                     Boolean     @default(false)
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  lpr_list                    lpr_list    @relation(fields: [lpr_list_id], references: [id])
+  device                      device      @relation(fields: [device_id], references: [id])
+
+  @@index([lpr_list_id, active, deleted])
+  @@index([status])
+}
+
+model tileview {
+  id                          String      @id @default(uuid())
+  title                       String
+  schema                      String
+  meta                        String
+  private                     Boolean     @default(false)
+  owner_id                    String
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  owner                       user_accounts @relation("TileviewOwner", fields: [owner_id], references: [id])
+  user_accounts               user_accounts[] @relation("TileviewUser")
+  user_groups                 user_groups[] @relation("TileviewUserGroup")
 }

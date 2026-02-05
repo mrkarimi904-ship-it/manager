@@ -6,7 +6,7 @@ import { nameDto, groupSearchQuery } from './account_group.dto';
 
 import { generalResponse } from 'src/app.consts';
 import { AccountRoles, User } from '../account/account.decorator';
-import { accountGaurd } from '../account/account.gaurd';
+import { AccountGuard } from '../account/account.guard';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiBearerAuth()
@@ -17,42 +17,42 @@ export class AccountGroupController {
 
   @Get('')
   @AccountRoles('usergroup_list')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async allGroups(@User() user, @Query() query: groupSearchQuery): Promise<generalResponse> {
     return await this.accountGroupService.allGroups(user, query);
   }
 
   @Post('')
   @AccountRoles('usergroup_add')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async postGroups(@User() user, @Body() body: nameDto): Promise<generalResponse> {
     return await this.accountGroupService.postGroups(user, body);
   }
 
   @Get(':group_id')
   @AccountRoles('usergroup_list')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async getGroups(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
     return await this.accountGroupService.getGroups(group_id);
   }
 
   @Get(':group_id/role')
   @AccountRoles('usergroup_list')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async getAccountRoles(@Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
     return await this.accountGroupService.getGroupRoles(group_id);
   }
 
   @Put(':group_id')
   @AccountRoles('usergroup_edit')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async putGroups(@User() user, @Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string, @Body() body: nameDto): Promise<generalResponse> {
     return await this.accountGroupService.putGroups(user, group_id, body);
   }
 
   @Delete(':group_id')
   @AccountRoles('usergroup_delete')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async deleteGroups(@User() user, @Param('group_id', new ParseUUIDPipe({ version: "4" })) group_id: string): Promise<generalResponse> {
     return await this.accountGroupService.deleteGroups(user, group_id);
   }

@@ -14,22 +14,26 @@ async function bootstrap() {
     }),
   );
 
-  const config = new DocumentBuilder()
-    .setTitle('VMS Manager')
-    .setDescription('The VMS Manager API')
-    .setVersion('1.24')
-    .addBearerAuth()
-    .addServer('/')
-    // .addServer('/manager/')
-    .addServer('/test_manager/')
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  fs.writeFileSync("./client/swagger.json", JSON.stringify(document));
-  SwaggerModule.setup('', app, document, { swaggerOptions: { tagsSorter: 'alpha'} });
+  // Only enable Swagger when running via npm run start:dev (NODE_ENV=development)
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  // if (isDevelopment) {
+    const config = new DocumentBuilder()
+      .setTitle('VMS Manager')
+      .setDescription('The VMS Manager API')
+      .setVersion('1.24')
+      .addBearerAuth()
+      .addServer('/')
+      .addServer('/manager/')
+      .addServer('/test_manager/')
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    fs.writeFileSync("./client/swagger.json", JSON.stringify(document));
+    SwaggerModule.setup('', app, document, { swaggerOptions: { tagsSorter: 'alpha'} });
+  // }
 
   app.enableCors({ origin: true, credentials: true });
-  // app.setGlobalPrefix('manager')
-
-  await app.listen(3001);
+  app.setGlobalPrefix('/manager') // for lpr only
+  await app.listen(3004); // for lpr only
+  // await app.listen(3001);
 }
 bootstrap();

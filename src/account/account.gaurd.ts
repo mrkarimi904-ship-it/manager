@@ -11,8 +11,7 @@ export class accountGaurd implements CanActivate {
   constructor(private readonly reflector: Reflector, private readonly db: DbService, @Inject(CACHE_MANAGER) private cacheManager: Cache) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // remove expired tokens
-    await this.db.user_tokens.deleteMany({ where: { expiration: { lt: new Date(Date.now()) } } })
+    // Note: Token cleanup moved to cron job for better performance
     // get role of this route
     const role = this.reflector.getAllAndOverride('role', [ context.getHandler(), context.getClass() ])
     // prepare tokens
@@ -40,7 +39,7 @@ export class accountGaurd implements CanActivate {
         }
 
         if (!stored_token) { return false }
-
+        
         if (user.isSuperAdmin === true) { return true; }
         if (!role) { return true }
 

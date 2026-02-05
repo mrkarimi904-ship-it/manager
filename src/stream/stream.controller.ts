@@ -7,7 +7,7 @@ import { generalResponse } from 'src/app.consts';
 
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AccountRoles, User } from 'src/account/account.decorator';
-import { accountGaurd } from 'src/account/account.gaurd';
+import { AccountGuard } from 'src/account/account.guard';
 
 @ApiBearerAuth()
 @ApiTags('09. stream')
@@ -17,21 +17,21 @@ export class StreamController {
 
   @Post('status')
   @AccountRoles('actions_live')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async status(@User() user, @Body() body: dtos.streamDto): Promise<generalResponse> {
     return this.streamService.status(user, body);
   }
 
   @Post('start')
   @AccountRoles('actions_live')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async start(@User() user, @Body() body: dtos.streamDto): Promise<generalResponse> {
     return this.streamService.start(user, body);
   }
 
   @Post('stop')
   @AccountRoles('actions_live')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async stop(@User() user, @Body() body: dtos.streamDto): Promise<generalResponse> {
     return this.streamService.stop(user, body);
   }

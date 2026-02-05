@@ -133,11 +133,11 @@ export class CameraServiceService {
       const camerasService = await this.db.camera_service.findUnique({ where: { id: body.id} })
       // try to start currently registered cameras
       const camera_service_camera = await this.db.camera_service_camera.findMany({ where: { camera_service: { some: { id: camerasService.id }}, status: true }, include: { camera: true } })
-      camera_service_camera.forEach(async element => {
-        const allCameras = element.camera
-        allCameras.forEach(cam => {
-          if (element.type === 'live') { this.streamService.restart({ cameraId: cam.id, type: 'LOW' }) } else { this.streamService.restart({ cameraId: cam.id, type: 'HIGH' }) }
-        });
-      });
+      void Promise.all(camera_service_camera.map(async (element) => {
+        const allCameras = element.camera;
+        for (const cam of allCameras) {
+          if (element.type === 'live') { await this.streamService.restart({ cameraId: cam.id, type: 'LOW' }); } else { await this.streamService.restart({ cameraId: cam.id, type: 'HIGH' }); }
+        }
+      })).catch((err) => console.error('background.camera_service restart error:', err));
     }
 }

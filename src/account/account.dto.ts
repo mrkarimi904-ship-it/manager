@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MinLength, IsBoolean, IsInt, IsOptional, IsNumber, IsAlphanumeric, NotContains, Matches, Min } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, IsBoolean, IsInt, IsOptional, IsNumber, IsAlphanumeric, NotContains, Matches, Min, MaxLength } from 'class-validator';
 import { ApiProperty } from "@nestjs/swagger";
 
 export class signUpDto {
@@ -180,16 +180,19 @@ export class accountSearchQuery {
   @ApiProperty({ default: 20, required: false })
   @IsOptional()
   @IsString()
+  @Matches(/^[1-9]\d*$/, { message: 'pageSize must be a positive integer' })
   pageSize?: string;
 
   @ApiProperty({ default: 1, required: false })
   @IsOptional()
   @IsString()
+  @Matches(/^[1-9]\d*$/, { message: 'pageIndex must be a positive integer' })
   pageIndex: string;
 
   @ApiProperty({ default: '', required: false })
   @IsOptional()
   @IsString()
+  @MaxLength(200, { message: 'search string must be less than 200 characters' })
   search: string;
 
   @ApiProperty({ default: '', required: false })
@@ -232,16 +235,19 @@ export class roleSearchQuery {
   @ApiProperty({ default: 20, required: false })
   @IsOptional()
   @IsString()
+  @Matches(/^[1-9]\d*$/, { message: 'pageSize must be a positive integer' })
   pageSize?: string;
 
   @ApiProperty({ default: 1, required: false })
   @IsOptional()
   @IsString()
+  @Matches(/^[1-9]\d*$/, { message: 'pageIndex must be a positive integer' })
   pageIndex: string;
 
   @ApiProperty({ default: '', required: false })
   @IsOptional()
   @IsString()
+  @MaxLength(200, { message: 'search string must be less than 200 characters' })
   search: string;
 
   @ApiProperty({ default: '', required: false })
@@ -263,5 +269,19 @@ export class roleSearchQuery {
   @IsOptional()
   @IsString()
   userGroupFilter: string;
+
+}
+
+
+export class preferenceDto {
+  @ApiProperty({ default: 'test', required: false })
+  @IsOptional()
+  @IsString()
+  key: string;
+
+  @ApiProperty({ default: 'test', required: false })
+  @IsOptional()
+  @IsString()
+  value: string;
 
 }

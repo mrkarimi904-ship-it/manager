@@ -1,4 +1,5 @@
 import { ConflictException, HttpException, Injectable } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 
 import { DbService } from 'src/db/db.service';
 import { HttpService } from '@nestjs/axios';
@@ -9,10 +10,11 @@ import { generalResponse } from 'src/app.consts';
 import { LoggerService } from 'src/logger/logger.service';
 import { CameraRecorderService } from 'src/camera_recorder/camera_recorder.service';
 import { StreamService } from 'src/stream/stream.service';
+import { LicenseService } from 'src/license/license.service';
 
 @Injectable()
 export class RecorderService {
-  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService, private camera_recorder_service: CameraRecorderService, private steamService: StreamService) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService, private camera_recorder_service: CameraRecorderService, private steamService: StreamService, private licenseService: LicenseService) {}
 
   async get_list(user: any, camera_id: string): Promise<generalResponse> {
     try {
@@ -114,11 +116,11 @@ export class RecorderService {
       const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} } })
       if (!list) { throw new ConflictException() }
 
-      await this.stop_item(user, camera_id, recorder_id)
+      if (list.status === 'RUNNING') { await this.stop_item(user, camera_id, recorder_id) }
 
       const list2 = await this.db.camera_recorder_camera.update({ where: { id: recorder_id }, data: { title: body.title, enable_rotation: body.enable_rotation } })
 
-      await this.start_item(user, camera_id, recorder_id)
+      if (list.status === 'RUNNING') { await this.start_item(user, camera_id, recorder_id) }
 
       this.loggerService.log(`Recorder edited`, 0, user, undefined, undefined, camera_id, undefined)
       return { status: true, data: list2, error: null, msg: null }
@@ -173,7 +175,10 @@ export class RecorderService {
       const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} }, include: { camera_recorder: true } })
       if (!list) { throw new ConflictException() }
 
-      if (list.status === 'RUNNING') { return { status: true, data: list, error: null, msg: null } }
+      if (list.isActive && list.status === 'RUNNING') { return { status: true, data: list, error: null, msg: null } }
+
+      // check license for active recorder count limit (exclude current recorder so restart after manager_improved restart does not hit limit)
+      if (await this.licenseService.can_add_new_active_recorder(recorder_id) === false) { throw { message: 'License limit: active recorder limit reached' }; }
 
       await this.steamService.start(user, { cameraId: camera_id, type: 'HIGH' })
 
@@ -190,13 +195,13 @@ export class RecorderService {
       {
         const newurl = service + `recorder/start`
         const cc = await this.axios.axiosRef.post(newurl, { name: list.title, camera_id: camera_id, storage_path: list.storage_path, quota: list.quota, block_size:list.block_size, stream_host: stream_url, stream_port:stream_port, rotation: list.enable_rotation })
-        await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
+        await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id, isActive: true } })
         this.loggerService.log('Recorder started', 0, user, undefined, undefined, camera_id, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
       } else {
         const newurl = service + `recorder/` + list.session + `/start`
         const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, rotation: list.enable_rotation })
-        await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
+        await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id, isActive: true } })
         this.loggerService.log('Recorder started', 0, user, undefined, undefined, camera_id, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
       }
@@ -222,7 +227,10 @@ export class RecorderService {
       const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} }, include: { camera_recorder: true } })
       if (!list) { throw new ConflictException() }
 
-      if (list.status === 'STOPPED') { return { status: true, data: list, error: null, msg: null } }
+      if (list.status === 'STOPPED') {
+        await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { isActive: false } });
+        return { status: true, data: { ...list, isActive: false }, error: null, msg: null };
+      }
 
       const service_url = list.camera_recorder[0].url
       const service_port = list.camera_recorder[0].port
@@ -235,7 +243,7 @@ export class RecorderService {
 
       const newurl = service + `recorder/` + list.session
       const cc = await this.axios.axiosRef.delete(newurl)
-      const list2 = await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: 'STOPPED' } })
+      const list2 = await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: 'STOPPED', isActive: false } })
       this.loggerService.log('Recorder stopped', 0, user, undefined, undefined, camera_id, undefined)
       return { status: true, data: list2, error: null, msg: null };
     } catch (error) {
@@ -316,6 +324,15 @@ export class RecorderService {
       return { status: true, data: null, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  @OnEvent('recorder.restart')
+  async handleRestart(payload: { cameraId: string; recorderId: string }) {
+    try {
+      await this.start_item({ isSuperAdmin: true }, payload.cameraId, payload.recorderId);
+    } catch (error) {
+      console.log('error restarting recorder', payload.recorderId, error?.message || error);
     }
   }
 }

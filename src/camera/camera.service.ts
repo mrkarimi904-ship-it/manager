@@ -1,4 +1,4 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, Injectable, Inject } from '@nestjs/common';
 
 import { DbService } from 'src/db/db.service';
 import { HttpService } from '@nestjs/axios';
@@ -13,6 +13,11 @@ import { StreamService } from 'src/stream/stream.service';
 import { Cron } from '@nestjs/schedule';
 import { LoggerService } from 'src/logger/logger.service';
 import { LicenseService } from 'src/license/license.service';
+import { LprService } from 'src/lpr/lpr.service';
+import { buildUserPermissionWhere, runWithConcurrency } from 'src/app.shared';
+
+import { Cache } from 'cache-manager';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 @Injectable()
 export class CameraService {
@@ -24,8 +29,25 @@ export class CameraService {
     private recorderservice: RecorderService,
     private streamService: StreamService,
     private loggerService: LoggerService,
-    private licenseService: LicenseService
+    private licenseService: LicenseService,
+    private lprService: LprService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache
   ) {}
+
+  /** ONVIF service base URL without trailing slash (same as onvif.service proxy). */
+  private getOnvifBase(): string {
+    return (process.env.ONVIF_SERVICE || '').replace(/\/$/, '');
+  }
+
+  /** Snapshot service base URL without trailing slash. */
+  private getSnapshotBase(): string {
+    return (process.env.SNAPSHOT_SERVICE || '').replace(/\/$/, '');
+  }
+
+  /** Payload for ONVIF service: url, username, password (matches onvif.service proxy structure). */
+  private onvifConnection(camera: { url: string; username: string; password: string }): { url: string; username: string; password: string } {
+    return { url: camera.url, username: camera.username, password: camera.password };
+  }
 
   async getAll(user, query: dtos.cameraSearchQuery): Promise<generalResponse> {
     try {
@@ -35,8 +57,9 @@ export class CameraService {
       if (!query.pageIndex) { query.pageIndex = "1" }
       if (!query.pageSize) { query.pageSize = "20" }
       const skip: number = (parseInt(query.pageIndex) - 1) * parseInt(query.pageSize)
-      const take: number = parseInt(query.pageSize)
-      const where = { AND: [] }
+      const take: number = Math.min(parseInt(query.pageSize), 100) // Max 100 records per page for performance
+      const where: any = { AND: [] }
+      if (user.isSuperAdmin !== true) { where.deleted = false }
       if (query.search) { where['AND'].push({ OR: [
         { camera_info: { some: { key: { in: ['name', 'description', ] }, value: { contains: query.search, mode: 'insensitive' } } } },
         { url: { contains: query.search, mode: 'insensitive' } },
@@ -74,8 +97,46 @@ export class CameraService {
       if (query.userGroupId && query.userGroupFilter === 'Exclude') { where['AND'].push({ user_groups: { none: { id: { equals: query.userGroupId } } } }) }
       if (query.cameraGroupId && query.cameraGroupFilter === 'Include') { where['AND'].push({ camera_groups: { some: { id: { equals: query.cameraGroupId } } } }) }
       if (query.cameraGroupId && query.cameraGroupFilter === 'Exclude') { where['AND'].push({ camera_groups: { none: { id: { equals: query.cameraGroupId } } } }) }
+      if (query.deletedIncluded && query.deletedIncluded === 'true') { where['AND'].push({}) } else { where['AND'].push({ deleted: false }) }
 
-      const include = { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } }, camera_recorder_camera: { select: { status: true, session: true } } }
+      if (query.cameraType?.trim()) {
+        const types = query.cameraType.split(',').map((s) => s.trim().toUpperCase().replace(/^UNSPECIFIED$/, 'UNKNOWN'));
+        if (types.length) { where['AND'].push({ camera_info: { some: { key: 'type', value: { in: types } } } }); }
+      }
+      if (query.connectionType === 'Local') { where['AND'].push({ thirdParty: false }); }
+      if (query.connectionType === 'ThirdParty') { where['AND'].push({ thirdParty: true }); }
+      if (query.connectionStatus === 'Connected') { where['AND'].push({ status: 'ok' }); }
+      if (query.connectionStatus === 'Disconnected') { where['AND'].push({ status: { not: 'ok' } }); }
+      if (query.cameraProfileType === 'Low') { where['AND'].push({ camera_info: { some: { key: 'profile_low', value: { not: '' } } } }); }
+      if (query.cameraProfileType === 'High') { where['AND'].push({ camera_info: { some: { key: 'profile_high', value: { not: '' } } } }); }
+      if (query.hasProfile === 'true') { where['AND'].push({ AND: [{ camera_info: { some: { key: 'profile_low', value: { not: '' } } } }, { camera_info: { some: { key: 'profile_high', value: { not: '' } } } }] }); }
+      if (query.hasProfile === 'false') { where['AND'].push({ OR: [{ camera_info: { none: { key: 'profile_low', value: { not: '' } } } }, { camera_info: { none: { key: 'profile_high', value: { not: '' } } } }] }); }
+      if (query.recorderStatus?.trim()) {
+        const statuses = query.recorderStatus.split(',').map((s) => s.trim());
+        const recorderOr: any[] = [];
+        if (statuses.includes('Recording')) { recorderOr.push({ camera_recorder_camera: { some: { status: 'RUNNING' } } }); }
+        if (statuses.includes('NotRecording')) { recorderOr.push({ AND: [{ camera_recorder_camera: { some: {} } }, { camera_recorder_camera: { none: { status: 'RUNNING' } } }] }); }
+        if (statuses.includes('NoRecorder')) { recorderOr.push({ camera_recorder_camera: { none: {} } }); }
+        if (recorderOr.length) { where['AND'].push({ OR: recorderOr }); }
+      }
+      if (query.ptzType?.trim()) {
+        const ptzTypes = query.ptzType.split(',').map((s) => s.trim());
+        const ptzOr: any[] = [];
+        if (ptzTypes.includes('Fixed')) { ptzOr.push({ AND: [{ camera_info: { none: { key: 'ptz_pan_tilt', value: 'true' } } }, { camera_info: { none: { key: 'ptz_zoom', value: 'true' } } }] }); }
+        if (ptzTypes.includes('Motorized')) { ptzOr.push({ camera_info: { some: { key: 'ptz_pan_tilt', value: 'true' } } }); }
+        if (ptzTypes.includes('PTZ')) { ptzOr.push({ camera_info: { some: { key: 'ptz_zoom', value: 'true' } } }); }
+        if (ptzOr.length) { where['AND'].push({ OR: ptzOr }); }
+      }
+      if (query.lprStatus?.trim()) {
+        const statuses = query.lprStatus.split(',').map((s) => s.trim());
+        const lprOr: any[] = [];
+        if (statuses.includes('Running')) { lprOr.push({ camera_lpr_camera: { some: { status: 'RUNNING' } } }); }
+        if (statuses.includes('NotRunning')) { lprOr.push({ AND: [{ camera_lpr_camera: { some: {} } }, { camera_lpr_camera: { none: { status: 'RUNNING' } } }] }); }
+        if (statuses.includes('NoLpr')) { lprOr.push({ camera_lpr_camera: { none: {} } }); }
+        if (lprOr.length) { where['AND'].push({ OR: lprOr }); }
+      }
+
+      const include = { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } }, camera_lpr_camera: { select: { status: true, session: true } }, camera_recorder_camera: { select: { status: true, session: true } } }
       // run query
       const [total, temp] = await this.db.$transaction([
         this.db.camera.count({ where }),
@@ -92,15 +153,11 @@ export class CameraService {
   async getSingle(user, id: string): Promise<generalResponse> {
     try {
       // prepare where
-      const where = { id: id, AND: [] }
+      const where: any = { id: id, AND: [] }
       // check if user is limited
       if (user.isSuperAdmin !== true) {
-        where['AND'].push({ OR: [
-          { user_accounts: { some: { id: { equals: user.id } } } },
-          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
-        ] })
+        buildUserPermissionWhere(user, where);
+        where.deleted = false
       }
       // db include
       const include = {
@@ -113,7 +170,7 @@ export class CameraService {
       // get results
       const temp: dtos.cameraDto = await this.db.camera.findUnique({ where , include });
       // check resuts
-      if (!temp) { return { status: false, data: null, error: null, msg: null }; }
+      if (!temp) { throw { message: 'Camera not found' }; }
       const response: generalResponse = { status: true, data: temp, error: null, msg: null };
       return response;
     } catch (error) {
@@ -135,11 +192,13 @@ export class CameraService {
         ] })
       }
       // get results
-      const temp: dtos.cameraDto = await this.db.camera.findUnique({ where });
+      const temp = await this.db.camera.findUnique({ where });
       // check resuts
-      if (!temp) { return { status: false, data: null, error: null, msg: null }; }
-      // get health
-      const health = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera', temp);
+      if (!temp) { throw { message: 'Camera not found' }; }
+      // check for deleted
+      if (temp.deleted === true) { return { status: true, data: { status: 'deleted' }, error: null, msg: null } }
+      // get health (same path and payload structure as onvif.service proxy)
+      const health = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera', this.onvifConnection(temp));
       const response: generalResponse = { status: true, data: health.data, error: null, msg: null };
       return response;
     } catch (error) {
@@ -150,20 +209,15 @@ export class CameraService {
   async getProfiles(user, id: string): Promise<generalResponse> {
     try {
       // prepare where
-      const where = { id: id, AND: [] }
+      const where = { id: id, deleted: false, AND: [] }
       // check if user is limited
       if (user.isSuperAdmin !== true) {
-        where['AND'].push({ OR: [
-          { user_accounts: { some: { id: { equals: user.id } } } },
-          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
-        ] })
+        buildUserPermissionWhere(user, where);
       }
       // get results
       const temp: dtos.cameraDto = await this.db.camera.findUnique({ where });
       // check resuts
-      if (!temp) { return { status: false, data: null, error: null, msg: null }; }
+      if (!temp) { throw { message: 'Camera not found' }; }
       // get health
       const response: generalResponse = await this.postPre(temp)
       return response;
@@ -186,13 +240,24 @@ export class CameraService {
         ] })
       }
       // get results
-      const temp: dtos.cameraDto = await this.db.camera.findUnique({ where });
-      // check resuts
-      if (!temp) { return { status: false, data: null, error: null, msg: null }; }
-      // get health
-      const onvif_response = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/snapshot', temp);
-      const response: generalResponse = { status: true, data: { data: onvif_response.data }, error: null, msg: null }
-      return response;
+      const temp = await this.db.camera.findUnique({ where });
+      if (!temp) { throw { message: 'Camera not found' }; }
+      const tempInfp = await this.db.camera_info.findMany({ where: { camera: { some: { id: temp.id } }, key: 'profile_live_rtsp' } })
+      const cameraUsername = temp.username;
+      const cameraPassword = temp.password;
+      const cameraRTSPUrl = tempInfp[0]?.value;
+      const completeRTSP = cameraRTSPUrl && (cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", () => `rtsp://${cameraUsername}:${cameraPassword}@`));
+      // get snapshot (ONVIF first, fallback to SNAPSHOT_SERVICE)
+      try {
+        const onvif_response = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera/snapshot', this.onvifConnection(temp));
+        const response: generalResponse = { status: true, data: { data: onvif_response.data }, error: null, msg: null }
+        return response;
+      } catch (error) {
+
+        const onvif_response = await this.axios.axiosRef.post(this.getSnapshotBase() + '/snapshot', { url: completeRTSP });
+        const response: generalResponse = { status: true, data: { data: onvif_response.data }, error: null, msg: null }
+        return response;
+      }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
@@ -201,20 +266,19 @@ export class CameraService {
   async putSingle(id: string, body: dtos.editCameraDto, user: any): Promise<generalResponse> {
     try {
       // prepare where
-      const where = { id: id, AND: [] }
+      const where = { id: id, deleted: false, AND: [] }
       // check if user is limited
       if (user.isSuperAdmin !== true) {
-        where['AND'].push({ OR: [
-          { user_accounts: { some: { id: { equals: user.id } } } },
-          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
-        ] })
+        buildUserPermissionWhere(user, where);
       }
       // get results
       const temp: dtos.cameraDto = await this.db.camera.findUnique({ where });
       // check resuts
-      if (!temp) { return { status: false, data: null, error: null, msg: null }; }
+      if (!temp) { throw { message: 'Camera not found' }; }
+
+      // Check if URL changed (IP address change)
+      const urlChanged = temp.url !== body.url || temp.username !== body.username || temp.password !== body.password;
+      const oldUrl = temp.url;
 
       await this.db.$transaction([
         this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'name' }, data: { value: body.name } }),
@@ -228,25 +292,138 @@ export class CameraService {
       ])
       await this.db.camera.update({ where: { id: id }, data: { url: body.url, username: body.username, password: body.password, tcp: body.tcp }});
 
+      const cacheKey = `camera_info_${id}`;
+      await this.cacheManager.del(cacheKey)
+
       // check if restart is required
-      const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: id } } } })
-      const is_restart_required_live = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0]
-      const is_restart_required_record = temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
-      if (is_restart_required_live) {
-        // stop stream
-        await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
-        // wait
-        await new Promise(r => setTimeout(r, 1000))
-        // start stream
-        await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
-      }
-      if (is_restart_required_record) {
-        // stop stream
-        await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
-        // wait
-        await new Promise(r => setTimeout(r, 1000))
-        // start stream
-        await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
+      // const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: id } } } })
+      // const is_restart_required_live = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0]
+      // const is_restart_required_record = temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
+      // if (is_restart_required_live) {
+      //   // stop stream
+      //   await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
+      //   // wait
+      //   await new Promise(r => setTimeout(r, 1000))
+      //   // start stream
+      //   await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
+      // }
+      // if (is_restart_required_record) {
+      //   // stop stream
+      //   await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
+      //   // wait
+      //   await new Promise(r => setTimeout(r, 1000))
+      //   // start stream
+      //   await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
+
+      // If URL changed, update profiles and restart all services
+      if (urlChanged) {
+        try {
+          // Get updated camera data for ONVIF service
+          const updatedCamera = await this.db.camera.findUnique({ where: { id: id } });
+
+          // Get profiles from ONVIF service (same path and payload as onvif.service proxy)
+          const conn = this.onvifConnection(updatedCamera);
+          const [onvif_response, onvif_info] = await Promise.all([
+            this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn),
+            this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', conn)
+          ]);
+
+          if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
+            // Get current profile settings
+            const cameraInfo = await this.db.camera_info.findMany({ where: { camera: { some: { id: id } } } });
+            const infoMap = new Map(cameraInfo.map(x => [x.key, x.value]));
+            const currentProfileLow = infoMap.get('profile_low');
+            const currentProfileHigh = infoMap.get('profile_high');
+
+            // Find matching profiles or use first available
+            const profiles = onvif_response.data;
+            let profileLow = profiles.find(x => x.token === currentProfileLow);
+            let profileHigh = profiles.find(x => x.token === currentProfileHigh);
+
+            // If current profiles not found, use first available
+            if (!profileLow && profiles.length > 0) {
+              profileLow = profiles[profiles.length - 1]; // Use lowest quality
+            }
+            if (!profileHigh && profiles.length > 0) {
+              profileHigh = profiles[0]; // Use highest quality
+            }
+
+            // Get PTZ info
+            const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max;
+            const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max;
+
+            // Update profiles in database
+            if (profileLow && profileLow.stream?.rtsp) {
+              await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_low' }, data: { value: profileLow.token } });
+              await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_live_rtsp' }, data: { value: profileLow.stream.rtsp } });
+            }
+            if (profileHigh && profileHigh.stream?.rtsp) {
+              await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_high' }, data: { value: profileHigh.token } });
+              await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_record_rtsp' }, data: { value: profileHigh.stream.rtsp } });
+            }
+            await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_pan_tilt' }, data: { value: ptzPanTilt ? 'true' : 'false' } });
+            await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_zoom' }, data: { value: ptzZoom ? 'true' : 'false' } });
+          }
+        } catch (error) {
+          console.error('Error updating camera profiles:', error);
+          // Continue even if profile update fails
+        }
+
+        // Check and restart all running services
+        // 1. Stream services
+        const streamServices = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: id } } } });
+        const is_restart_required_live = streamServices.find(x => x.type === 'live')?.status;
+        const is_restart_required_record = streamServices.find(x => x.type === 'record')?.status;
+
+        if (is_restart_required_live) {
+          await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
+          await new Promise(r => setTimeout(r, 1000));
+          await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
+        }
+        if (is_restart_required_record) {
+          await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
+          await new Promise(r => setTimeout(r, 1000));
+          await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
+        }
+
+        // 2. Recorder services
+        const recorderServices = await this.db.camera_recorder_camera.findMany({ where: { camera: { some: { id: id } }, status: 'RUNNING' } });
+        for (const recorder of recorderServices) {
+          try {
+            await this.recorderservice.stop_item({ isSuperAdmin: true }, id, recorder.id);
+            await new Promise(r => setTimeout(r, 1000));
+            await this.recorderservice.start_item({ isSuperAdmin: true }, id, recorder.id);
+          } catch (error) {
+            console.error(`Error restarting recorder ${recorder.id}:`, error);
+          }
+        }
+
+        // 3. LPR services
+        const lprServices = await this.db.camera_lpr_camera.findMany({ where: { camera: { some: { id: id } }, isActive: true } });
+        for (const lpr of lprServices) {
+          try {
+            await this.lprService.stop({ isSuperAdmin: true }, id, lpr.id);
+            await new Promise(r => setTimeout(r, 1000));
+            await this.lprService.start({ isSuperAdmin: true }, id, lpr.id);
+          } catch (error) {
+            console.error(`Error restarting LPR ${lpr.id}:`, error);
+          }
+        }
+      } else {
+        // URL didn't change, only restart streams if needed (existing logic)
+        const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: id } } } });
+        const is_restart_required_live = temp2.find(x => x.type === 'live')?.status;
+        const is_restart_required_record = temp2.find(x => x.type === 'record')?.status;
+        if (is_restart_required_live) {
+          await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
+          await new Promise(r => setTimeout(r, 1000));
+          await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
+        }
+        if (is_restart_required_record) {
+          await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
+          await new Promise(r => setTimeout(r, 1000));
+          await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
+        }
       }
 
       const cam = await this.getSingle(user, id)
@@ -261,15 +438,10 @@ export class CameraService {
   async putSingleProfile(id: string, body: dtos.editCameraProfileDto, user: any): Promise<generalResponse> {
     try {
       // prepare where
-      const where = { id: id, AND: [] }
+      const where = { id: id, deleted: false, AND: [] }
       // check if user is limited
       if (user.isSuperAdmin !== true) {
-        where['AND'].push({ OR: [
-          { user_accounts: { some: { id: { equals: user.id } } } },
-          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
-        ] })
+        buildUserPermissionWhere(user, where);
       }
       // get results
       const temp: dtos.cameraDto = await this.db.camera.findUnique({ where });
@@ -277,10 +449,15 @@ export class CameraService {
       if (!temp) { throw { message: 'camera not found or user has no access to camera' }; }
       // check if restart is required
       const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: temp.id } } } })
-      const is_restart_required_live = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0]
-      const is_restart_required_record = temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
-      // get profiles from onvif service
-      const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', temp), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', temp)]);
+      // Optimize: Use find() instead of filter+map chains
+      const is_restart_required_live = temp2.find(x => x.type === 'live')?.status
+      const is_restart_required_record = temp2.find(x => x.type === 'record')?.status
+      // get profiles from onvif service (same path and payload as onvif.service proxy)
+      const conn = this.onvifConnection(temp);
+      const [ onvif_response, onvif_info ] = await Promise.all([
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn),
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', conn)
+      ]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
         // get profile rtsp data
         const high = onvif_response.data.filter(x => x.token === body.profile_high).map(x => { return x.stream?.rtsp })
@@ -317,15 +494,16 @@ export class CameraService {
             await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
             await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
           }
+          // reset cache
+          const cacheKey = `camera_info_${id}`;
+          await this.cacheManager.del(cacheKey)
           const cam = await this.getSingle(user, id)
           // generate response
           this.loggerService.log('camera profile edited', 0, user, undefined, undefined, id)
           const response: generalResponse = { status: true, data: cam, error: null, msg: null };
           return response;
         } catch (error) {
-          // generate response
-          const response: generalResponse = { status: false, data: null, error: 'error_updating_camera', msg: error };
-          return response;
+          throw { message: error.message || 'Error updating camera' };
         }
       } else {
         throw { message: 'invalid onvif data' }
@@ -337,7 +515,7 @@ export class CameraService {
 
   async isAdded(body: dtos.postPreCameraDto): Promise<generalResponse> {
     try {
-      const c = await this.db.camera.findMany({ where: { url: body.url } })
+      const c = await this.db.camera.findMany({ where: { url: body.url, deleted: false } })
       // generate response
       const response: generalResponse = { status: c.length > 0 ? true : false, data: null, error: null, msg: null };
       return response;
@@ -348,8 +526,8 @@ export class CameraService {
 
   async postPre(body: dtos.postPreCameraDto): Promise<generalResponse> {
     try {
-      // get profiles from onvif service
-      const onvif_response = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body);
+      // get profiles from onvif service (body has url, username, password; same path as onvif.service proxy)
+      const onvif_response = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', body);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
         const profiles = [];
         onvif_response.data.forEach(element => {
@@ -382,32 +560,35 @@ export class CameraService {
         throw { message: 'invalid onfiv data' }
       }
     } catch (error) {
-      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+      throw new HttpException({ status: false, data: null, error: error, msg: error.response?.data?.error ? error.response?.data?.error : error.message }, 406);
     }
   }
 
   async postSingle(user: any, body: dtos.postCameraDto): Promise<generalResponse> {
     try {
       // check license
-      if (await this.licenseService.can_add_new_camera() === false) { return { status: false, data: null, error: 'error_adding_camera', msg: 'License limit' }; }
-      // get profiles from onvif service
-      const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', body)]);
+      if (await this.licenseService.can_add_new_camera() === false) { throw { message: 'License limit' }; }
+      // get profiles from onvif service (body has url, username, password; same path as onvif.service proxy)
+      const [ onvif_response, onvif_info ] = await Promise.all([
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', body),
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', body)
+      ]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
         // get profile rtsp data
         const high = onvif_response.data.filter(x => x.token === body.profile_high).map(x => { return x.stream?.rtsp })
-        if (high.length < 1) { return { status: false, data: null, error: 'error_adding_camera', msg: 'High profile is not valid' }; }
+        if (high.length < 1) { throw { message: 'High profile is not valid' }; }
         const low = onvif_response.data.filter(x => x.token === body.profile_low).map(x => { return x.stream?.rtsp })
-        if (low.length < 1) { return { status: false, data: null, error: 'error_adding_camera', msg: 'Low profile is not valid' }; }
+        if (low.length < 1) { throw { message: 'Low profile is not valid' }; }
         // camera service
         const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
-        if (!cameraserviceID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera serive available' }; }
+        if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
         // get ptz info
         const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
         const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
         // make sure port is included in url to prevent duplication
         if (body.url.includes(':')) { body.url = body.url } else { body.url = body.url + ':80' }
-        // check for duplicate camera
-        if (await this.db.camera.count({ where: { url: body.url } })) { throw { message: 'Camera already added.' } }
+        // check for duplicate camera (excluding deleted cameras)
+        if (await this.db.camera.count({ where: { url: body.url, deleted: false } })) { throw { message: 'Camera already added.' } }
         // add camera to db
         try {
           const temp: dtos.cameraDto = await this.db.camera.create({
@@ -440,9 +621,7 @@ export class CameraService {
           const response: generalResponse = { status: true, data: temp, error: null, msg: null };
           return response;
         } catch (error) {
-          // generate response
-          const response: generalResponse = { status: false, data: null, error: 'error_adding_camera', msg: error };
-          return response;
+          throw { message: error.message || 'Error adding camera' };
         }
       } else {
         throw { message: 'invalid onvif data' }
@@ -455,9 +634,12 @@ export class CameraService {
   async postFastRegister(user: any, body: dtos.postPreCameraDto): Promise<generalResponse> {
     try {
       // check license
-      if (await this.licenseService.can_add_new_camera() === false) { return { status: false, data: null, error: 'error_adding_camera', msg: 'License limit' }; }
-      // get profiles from onvif service
-      const [ onvif_response, onvif_info ] = await Promise.all([this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/profiles', body), this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera/info', body)]);
+      if (await this.licenseService.can_add_new_camera() === false) { throw { message: 'License limit' }; }
+      // get profiles from onvif service (body has url, username, password; same path as onvif.service proxy)
+      const [ onvif_response, onvif_info ] = await Promise.all([
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', body),
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', body)
+      ]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
         const profiles = [];
         onvif_response.data.forEach(element => {
@@ -491,18 +673,18 @@ export class CameraService {
         const low_rtsp = low.rtsp
         // camera service
         const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
-        if (!cameraserviceID) { return { status: false, data: null, error: 'error_adding_camera', msg: 'No free camera serive available' }; }
+        if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
         // get ptz info
         const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
         const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
         // make sure port is included in url to prevent duplication
         if (body.url.includes(':')) { body.url = body.url } else { body.url = body.url + ':80' }
-        // check for duplicate camera
-        if (await this.db.camera.count({ where: { url: body.url } })) { throw { message: 'Camera already added.' } }
+        // check for duplicate camera (excluding deleted cameras)
+        if (await this.db.camera.count({ where: { url: body.url, deleted: false } })) { throw { message: 'Camera already added.' } }
         // add
         const temp: dtos.cameraDto = await this.db.camera.create({
-          data: {
-            url: body.url, username: body.username, password: body.password, tcp: true,
+            data: {
+              url: body.url, username: body.username, password: body.password, tcp: true,
             camera_info: {
               create: [
                 { key: 'name', value: body.url },
@@ -538,6 +720,58 @@ export class CameraService {
     }
   }
 
+  async postRegisterByRtsp(user: any, body: dtos.postCameraDto): Promise<generalResponse> {
+    try {
+      // check license
+      if (await this.licenseService.can_add_new_camera() === false) { throw { message: 'License limit' }; }
+      // camera service
+      const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
+      if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
+      // make sure port is included in url to prevent duplication
+      if (body.url.includes(':')) { body.url = body.url } else { body.url = body.url + ':80' }
+      // check for duplicate camera
+      if (await this.db.camera.count({ where: { url: body.url, deleted: false } })) { throw { message: 'Camera already added.' } }
+      // add camera to db
+      try {
+        const temp: dtos.cameraDto = await this.db.camera.create({
+          data: {
+            url: body.url, username: body.username, password: body.password, tcp: body.tcp, thirdParty: true,
+            camera_info: {
+              create: [
+                { key: 'name', value: body.name },
+                { key: 'type', value: body.type },
+                { key: 'description', value: body.description },
+                { key: 'address', value: body.address },
+                { key: 'brand', value: body.brand },
+                { key: 'partnumber', value: body.partnumber },
+                { key: 'map_lat', value: body.map_lat },
+                { key: 'map_lng', value: body.map_lng },
+                { key: 'profile_low', value: 'Locked' },
+                { key: 'profile_live_rtsp', value: body.profile_low },
+                { key: 'profile_high', value: 'Locked' },
+                { key: 'profile_record_rtsp', value: body.profile_high },
+                { key: 'ptz_pan_tilt', value: 'false' },
+                { key: 'ptz_zoom', value: 'false' }
+              ]
+            }
+          }});
+        // add info to camera service
+        await this.db.camera_service_camera.create({ data: { type: 'live', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
+        await this.db.camera_service_camera.create({ data: { type: 'record', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
+        // generate response
+        this.loggerService.log('camera added', 0, user, undefined, undefined, temp.id)
+        const response: generalResponse = { status: true, data: temp, error: null, msg: null };
+        return response;
+      } catch (error) {
+        // generate response
+        const response: generalResponse = { status: false, data: null, error: 'error_adding_camera', msg: error };
+        return response;
+      }
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
   async deleteSingle(user, id: string): Promise<generalResponse> {
     try {
       // prepare where
@@ -554,7 +788,7 @@ export class CameraService {
       // get results
       const camOk: dtos.cameraDto = await this.db.camera.findUnique({ where });
       // check resuts
-      if (!camOk) { return { status: false, data: null, error: null, msg: null }; }
+      if (!camOk) { throw { message: 'Camera not found' }; }
       // stop live
       await this.streamService.stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
       // stop high
@@ -569,6 +803,13 @@ export class CameraService {
       ])
       // delete camera
       const temp: dtos.cameraDto = await this.db.camera.delete({ where: { id: id } });
+      // reset cache
+      await this.cacheManager.del(`camera_info_${id}`)
+      // check for LPR sessions and clear cache
+      const lprSessions = await this.db.camera_lpr_camera.findMany({ where: { camera: { some: { id: id } } } })
+      for (const session of lprSessions) {
+        await this.cacheManager.del(`camera_lpr_session_${session.session}`)
+      }
       // generate response
       this.loggerService.log('camera removed', 0, user, undefined, undefined, id)
       const response: generalResponse = { status: true, data: temp, error: null, msg: null };
@@ -586,9 +827,10 @@ export class CameraService {
       console.debug('scanning cameras ...', new Date().toString());
       const cameras = await this.db.camera.findMany();
       await this.db.camera.updateMany({ data: { status: 'loading' } })
-      await Promise.all(cameras.map(async (element) => {
+      const concurrencyLimit = 15;
+      await runWithConcurrency(cameras, concurrencyLimit, async (element: { id: string; url: string; username: string; password: string; status?: string }) => {
         try {
-          const health = await this.axios.axiosRef.post(process.env.ONVIF_SERVICE + '/camera', element);
+          const health = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera', this.onvifConnection(element));
           if (health.data.status === 'up') {
             await this.db.camera.update({ where: { id: element.id }, data: { status: 'ok' } })
             if (element.status.includes('error')) {
@@ -607,7 +849,7 @@ export class CameraService {
           }
           if (e2 === 1) { console.log(true) }
         }
-      }));
+      });
       await this.db.camera.updateMany({ where: { status: 'loading' },  data: { status: 'error' } })
     } catch (error) {
       console.log('error scanning cameras', error)

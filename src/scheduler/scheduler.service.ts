@@ -12,8 +12,8 @@ export class SchedulerService {
 
   async post_user_account(user: any, user_id: string, scheduleBody: dtos.scheduleDto): Promise<generalResponse> {
     try {
-      cronParser.parseExpression(scheduleBody.from);
-      cronParser.parseExpression(scheduleBody.to);
+      cronParser.CronExpressionParser.parse(scheduleBody.from);
+      cronParser.CronExpressionParser.parse(scheduleBody.to);
       const temp = await this.db.scheduler_user_account.create({ data: { title: scheduleBody.title, from: scheduleBody.from, to: scheduleBody.to, user_accounts: { connect: { id: user_id } } } })
       this.loggerService.log('scheduler user added', 0, user, user_id)
       return { status: true, data: temp, error: null, msg: null }
@@ -57,8 +57,8 @@ export class SchedulerService {
 
   async put_user_account(user: any, user_id: string, id: string, scheduleBody: dtos.scheduleEditDto): Promise<generalResponse> {
     try {
-      cronParser.parseExpression(scheduleBody.from);
-      cronParser.parseExpression(scheduleBody.to);
+      cronParser.CronExpressionParser.parse(scheduleBody.from);
+      cronParser.CronExpressionParser.parse(scheduleBody.to);
       const temp = await this.db.scheduler_user_account.update({ where: { id: id, user_accounts: { some: { id: user_id } } }, data: { title: scheduleBody.title, from: scheduleBody.from, to: scheduleBody.to} })
       this.loggerService.log('scheduler user edited', 0, user, user_id)
       return { status: true, data: temp, error: null, msg: null }
@@ -84,8 +84,8 @@ export class SchedulerService {
 
   async post_user_group(user: any, group_id: string, scheduleBody: dtos.scheduleDto): Promise<generalResponse> {
     try {
-      cronParser.parseExpression(scheduleBody.from);
-      cronParser.parseExpression(scheduleBody.to);
+      cronParser.CronExpressionParser.parse(scheduleBody.from);
+      cronParser.CronExpressionParser.parse(scheduleBody.to);
       const temp = await this.db.scheduler_user_group.create({ data: { title: scheduleBody.title, from: scheduleBody.from, to: scheduleBody.to, user_groups: { connect: { id: group_id } } } })
       this.loggerService.log('scheduler user group added', 0, user, undefined, group_id)
       return { status: true, data: temp, error: null, msg: null }
@@ -129,8 +129,8 @@ export class SchedulerService {
 
   async put_user_group(user: any, group_id: string, id: string, scheduleBody: dtos.scheduleEditDto): Promise<generalResponse> {
     try {
-      cronParser.parseExpression(scheduleBody.from);
-      cronParser.parseExpression(scheduleBody.to);
+      cronParser.CronExpressionParser.parse(scheduleBody.from);
+      cronParser.CronExpressionParser.parse(scheduleBody.to);
       const temp = await this.db.scheduler_user_group.update({ where: { id: id, user_groups: { some: { id: group_id } } }, data: { title: scheduleBody.title, from: scheduleBody.from, to: scheduleBody.to} })
       this.loggerService.log('scheduler user group edited', 0, user, undefined, group_id)
       return { status: true, data: temp, error: null, msg: null }
@@ -235,7 +235,7 @@ export class SchedulerService {
     //   // endDate: new Date('Wed, 26 Dec 2025 14:40:00 UTC'),
     //   // iterator: true
     // };
-    // const interval = cronParser.parseExpression('*/10 * * * * *', options);
+    // const interval = cronParser.CronExpressionParser.parse('*/10 * * * * *', options);
     // console.log('Date: ', interval.next().toString());
     // console.log('Date: ', interval.next().toString());
     // console.log('Date: ', interval.next().toString());
@@ -252,8 +252,8 @@ export class SchedulerService {
         const cronStart = element.from
         const cronStop = element.to
         const now = new Date()
-        const startInterval = cronParser.parseExpression(cronStart)
-        const stopInterval = cronParser.parseExpression(cronStop)
+        const startInterval = cronParser.CronExpressionParser.parse(cronStart)
+        const stopInterval = cronParser.CronExpressionParser.parse(cronStop)
         const prevStart = new Date(startInterval.prev().toDate())
         const prevStop = new Date(stopInterval.prev().toDate())
         if (now.getTime() - prevStart.getTime() < now.getTime() - prevStop.getTime()) { overAll = true }
@@ -263,8 +263,8 @@ export class SchedulerService {
         const cronStart = element.from
         const cronStop = element.to
         const now = new Date()
-        const startInterval = cronParser.parseExpression(cronStart)
-        const stopInterval = cronParser.parseExpression(cronStop)
+        const startInterval = cronParser.CronExpressionParser.parse(cronStart)
+        const stopInterval = cronParser.CronExpressionParser.parse(cronStop)
         const prevStart = new Date(startInterval.prev().toDate())
         const prevStop = new Date(stopInterval.prev().toDate())
         if (now.getTime() - prevStart.getTime() < now.getTime() - prevStop.getTime()) { overAll = true }
@@ -272,7 +272,7 @@ export class SchedulerService {
       if (list.length === 0 && list2.length === 0) { overAll = true }
       return { status: true, data: { valid: overAll }, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw { message: error.message || 'Error verifying user account' };
     }
   }
 
@@ -296,7 +296,7 @@ export class SchedulerService {
       })
       return { status: true, data: { valid: overAll }, error: null, msg: null };
     } catch (error) {
-      return { status: false, data: null, error: error, msg: error.message };
+      throw { message: error.message || 'Error verifying ip or mac' };
     }
   }
 

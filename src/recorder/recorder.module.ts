@@ -6,9 +6,10 @@ import { HttpModule } from '@nestjs/axios';
 import { LoggerModule } from 'src/logger/logger.module';
 import { CameraRecorderModule } from 'src/camera_recorder/camera_recorder.module';
 import { StreamModule } from 'src/stream/stream.module';
+import { LicenseModule } from 'src/license/license.module';
 
 @Module({
-  imports: [DbModule, HttpModule, LoggerModule, CameraRecorderModule, StreamModule],
+  imports: [DbModule, HttpModule, LoggerModule, CameraRecorderModule, StreamModule, LicenseModule],
   providers: [RecorderService],
   controllers: [RecorderController],
   exports: [RecorderService]

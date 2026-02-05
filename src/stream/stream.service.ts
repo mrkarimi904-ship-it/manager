@@ -33,6 +33,13 @@ export class StreamService {
         this.db.camera_info.findFirst({ where: { camera: { some: { id: body.cameraId } }, key: profile_key } }),
         this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: body.cameraId } } , type: profile_name }, include: { camera_service: true } })
       ])
+      if (!cameraServiceInfo?.camera_service?.length) {
+        throw new HttpException({ status: false, data: null, error: 'Stream service not configured', msg: 'Stream service not configured for this camera' }, 406);
+      }
+      if (!cameraInfo?.value || String(cameraInfo.value).trim() === '') {
+        const profileLabel = body.type === 'LOW' ? 'live' : 'record';
+        throw new HttpException({ status: false, data: null, error: 'No RTSP profile', msg: `Camera profile has no RTSP URL for ${profileLabel} stream. Please set or update the camera stream profile.` }, 406);
+      }
       const cameraService = cameraServiceInfo.camera_service[0];
       const cameraServiceUrl = cameraService.url;
       const cameraServicePort = cameraService.port;

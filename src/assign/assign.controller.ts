@@ -4,7 +4,7 @@ import * as dtos from './dtos';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { generalResponse } from 'src/app.consts';
 import { AccountRoles, User } from 'src/account/account.decorator';
-import { accountGaurd } from 'src/account/account.gaurd';
+import { AccountGuard } from 'src/account/account.guard';
 
 @ApiBearerAuth()
 @ApiTags('05. assign')
@@ -14,183 +14,239 @@ export class AssignController {
 
   @Post('user_to_usergroup')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async user_to_usergroup(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.user_to_usergroup(data, user);
   }
 
   @Post('user_to_usergroup_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async user_to_usergroup_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.user_to_usergroup_all(data, user);
   }
 
   @Post('user_to_camera')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async user_to_camera(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.user_to_camera(data, user);
   }
 
   @Post('user_to_camera_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async user_to_camera_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.user_to_camera_all(data, user);
   }
 
   @Post('user_to_cameragroup')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async user_to_cameragroup(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.user_to_cameragroup(data, user);
   }
 
   @Post('user_to_cameragroup_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async user_to_cameragroup_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.user_to_cameragroup_all(data, user);
   }
 
   @Post('usergroup_to_user')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async usergroup_to_user(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.usergroup_to_user(data, user);
   }
 
   @Post('usergroup_to_user_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async usergroup_to_user_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.usergroup_to_user_all(data, user);
   }
 
   @Post('usergroup_to_camera')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async usergroup_to_camera(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.usergroup_to_camera(data, user);
   }
 
   @Post('usergroup_to_camera_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async usergroup_to_camera_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.usergroup_to_camera_all(data, user);
   }
 
   @Post('usergroup_to_cameragroup')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async usergroup_to_cameragroup(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.usergroup_to_cameragroup(data, user);
   }
 
   @Post('usergroup_to_cameragroup_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async usergroup_to_cameragroup_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.usergroup_to_cameragroup_all(data, user);
   }
 
   @Post('camera_to_user')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async camera_to_user(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.camera_to_user(data, user);
   }
 
   @Post('camera_to_user_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async camera_to_user_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.camera_to_user_all(data, user);
   }
 
   @Post('camera_to_usergroup')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async camera_to_usergroup(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.camera_to_usergroup(data, user);
   }
 
   @Post('camera_to_usergroup_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async camera_to_usergroup_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.camera_to_usergroup_all(data, user);
   }
 
   @Post('camera_to_cameragroup')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async camera_to_cameragroup(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.camera_to_cameragroup(data, user);
   }
 
   @Post('camera_to_cameragroup_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async camera_to_cameragroup_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.camera_to_cameragroup_all(data, user);
   }
 
   @Post('cameragroup_to_user')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async cameragroup_to_user(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.cameragroup_to_user(data, user);
   }
 
   @Post('cameragroup_to_user_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async cameragroup_to_user_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.cameragroup_to_user_all(data, user);
   }
 
   @Post('cameragroup_to_usergroup')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async cameragroup_to_usergroup(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.cameragroup_to_usergroup(data, user);
   }
 
   @Post('cameragroup_to_usergroup_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async cameragroup_to_usergroup_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.cameragroup_to_usergroup_all(data, user);
   }
 
   @Post('cameragroup_to_camera')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async cameragroup_to_camera(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.cameragroup_to_camera(data, user);
   }
 
   @Post('cameragroup_to_camera_all')
   @AccountRoles('assign_entities')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async cameragroup_to_camera_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
     return await this.assignService.cameragroup_to_camera_all(data, user);
   }
 
   @Post('role_to_user')
   @AccountRoles('assign_roles')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async role_to_user(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.role_to_user(data, user);
   }
 
   @Post('role_to_usergroup')
   @AccountRoles('assign_roles')
-  @UseGuards(accountGaurd)
+  @UseGuards(AccountGuard)
   async role_to_usergroup(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
     return await this.assignService.role_to_usergroup(data, user);
+  }
+
+  @Post('tileview_to_user')
+  @AccountRoles('assign_entities')
+  @UseGuards(AccountGuard)
+  async tileview_to_user(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
+    return await this.assignService.tileview_to_user(data, user);
+  }
+
+  @Post('tileview_to_user_all')
+  @AccountRoles('assign_entities')
+  @UseGuards(AccountGuard)
+  async tileview_to_user_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
+    return await this.assignService.tileview_to_user_all(data, user);
+  }
+
+  @Post('tileview_to_usergroup')
+  @AccountRoles('assign_entities')
+  @UseGuards(AccountGuard)
+  async tileview_to_usergroup(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
+    return await this.assignService.tileview_to_usergroup(data, user);
+  }
+
+  @Post('tileview_to_usergroup_all')
+  @AccountRoles('assign_entities')
+  @UseGuards(AccountGuard)
+  async tileview_to_usergroup_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
+    return await this.assignService.tileview_to_usergroup_all(data, user);
+  }
+
+  @Post('user_to_tileview')
+  @AccountRoles('assign_entities')
+  @UseGuards(AccountGuard)
+  async user_to_tileview(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
+    return await this.assignService.user_to_tileview(data, user);
+  }
+
+  @Post('user_to_tileview_all')
+  @AccountRoles('assign_entities')
+  @UseGuards(AccountGuard)
+  async user_to_tileview_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
+    return await this.assignService.user_to_tileview_all(data, user);
+  }
+
+  @Post('usergroup_to_tileview')
+  @AccountRoles('assign_entities')
+  @UseGuards(AccountGuard)
+  async usergroup_to_tileview(@User() user, @Body() data: dtos.assignDto): Promise<generalResponse> {
+    return await this.assignService.usergroup_to_tileview(data, user);
+  }
+
+  @Post('usergroup_to_tileview_all')
+  @AccountRoles('assign_entities')
+  @UseGuards(AccountGuard)
+  async usergroup_to_tileview_all(@User() user, @Body() data: dtos.assignToAllDto): Promise<generalResponse> {
+    return await this.assignService.usergroup_to_tileview_all(data, user);
   }
 }

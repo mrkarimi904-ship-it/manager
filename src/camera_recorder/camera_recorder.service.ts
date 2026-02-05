@@ -1,4 +1,4 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, Injectable, OnModuleInit } from '@nestjs/common';
 
 import { DbService } from 'src/db/db.service';
 
@@ -12,10 +12,56 @@ import { HttpService } from '@nestjs/axios';
 import { Cron } from '@nestjs/schedule';
 import { LoggerService } from 'src/logger/logger.service';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { LicenseService } from 'src/license/license.service';
 
 @Injectable()
-export class CameraRecorderService {
-  constructor(private db: DbService, private streamService: StreamService, private readonly axios: HttpService, private loggerService: LoggerService, private eventEmitter: EventEmitter2) {}
+export class CameraRecorderService implements OnModuleInit {
+  constructor(private db: DbService, private streamService: StreamService, private readonly axios: HttpService, private loggerService: LoggerService, private eventEmitter: EventEmitter2, private licenseService: LicenseService) {}
+
+  async onModuleInit() {
+    await this.reInitRecorders();
+  }
+
+  private async reInitRecorders() {
+    try {
+      await this.syncRecorderStatuses();
+      const toRestart = await this.db.camera_recorder_camera.findMany({
+        where: { isActive: true, status: { not: 'RUNNING' } },
+        include: { camera: true },
+      });
+      toRestart.forEach((item) => {
+        this.eventEmitter.emit('recorder.restart', { cameraId: item.camera[0].id, recorderId: item.id });
+      });
+    } catch (err) {
+      console.log('error reInit recorders', err?.message || err);
+    }
+  }
+
+  private async syncRecorderStatuses() {
+    const cameraRecorders = await this.db.camera_recorder.findMany({ include: { camera_recorder_camera: { include: { camera: true } } } });
+    await Promise.all(cameraRecorders.map(async (element) => {
+      const cameraRecorderId = element.id;
+      const cameraRecorderUrl = element.url;
+      const cameraRecorderPort = element.port;
+      const uurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder`;
+      try {
+        const results = await this.axios.axiosRef.get(uurl);
+        await this.db.camera_recorder_camera.updateMany({ where: { camera_recorder: { some: { id: cameraRecorderId } } }, data: { status: 'loading ...' } });
+        const revordes = element.camera_recorder_camera;
+        await Promise.all(revordes.map(async (rev) => {
+          const db_session = rev.session;
+          const rr = results.data.recorders.filter((x: any) => x.session_id === db_session);
+          if (rr && rr.length > 0) {
+            await this.db.camera_recorder_camera.updateMany({ where: { camera_recorder: { some: { id: cameraRecorderId } }, camera: { some: { id: rev.camera[0].id } }, session: db_session }, data: { status: rr[0].status } });
+          } else {
+            await this.db.camera_recorder_camera.updateMany({ where: { camera_recorder: { some: { id: cameraRecorderId } }, camera: { some: { id: rev.camera[0].id } }, session: db_session }, data: { status: 'STOPPED' } });
+          }
+        }));
+      } catch {
+        // service unreachable: leave DB as-is or mark as loading; reInit will treat status !== RUNNING as need restart
+      }
+    }));
+  }
 
   async getAll(): Promise<generalResponse> {
     try {
@@ -39,6 +85,8 @@ export class CameraRecorderService {
 
   async postSingle(body: dtos.postCameraRecorderDto): Promise<generalResponse> {
     try {
+      // check license
+      if (await this.licenseService.can_add_new_recorder_service() === false) { throw { message: 'License limit: recorder service not available' }; }
       const cameraRecorder: dtos.cameraRecorderDto = await this.db.camera_recorder.upsert({ where: { id: body.id}, update: { port: body.swagger_port, url: body.url }, create: { id: body.id, url: body.url, port: body.swagger_port } })
       this.eventEmitter.emit('background.recorder_service', body);
       // return
@@ -67,51 +115,31 @@ export class CameraRecorderService {
     if (process.env.NODE_ENV) { return true }
     try {
       console.debug('scanning camerarecorders ...', new Date().toString());
-      const cameraRecorders = await this.db.camera_recorder.findMany({ include: { camera_recorder_camera: { include: { camera: true } } } });
-      await Promise.all(cameraRecorders.map(async (element) => {
-        const cameraRecorderId = element.id;
-        const cameraRecorderUrl = element.url;
-        const cameraRecorderPort = element.port;
-        const uurl = `http://${cameraRecorderUrl}:${cameraRecorderPort}/camera_recorder/recorder`
-        const results = await this.axios.axiosRef.get(uurl)
-        // move this to here to make sure camera recorder service is responding ( after registration ) so if not registerd yet do not continue
-        await this.db.camera_recorder_camera.updateMany({ where: { camera_recorder: { some: { id: cameraRecorderId } } }, data: { status: 'loading ...' } })
-        const revordes = element.camera_recorder_camera
-        await Promise.all(revordes.map(async (rev) => {
-          const db_session = rev.session
-          const rr = results.data.recorders.filter(x => x.session_id === db_session)
-          if (rr && rr.length > 0) {
-            await this.db.camera_recorder_camera.updateMany({ where: { camera_recorder: { some: { id: cameraRecorderId } } , camera: { some: { id: rev.camera[0].id } }, session: db_session }, data: { status: rr[0].status } })
-          } else {
-            await this.db.camera_recorder_camera.updateMany({ where: { camera_recorder: { some: { id: cameraRecorderId } } , camera: { some: { id: rev.camera[0].id } }, session: db_session }, data: { status: 'STOPPED' } })
-          }
-        }));
-      }));
-      // await this.db.camera_recorder_camera.updateMany({ where: { status: 'loading ...' },  data: { status: '' } })
+      await this.syncRecorderStatuses();
+      const toRestart = await this.db.camera_recorder_camera.findMany({
+        where: { isActive: true, status: { not: 'RUNNING' } },
+        include: { camera: true },
+      });
+      toRestart.forEach((item) => {
+        this.eventEmitter.emit('recorder.restart', { cameraId: item.camera[0].id, recorderId: item.id });
+      });
     } catch (error) {
-      console.log('error scanning camerarecorders', error)
+      console.log('error scanning camerarecorders', error);
     }
   }
 
   @OnEvent('background.recorder_service')
   async handleBackgroundTask(body: any) {
     await new Promise(resolve => setTimeout(resolve, 1000));
-    console.log('start backgrount task to start recorders', body)
-    const cameraRecorder = await this.db.camera_recorder.findUnique({ where: { id: body.id} })
-    // try to start currently registered cameras
-    const active_recorders = await this.db.camera_recorder_camera.findMany({ where: { camera_recorder: { some: { id: cameraRecorder.id }}, status: 'RUNNING' }, include: { camera_recorder: true, camera: true } })
-    await Promise.all(active_recorders.map(async (item) => {
-      await this.streamService.start(null, { cameraId: item.camera[0].id, type: 'HIGH' })
-      const service_url = item.camera_recorder[0].url
-      const service_port = item.camera_recorder[0].port
-      const service = `http://${service_url}:${service_port}/camera_recorder/`
-      const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: item.camera[0].id } }, type: 'record' }, include: { camera_service: true } })
-      const stream = await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } })
-      const stream_url = stream.url
-      const stream_port = stream_service.port
-      const newurl = service + `recorder/` + item.session + `/start`
-      const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, rotation: item.enable_rotation })
-      await this.db.camera_recorder_camera.update({ where: { id: item.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
-    }));
+    console.log('start background task to start recorders', body);
+    const cameraRecorder = await this.db.camera_recorder.findUnique({ where: { id: body.id } });
+    if (!cameraRecorder) return;
+    const active_recorders = await this.db.camera_recorder_camera.findMany({
+      where: { camera_recorder: { some: { id: cameraRecorder.id } }, isActive: true },
+      include: { camera: true },
+    });
+    active_recorders.forEach((item) => {
+      this.eventEmitter.emit('recorder.restart', { cameraId: item.camera[0].id, recorderId: item.id });
+    });
   }
 }
