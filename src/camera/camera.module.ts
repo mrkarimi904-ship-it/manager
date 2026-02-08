@@ -10,9 +10,10 @@ import { CameraRecorderModule } from 'src/camera_recorder/camera_recorder.module
 import { LoggerModule } from 'src/logger/logger.module';
 import { LicenseModule } from 'src/license/license.module';
 import { LprModule } from 'src/lpr/lpr.module';
+import { MismatchModule } from 'src/mismatch/mismatch.module';
 
 @Module({
-  imports: [DbModule, HttpModule, CameraServiceModule, RecorderModule, StreamModule, CameraRecorderModule, LoggerModule, LicenseModule, LprModule],
+  imports: [DbModule, HttpModule, CameraServiceModule, RecorderModule, StreamModule, CameraRecorderModule, LoggerModule, LicenseModule, LprModule, MismatchModule],
   controllers: [CameraController],
   providers: [CameraService]
 })

@@ -14,10 +14,13 @@ import { Cron } from '@nestjs/schedule';
 import { LoggerService } from 'src/logger/logger.service';
 import { LicenseService } from 'src/license/license.service';
 import { LprService } from 'src/lpr/lpr.service';
+import { MismatchService } from 'src/mismatch/mismatch.service';
 import { buildUserPermissionWhere, runWithConcurrency } from 'src/app.shared';
 
 import { Cache } from 'cache-manager';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+
+const superadminUser = { isSuperAdmin: true };
 
 @Injectable()
 export class CameraService {
@@ -31,6 +34,7 @@ export class CameraService {
     private loggerService: LoggerService,
     private licenseService: LicenseService,
     private lprService: LprService,
+    private mismatchService: MismatchService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache
   ) {}
 
@@ -795,20 +799,48 @@ export class CameraService {
       await this.streamService.stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
       // stop recorder
       await this.recorderservice.delete_all(user, id)
-      // delete related data from other tables
+
+      // LPR and mismatch reference this camera (FK RESTRICT); stop them then delete in transaction
+      const lprList = await this.db.camera_lpr_camera.findMany({
+        where: { camera: { some: { id } } },
+        select: { id: true, session: true }
+      })
+      for (const lpr of lprList) {
+        try {
+          await this.lprService.stop(superadminUser, id, lpr.id)
+        } catch {
+          // continue so we still remove DB rows
+        }
+      }
+
+      const mismatchList = await this.db.mismatch.findMany({
+        where: { OR: [{ camera1_id: id }, { camera2_id: id }] },
+        select: { id: true }
+      })
+      for (const m of mismatchList) {
+        try {
+          await this.mismatchService.stop(superadminUser, m.id)
+        } catch {
+          // continue so we still remove DB rows
+        }
+      }
+
+      const lprSessionIds = lprList.map((s) => s.session).filter(Boolean)
+
+      // delete related data from other tables (mismatch has RESTRICT, join tables CASCADE on camera)
       await this.db.$transaction([
-        this.db.camera_info.deleteMany({ where: { camera: { some: { id: id } } } }),
-        this.db.camera_service_camera.deleteMany({ where: { camera: { some: { id: id } } } }),
-        this.db.camera_recorder_camera.deleteMany({ where: { camera: { some: { id: id } } } })
+        this.db.camera_info.deleteMany({ where: { camera: { some: { id } } } }),
+        this.db.camera_service_camera.deleteMany({ where: { camera: { some: { id } } } }),
+        this.db.camera_recorder_camera.deleteMany({ where: { camera: { some: { id } } } }),
+        this.db.mismatch.deleteMany({ where: { OR: [{ camera1_id: id }, { camera2_id: id }] } }),
+        this.db.camera_lpr_camera.deleteMany({ where: { camera: { some: { id } } } }),
       ])
       // delete camera
-      const temp: dtos.cameraDto = await this.db.camera.delete({ where: { id: id } });
+      const temp: dtos.cameraDto = await this.db.camera.delete({ where: { id } });
       // reset cache
       await this.cacheManager.del(`camera_info_${id}`)
-      // check for LPR sessions and clear cache
-      const lprSessions = await this.db.camera_lpr_camera.findMany({ where: { camera: { some: { id: id } } } })
-      for (const session of lprSessions) {
-        await this.cacheManager.del(`camera_lpr_session_${session.session}`)
+      for (const sessionId of lprSessionIds) {
+        await this.cacheManager.del(`camera_lpr_session_${sessionId}`)
       }
       // generate response
       this.loggerService.log('camera removed', 0, user, undefined, undefined, id)
