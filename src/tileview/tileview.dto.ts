@@ -10,14 +10,15 @@ export class tileviewDto {
   @IsString()
   schema: string;
 
-  @ApiProperty()
-  @IsString()
-  meta: string;
-
   @ApiProperty({ default: false, required: false })
   @IsOptional()
   @IsBoolean()
   private?: boolean;
+
+  @ApiProperty({ default: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  is_editable?: boolean;
 }
 
 export class tileviewEditDto {
@@ -33,13 +34,13 @@ export class tileviewEditDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsString()
-  meta?: string;
+  @IsBoolean()
+  private?: boolean;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsBoolean()
-  private?: boolean;
+  is_editable?: boolean;
 }
 
 export class tileviewSearchQuery {

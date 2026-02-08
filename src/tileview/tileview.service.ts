@@ -89,7 +89,7 @@ export class TileviewService {
 
   async postTileview(user: any, body: tileviewDto): Promise<generalResponse> {
     try {
-      const tileview = await this.db.tileview.create({ data: { title: body.title, schema: body.schema, meta: body.meta, private: body.private || false, owner_id: user.id }, include: {
+      const tileview = await this.db.tileview.create({ data: { title: body.title, schema: body.schema, private: body.private || false, is_editable: body.is_editable ?? true, owner_id: user.id }, include: {
         owner: { select: { id: true, username: true, firstname: true, lastname: true } },
         user_accounts: { select: { id: true, username: true, firstname: true, lastname: true } },
         user_groups: { select: { id: true, name: true } }
@@ -108,6 +108,10 @@ export class TileviewService {
       const tileview = await this.db.tileview.findUnique({ where: { id: id } })
       if (!tileview) { throw { message: 'Tileview not found' } }
 
+      if (tileview.is_editable === false) {
+        throw { message: 'Forbidden' }
+      }
+
       // Check if user is owner or superadmin
       if (user.isSuperAdmin !== true && tileview.owner_id !== user.id) {
         throw { message: 'Forbidden' }
@@ -116,8 +120,8 @@ export class TileviewService {
       const updateData: any = {}
       if (body.title !== undefined) { updateData.title = body.title }
       if (body.schema !== undefined) { updateData.schema = body.schema }
-      if (body.meta !== undefined) { updateData.meta = body.meta }
       if (body.private !== undefined) { updateData.private = body.private }
+      if (body.is_editable !== undefined) { updateData.is_editable = body.is_editable }
 
       const updatedTileview = await this.db.tileview.update({ where: { id: id }, data: updateData, include: {
         owner: { select: { id: true, username: true, firstname: true, lastname: true } },
@@ -138,7 +142,7 @@ export class TileviewService {
       const tileview = await this.db.tileview.findUnique({ where: { id: id } })
       if (!tileview) { throw { message: 'Tileview not found' } }
 
-      // Check if user is owner or superadmin
+      // Only owner or superadmin can delete (is_editable does not block delete)
       if (user.isSuperAdmin !== true && tileview.owner_id !== user.id) {
         throw { message: 'Forbidden' }
       }

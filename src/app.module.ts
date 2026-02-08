@@ -41,6 +41,7 @@ import { OperationsModule } from './operations/operations.module';
 import { MismatchServiceModule } from './mismatch_service/mismatch_service.module';
 import { MismatchModule } from './mismatch/mismatch.module';
 import { TileviewModule } from './tileview/tileview.module';
+import { TilelayoutModule } from './tilelayout/tilelayout.module';
 import { OnvifModule } from './onvif/onvif.module';
 
 @Module({
@@ -58,7 +59,7 @@ import { OnvifModule } from './onvif/onvif.module';
     CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule,
     LoggerModule, PlaybackModule, SchedulerModule, BookmarkModule, LicenseModule,
     LprServiceModule, LprQueueModule, LprModule, LprResultsModule, LprListModule,
-    DevicesModule, OperationsModule, MismatchServiceModule, MismatchModule, TileviewModule, OnvifModule],
+    DevicesModule, OperationsModule, MismatchServiceModule, MismatchModule, TileviewModule, TilelayoutModule, OnvifModule],
   controllers: [AppController],
   providers: [
     AppService,

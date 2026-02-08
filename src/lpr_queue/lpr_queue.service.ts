@@ -70,7 +70,7 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
         // Process multiple items in batch for better performance
         const items = await this.batchPopItems('lpr_queue', 5);
         const restoreItems = await this.batchPopItems('lpr_restore', 3);
-        const mismatchItems = await this.batchPopItems('lpr_mismatch', 2)
+        const mismatchItems = await this.batchPopItems('lpr_mismatch', 2);
 
         // Process main queue items in parallel
         if (items.length > 0) {
@@ -82,8 +82,13 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
           await Promise.allSettled(restoreItems.map(item => this.processRestore(item)));
         }
 
+        // Process mismatch queue: prepare and publish to lpr_alarm
+        if (mismatchItems.length > 0) {
+          await Promise.allSettled(mismatchItems.map(item => this.processMismatch(item)));
+        }
+
         // Small delay to prevent CPU spinning when queues are empty
-        if (items.length === 0 && restoreItems.length === 0) {
+        if (items.length === 0 && restoreItems.length === 0 && mismatchItems.length === 0) {
           await new Promise(resolve => setTimeout(resolve, 10));
         }
 
@@ -96,7 +101,16 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Check if plate was seen for this LPR within threshold (Redis lpr_repeat key). If yes, log; then set key with TTL.
+   * Publish payload to lpr_alarm channel. Fire-and-forget; errors are caught and logged.
+   */
+  private publishLprAlarm(payload: object): void {
+    if (!this.client) return;
+    this.client.publish('lpr_alarm', JSON.stringify(payload))
+      .catch((err) => console.error('lpr_alarm publish error:', err?.message || err));
+  }
+
+  /**
+   * Check if plate was seen for this LPR within threshold (Redis lpr_repeat key). If repeat, publish to lpr_alarm; then set key with TTL.
    * Fire-and-forget safe; errors are caught and logged.
    */
   private checkRepeatAndLog(lprId: string, thresholdSec: number, plate: string): void {
@@ -105,11 +119,25 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
     this.client.get(key)
       .then((val) => {
         if (val != null) {
-          console.log(`[LPR repeat] plate=${plate} lprId=${lprId} repeat within threshold`);
+          this.publishLprAlarm({ type: 'repeat', plate, lprId, repeat_within_threshold: true });
         }
         return this.client.set(key, '1', { EX: thresholdSec });
       })
       .catch((err) => console.error('checkRepeatAndLog error:', err?.message || err));
+  }
+
+  /**
+   * Process item from lpr_mismatch queue: prepare payload and publish to lpr_alarm.
+   */
+  private async processMismatch(item: string): Promise<void> {
+    if (item == null) return;
+    try {
+      const payload = typeof item === 'string' ? (() => { try { return JSON.parse(item); } catch { return { raw: item }; } })() : item;
+      const alarmPayload = { type: 'mismatch', ...(typeof payload === 'object' && payload !== null ? payload : { data: payload }) };
+      this.publishLprAlarm(alarmPayload);
+    } catch (err) {
+      console.error('processMismatch error:', err?.message || err);
+    }
   }
 
   private async batchPopItems(queueName: string, batchSize: number): Promise<string[]> {

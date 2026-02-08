@@ -39,6 +39,7 @@ model user_accounts {
   user_preference             user_preference[]
   tileview                    tileview[] @relation("TileviewOwner")
   tileview_user               tileview[] @relation("TileviewUser")
+  tilelayout                  tilelayout[]
 }
 
 model user_groups {
@@ -458,12 +459,24 @@ model tileview {
   id                          String      @id @default(uuid())
   title                       String
   schema                      String
-  meta                        String
   private                     Boolean     @default(false)
+  is_editable                 Boolean     @default(true)
   owner_id                    String
   created_at                  DateTime    @default(now())
   updated_at                  DateTime    @updatedAt()
   owner                       user_accounts @relation("TileviewOwner", fields: [owner_id], references: [id])
   user_accounts               user_accounts[] @relation("TileviewUser")
   user_groups                 user_groups[] @relation("TileviewUserGroup")
+}
+
+model tilelayout {
+  id                          String      @id @default(uuid())
+  title                       String
+  schema                      String
+  private                     Boolean     @default(false)
+  is_editable                 Boolean     @default(true)
+  owner_id                    String
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt()
+  owner                       user_accounts @relation(fields: [owner_id], references: [id])
 }
