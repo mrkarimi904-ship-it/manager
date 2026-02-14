@@ -37,6 +37,52 @@ export class RecorderService {
     }
   }
 
+  async check_storage(user: any, camera_id: string, body: dtos.recorderStorageCheckDto): Promise<generalResponse> {
+    try {
+      const where = { id: camera_id, AND: [] };
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({
+          OR: [
+            { user_accounts: { some: { id: { equals: user.id } } } },
+            { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+            { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+            { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } },
+          ],
+        });
+      }
+      const camera = await this.db.camera.findUnique({ where });
+      if (!camera) {
+        throw new ConflictException();
+      }
+
+      const recorderServer = await this.db.camera_recorder.findUnique({ where: { id: body.recorder } });
+      if (!recorderServer) {
+        throw new ConflictException('Recorder service not found');
+      }
+
+      const service = `http://${recorderServer.url}:${recorderServer.port}/camera_recorder/storage`;
+      const response = await this.axios.axiosRef.post(service, { path: body.path });
+
+      const data = response.data?.data ?? response.data;
+      const status = response.data?.status === 'OK' && response.data?.code === 200;
+      return {
+        status: !!status,
+        data,
+        error: status ? null : (response.data?.message ?? 'Storage check failed'),
+        msg: response.data?.message ?? null,
+      };
+    } catch (error) {
+      if (error.response?.data) {
+        const msg = error.response.data?.message ?? error.response.data?.error ?? error.message;
+        throw new HttpException(
+          { status: false, data: null, error: msg, msg },
+          error.response.status >= 400 ? error.response.status : 406,
+        );
+      }
+      throw new HttpException({ status: false, data: null, error: error.message, msg: error.message }, 406);
+    }
+  }
+
   async add_item(user: any, camera_id: string, body: dtos.recorderPostDto): Promise<generalResponse> {
     try {
       const where = { id: camera_id, AND: [] }

@@ -46,7 +46,7 @@ export class OnvifService {
       };
 
       let response: any;
-      const config = { timeout: 30000 };
+      const config = { timeout: 60 * 1000 }; // 60 seconds
 
       if (method === 'GET') {
         response = await this.axios.axiosRef.get(url, config);
@@ -96,7 +96,7 @@ export class OnvifService {
     try {
       const baseUrl = this.getBaseUrl();
       const url = `${baseUrl}/camera/discovery`;
-      const response = await this.axios.axiosRef.get(url, { timeout: 15000 });
+      const response = await this.axios.axiosRef.get(url, { timeout: 60 * 1000 }); // 60 seconds
       return { status: true, data: response.data, error: null, msg: null };
     } catch (error) {
       if (error.response) {

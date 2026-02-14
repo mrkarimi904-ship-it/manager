@@ -36,6 +36,16 @@ export class recorderPostDto {
   enable_rotation: boolean = true;
 }
 
+export class recorderStorageCheckDto {
+  @IsString()
+  @ApiProperty({ example: '/storage', description: 'Storage path to check on the recorder service' })
+  path: string;
+
+  @IsString()
+  @ApiProperty({ description: 'Camera recorder server id (camera_recorder id)' })
+  recorder: string;
+}
+
 export class recorderPutDto {
   @IsString()
   @ApiProperty()

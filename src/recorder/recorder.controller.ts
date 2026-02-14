@@ -22,6 +22,13 @@ export class RecorderController {
     return this.recorderService.get_list(user, camera_id);
   }
 
+  @Post(':camera_id/storage')
+  @AccountRoles('actions_recorder')
+  @UseGuards(AccountGuard)
+  async check_storage(@User() user, @Param('camera_id', new ParseUUIDPipe({ version: "4" })) camera_id: string, @Body() body: dtos.recorderStorageCheckDto): Promise<generalResponse> {
+    return this.recorderService.check_storage(user, camera_id, body);
+  }
+
   @Post(':camera_id')
   @AccountRoles('actions_recorder')
   @UseGuards(AccountGuard)

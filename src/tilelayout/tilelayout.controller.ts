@@ -22,7 +22,7 @@ export class TilelayoutController {
   }
 
   @Post('')
-  @AccountRoles('tileview_add')
+  @AccountRoles('client_manage_layout')
   @UseGuards(AccountGuard)
   async postTilelayout(@User() user, @Body() body: tilelayoutDto): Promise<generalResponse> {
     return await this.tilelayoutService.postTilelayout(user, body);
@@ -35,13 +35,14 @@ export class TilelayoutController {
   }
 
   @Put(':id')
-  @AccountRoles('tileview_edit')
+  @AccountRoles('client_manage_layout')
   @UseGuards(AccountGuard)
   async putTilelayout(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Body() body: tilelayoutEditDto): Promise<generalResponse> {
     return await this.tilelayoutService.putTilelayout(user, id, body);
   }
 
   @Delete(':id')
+  @AccountRoles('client_manage_layout')
   @UseGuards(AccountGuard)
   async deleteTilelayout(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
     return await this.tilelayoutService.deleteTilelayout(user, id);
