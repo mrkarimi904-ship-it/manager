@@ -299,74 +299,60 @@ export class CameraService {
       const cacheKey = `camera_info_${id}`;
       await this.cacheManager.del(cacheKey)
 
-      // check if restart is required
-      // const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: id } } } })
-      // const is_restart_required_live = temp2.filter(x => x.type === 'live').map(x => { return x.status })[0]
-      // const is_restart_required_record = temp2.filter(x => x.type === 'record').map(x => { return x.status })[0]
-      // if (is_restart_required_live) {
-      //   // stop stream
-      //   await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
-      //   // wait
-      //   await new Promise(r => setTimeout(r, 1000))
-      //   // start stream
-      //   await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
-      // }
-      // if (is_restart_required_record) {
-      //   // stop stream
-      //   await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
-      //   // wait
-      //   await new Promise(r => setTimeout(r, 1000))
-      //   // start stream
-      //   await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
-
       // If URL changed, update profiles and restart all services
       if (urlChanged) {
         try {
           // Get updated camera data for ONVIF service
           const updatedCamera = await this.db.camera.findUnique({ where: { id: id } });
-
           // Get profiles from ONVIF service (same path and payload as onvif.service proxy)
           const conn = this.onvifConnection(updatedCamera);
           const [onvif_response, onvif_info] = await Promise.all([
             this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn),
             this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', conn)
           ]);
-
           if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
-            // Get current profile settings
-            const cameraInfo = await this.db.camera_info.findMany({ where: { camera: { some: { id: id } } } });
-            const infoMap = new Map(cameraInfo.map(x => [x.key, x.value]));
-            const currentProfileLow = infoMap.get('profile_low');
-            const currentProfileHigh = infoMap.get('profile_high');
-
-            // Find matching profiles or use first available
-            const profiles = onvif_response.data;
-            let profileLow = profiles.find(x => x.token === currentProfileLow);
-            let profileHigh = profiles.find(x => x.token === currentProfileHigh);
-
-            // If current profiles not found, use first available
-            if (!profileLow && profiles.length > 0) {
-              profileLow = profiles[profiles.length - 1]; // Use lowest quality
-            }
-            if (!profileHigh && profiles.length > 0) {
-              profileHigh = profiles[0]; // Use highest quality
-            }
-
-            // Get PTZ info
-            const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max;
-            const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max;
-
-            // Update profiles in database
-            if (profileLow && profileLow.stream?.rtsp) {
-              await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_low' }, data: { value: profileLow.token } });
-              await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_live_rtsp' }, data: { value: profileLow.stream.rtsp } });
-            }
-            if (profileHigh && profileHigh.stream?.rtsp) {
-              await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_high' }, data: { value: profileHigh.token } });
-              await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_record_rtsp' }, data: { value: profileHigh.stream.rtsp } });
-            }
-            await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_pan_tilt' }, data: { value: ptzPanTilt ? 'true' : 'false' } });
-            await this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_zoom' }, data: { value: ptzZoom ? 'true' : 'false' } });
+            const profiles = [];
+            onvif_response.data.forEach(element => {
+              profiles.push({
+                profile: element.token,
+                rtsp: element.stream.rtsp,
+                video: element.video?.source ? true : false,
+                video_framerate: element.video?.encoder?.framerate,
+                video_bitrate: element.video?.encoder?.bitrate,
+                video_encoding: element.video?.encoder?.encoding,
+                video_width: element.video?.encoder?.resolution?.width,
+                video_height: element.video?.encoder?.resolution?.height,
+                audio: element.audio? true : false,
+                audio_samplerate: element.audio?.encoder?.samplerate,
+                audio_bitrate: element.audio?.encoder?.bitrate,
+                audio_encoding: element.audio?.encoder?.encoding,
+                ptz: element.ptz ? true : false
+              });
+            });
+            // find min and max width
+            const video_profiles = profiles.filter(x => { return x.video === true })
+            const sorted = video_profiles.sort((a,b) => { return a.video_width < b.video_width ? 1 : -1 })
+            const high = sorted.length > 0 ? sorted[0] : null
+            const low = sorted.length > 0 ? sorted[sorted.length - 1] : null
+            // check
+            if (sorted.length < 1) { throw { message: 'no profile found on camera' } }
+            // prepare
+            const high_profile = high.profile
+            const low_profile = low.profile
+            const high_rtsp = high.rtsp
+            const low_rtsp = low.rtsp
+            // get ptz info
+            const ptzPanTilt = onvif_info.data.PTZ.true
+            const ptzZoom = onvif_info.data.PTZ.zoom
+            // update
+            await this.db.$transaction([
+              this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_low' }, data: { value: low_profile } }),
+              this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_live_rtsp' }, data: { value: low_rtsp } }),
+              this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_high' }, data: { value: high_profile } }),
+              this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_record_rtsp' }, data: { value: high_rtsp } }),
+              this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_pan_tilt' }, data: { value: ptzPanTilt ? 'true' : 'false' } }),
+              this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_zoom' }, data: { value: ptzZoom ? 'true' : 'false' } }),
+            ])
           }
         } catch (error) {
           console.error('Error updating camera profiles:', error);
@@ -471,9 +457,6 @@ export class CameraService {
         // camera service
         const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
         if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
-        // get ptz info
-        const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
-        const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
         // add camera to db
         try {
           if (is_restart_required_live) {
@@ -490,8 +473,6 @@ export class CameraService {
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_live_rtsp' }, data: { value: low[0] } }),
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_high' }, data: { value: body.profile_high } }),
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_record_rtsp' }, data: { value: high[0] } }),
-            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_pan_tilt' }, data: { value: ptzPanTilt ? 'true' : 'false' } }),
-            this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_zoom' }, data: { value: ptzZoom? 'true' : 'false' } }),
           ])
           if (is_restart_required_live || is_restart_required_record) {
             // start stream
@@ -578,17 +559,42 @@ export class CameraService {
         this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', body)
       ]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
-        // get profile rtsp data
-        const high = onvif_response.data.filter(x => x.token === body.profile_high).map(x => { return x.stream?.rtsp })
-        if (high.length < 1) { throw { message: 'High profile is not valid' }; }
-        const low = onvif_response.data.filter(x => x.token === body.profile_low).map(x => { return x.stream?.rtsp })
-        if (low.length < 1) { throw { message: 'Low profile is not valid' }; }
+        const profiles = [];
+        onvif_response.data.forEach(element => {
+          profiles.push({
+            profile: element.token,
+            rtsp: element.stream.rtsp,
+            video: element.video?.source ? true : false,
+            video_framerate: element.video?.encoder?.framerate,
+            video_bitrate: element.video?.encoder?.bitrate,
+            video_encoding: element.video?.encoder?.encoding,
+            video_width: element.video?.encoder?.resolution?.width,
+            video_height: element.video?.encoder?.resolution?.height,
+            audio: element.audio? true : false,
+            audio_samplerate: element.audio?.encoder?.samplerate,
+            audio_bitrate: element.audio?.encoder?.bitrate,
+            audio_encoding: element.audio?.encoder?.encoding,
+            ptz: element.ptz ? true : false
+          });
+        });
+        // find min and max width
+        const video_profiles = profiles.filter(x => { return x.video === true })
+        const sorted = video_profiles.sort((a,b) => { return a.video_width < b.video_width ? 1 : -1 })
+        const high = sorted.length > 0 ? sorted[0] : null
+        const low = sorted.length > 0 ? sorted[sorted.length - 1] : null
+        // check
+        if (sorted.length < 1) { throw { message: 'no profile found on camera' } }
+        // prepare
+        const high_profile = high.profile
+        const low_profile = low.profile
+        const high_rtsp = high.rtsp
+        const low_rtsp = low.rtsp
         // camera service
         const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
         if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
         // get ptz info
-        const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
-        const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
+        const ptzPanTilt = onvif_info.data.PTZ.true
+        const ptzZoom = onvif_info.data.PTZ.zoom
         // make sure port is included in url to prevent duplication
         if (body.url.includes(':')) { body.url = body.url } else { body.url = body.url + ':80' }
         // check for duplicate camera (excluding deleted cameras)
@@ -608,10 +614,10 @@ export class CameraService {
                   { key: 'partnumber', value: body.partnumber },
                   { key: 'map_lat', value: body.map_lat },
                   { key: 'map_lng', value: body.map_lng },
-                  { key: 'profile_low', value: body.profile_low },
-                  { key: 'profile_live_rtsp', value: low[0] },
-                  { key: 'profile_high', value: body.profile_high },
-                  { key: 'profile_record_rtsp', value: high[0] },
+                  { key: 'profile_low', value: low_profile },
+                  { key: 'profile_live_rtsp', value: low_rtsp },
+                  { key: 'profile_high', value: high_profile },
+                  { key: 'profile_record_rtsp', value: high_rtsp },
                   { key: 'ptz_pan_tilt', value: ptzPanTilt ? 'true' : 'false' },
                   { key: 'ptz_zoom', value: ptzZoom? 'true' : 'false' }
                 ]
@@ -679,8 +685,8 @@ export class CameraService {
         const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
         if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
         // get ptz info
-        const ptzPanTilt = onvif_info.data.ptz.range.x.min !== onvif_info.data.ptz.range.x.max && onvif_info.data.ptz.range.y.min !== onvif_info.data.ptz.range.y.max
-        const ptzZoom = onvif_info.data.ptz.range.z.min !== onvif_info.data.ptz.range.z.max
+        const ptzPanTilt = onvif_info.data.PTZ.true
+        const ptzZoom = onvif_info.data.PTZ.zoom
         // make sure port is included in url to prevent duplication
         if (body.url.includes(':')) { body.url = body.url } else { body.url = body.url + ':80' }
         // check for duplicate camera (excluding deleted cameras)
