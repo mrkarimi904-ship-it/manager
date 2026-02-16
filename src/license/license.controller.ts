@@ -4,7 +4,7 @@ import { generalResponse } from 'src/app.consts';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AccountRoles, User } from 'src/account/account.decorator';
 import { AccountGuard } from 'src/account/account.guard';
-import { licenseGenerateDto, licensePostDto } from './license.dtos';
+import { licensePostDto } from './license.dtos';
 
 @ApiBearerAuth()
 @ApiTags('16. License')
@@ -39,11 +39,4 @@ export class LicenseController {
   async deleteLicense(@User() user): Promise<generalResponse> {
     return await this.licenseService.deleteLicense();
   }
-
-  // @Post('generate')
-  // @AccountRoles('license')
-  // @UseGuards(AccountGuard)
-  // async generateLicense(@User() user, @Body() body: licenseGenerateDto): Promise<generalResponse> {
-  //   return await this.licenseService.generateLicense(body);
-  // }
 }

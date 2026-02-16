@@ -3,9 +3,9 @@ import * as crypto from 'crypto';
 import { DbService } from 'src/db/db.service';
 import { LoggerService } from 'src/logger/logger.service';
 import { generalResponse } from 'src/app.consts';
-import { licenseGenerateDto, licensePostDto } from './license.dtos';
+import { licensePostDto } from './license.dtos';
 import { collectFingerprint } from './hwid.utils';
-import { openLicense, issueLicense, nowIso } from './license.utils';
+import { openLicense, nowIso } from './license.utils';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 
@@ -283,72 +283,6 @@ export class LicenseService {
       throw new HttpException({ status: false, data: null, error: error.message || error, msg: error.message }, 406);
     }
   }
-
-  // POST /license/generate - Generate new license (backend only, Swagger)
-  // async generateLicense(body: licenseGenerateDto): Promise<generalResponse> {
-  //   try {
-  //     const challenge = body.challenge;
-  //     if (!challenge || !challenge.hwid) {
-  //       throw new Error('Invalid challenge data');
-  //     }
-
-  //     // Get or use provided keys
-  //     let publicKey: string;
-  //     let privateKey: string;
-
-  //     if (body.publicKey && body.privateKey) {
-  //       publicKey = body.publicKey;
-  //       privateKey = body.privateKey;
-  //     } else {
-  //       const keys = await this.getKeys();
-  //       if (!keys || !keys.public_key || !keys.private_key) {
-  //         throw new Error('Keys not configured. Please provide keys or configure them in database.');
-  //       }
-  //       publicKey = keys.public_key;
-  //       privateKey = keys.private_key;
-  //     }
-
-  //     // Build payload features object
-  //     const features = {
-  //       camera: body.camera || 0,
-  //       recorder: body.recorder || false,
-  //       lpr: body.lpr || false,
-  //       recorder_count: body.recorder_count || 0,
-  //       lpr_count: body.lpr_count || 0,
-  //     };
-
-  //     const payload = {
-  //       name: body.name || '',
-  //       org: body.org || '',
-  //       expire: body.expire || null,
-  //       features: features,
-  //       issued_at: nowIso(),
-  //       fingerprint: {
-  //         hwid: challenge.hwid,
-  //         strong: challenge.fingerprint,
-  //       },
-  //     };
-
-  //     // Generate license
-  //     const licenseKey = issueLicense({
-  //       payloadJson: payload,
-  //       hwidHex: challenge.hwid,
-  //       ed25519PrivateKeyPem: privateKey,
-  //     });
-
-  //     return {
-  //       status: true,
-  //       data: {
-  //         licenseKey,
-  //         payload,
-  //       },
-  //       error: null,
-  //       msg: null,
-  //     };
-  //   } catch (error) {
-  //     throw new HttpException({ status: false, data: null, error: error.message || error, msg: error.message }, 406);
-  //   }
-  // }
 
   // Helper methods
   private async getFingerprint() {
