@@ -72,10 +72,10 @@ export class lprSearchQuery {
     @ApiPropertyOptional()
     dateTo: string;
 
-    @IsBooleanString()
+    @IsString()
     @IsOptional()
-    @ApiPropertyOptional()
-    cameraId: string;
+    @ApiPropertyOptional({ description: 'Comma-separated camera IDs (one or more)' })
+    cameraIds: string;
 }
 
 export class lprReportQuery {

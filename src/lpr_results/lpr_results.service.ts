@@ -38,13 +38,16 @@ export class LprResultsService {
       const cameras_q = await this.db.camera.findMany({ where, select: { id: true } });
       if (!cameras_q || cameras_q.length === 0) { throw { message: 'no camera found for this user' } }
       let cameras = cameras_q.map(x => { return x.id })
-      if (query.cameraId && query.cameraId !== '') {
-        if (cameras.includes(query.cameraId))
-        {
-          cameras = [query.cameraId]
-        } else {
+      const requestedIds: string[] = []
+      if (query.cameraIds && query.cameraIds.trim() !== '') {
+        requestedIds.push(...query.cameraIds.split(',').map(id => id.trim()).filter(Boolean))
+      }
+      if (requestedIds.length > 0) {
+        const valid = requestedIds.filter(id => cameras.includes(id))
+        if (valid.length === 0) {
           throw { message: 'camera not valid for this user' }
         }
+        cameras = valid
       }
       // fint lpr
       const conditions: any = { AND: [] }
