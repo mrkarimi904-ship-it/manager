@@ -73,18 +73,22 @@ export class MismatchServiceService {
         const mismatchServiceUrl = element.url;
         const mismatchServicePort = element.port;
         const uurl = `http://${mismatchServiceUrl}:${mismatchServicePort}/lpr-mismatch/status`
-        const results = await this.axios.axiosRef.get(uurl)
-
-        await Promise.all(results.data.map(async (elm) => {
-          const id = elm.id
-          const t1 = await this.db.mismatch.findFirst({ where: { session: id } })
-          if (t1 && elm.processing === true) {
-            await this.db.mismatch.update({ where: { id: t1.id }, data: { status: 'RUNNING' } })
-          }
-          if (t1 && elm.processing === false) {
-            await this.db.mismatch.update({ where: { id: t1.id }, data: { status: 'STOPPED', session: 'none' } })
-          }
-        }));
+        try {
+          const results = await this.axios.axiosRef.get(uurl)
+          await Promise.all(results.data.map(async (elm) => {
+            const id = elm.id
+            const t1 = await this.db.mismatch.findFirst({ where: { session: id } })
+            if (t1 && elm.processing === true) {
+              await this.db.mismatch.update({ where: { id: t1.id }, data: { status: 'RUNNING' } })
+            }
+            if (t1 && elm.processing === false) {
+              await this.db.mismatch.update({ where: { id: t1.id }, data: { status: 'STOPPED', session: 'none' } })
+            }
+          }));
+        } catch (err: any) {
+          this.loggerService.log_and_notify_admins(`Mismatch service disconnected: ${mismatchServiceUrl}:${mismatchServicePort} - ${err?.message || 'unreachable'}`, 1);
+          console.log('error scanning mismatch service', mismatchServiceUrl, err?.message);
+        }
       }));
       await this.db.mismatch.updateMany({ where: { status: 'loading ...' },  data: { status: 'STOPPED' } })
     } catch (error) {

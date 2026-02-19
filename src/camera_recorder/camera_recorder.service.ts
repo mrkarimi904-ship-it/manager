@@ -57,8 +57,8 @@ export class CameraRecorderService implements OnModuleInit {
             await this.db.camera_recorder_camera.updateMany({ where: { camera_recorder: { some: { id: cameraRecorderId } }, camera: { some: { id: rev.camera[0].id } }, session: db_session }, data: { status: 'STOPPED' } });
           }
         }));
-      } catch {
-        // service unreachable: leave DB as-is or mark as loading; reInit will treat status !== RUNNING as need restart
+      } catch (err: any) {
+        this.loggerService.log_and_notify_admins(`Recorder service disconnected: ${cameraRecorderUrl}:${cameraRecorderPort} - ${err?.message || 'unreachable'}`, 1);
       }
     }));
   }
@@ -120,6 +120,9 @@ export class CameraRecorderService implements OnModuleInit {
         where: { isActive: true, status: { not: 'RUNNING' } },
         include: { camera: true },
       });
+      if (toRestart.length > 0) {
+        this.loggerService.log_and_notify_admins(`${toRestart.length} recorder(s) not running, attempting restart`, 1);
+      }
       toRestart.forEach((item) => {
         this.eventEmitter.emit('recorder.restart', { cameraId: item.camera[0].id, recorderId: item.id });
       });

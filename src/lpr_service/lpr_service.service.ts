@@ -152,7 +152,8 @@ export class LprServiceService {
               await this.db.camera_lpr_camera.update({ where: { id: t1.id }, data: { status: externalStatus } })
             }
           }));
-        } catch (error) {
+        } catch (error: any) {
+          this.loggerService.log_and_notify_admins(`LPR service disconnected: ${element.url}:${element.port} - ${error?.message || 'unreachable'}`, 1);
           console.log('error scanning lprservice for', element.id, error.message)
         }
       }));

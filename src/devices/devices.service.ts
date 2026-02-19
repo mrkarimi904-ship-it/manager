@@ -209,7 +209,11 @@ export class DevicesService {
           if (device.status !== 'ok') { await this.db.device.update({ where: { id: device.id }, data: { status: 'ok' } }); console.log(`Device ${device.url} is now online`); }
           return 'online';
         } catch (error) {
-          if (device.status !== 'offline') { await this.db.device.update({ where: { id: device.id }, data: { status: 'offline' } }); console.log(`Device ${device.url} is now offline: ${error.message}`); }
+          if (device.status !== 'offline') {
+            await this.db.device.update({ where: { id: device.id }, data: { status: 'offline' } });
+            this.loggerService.log_and_notify_admins(`Device disconnected: ${device.url} - ${error?.message || 'unreachable'}`, 1);
+            console.log(`Device ${device.url} is now offline: ${error.message}`);
+          }
           return 'offline';
         }
       });

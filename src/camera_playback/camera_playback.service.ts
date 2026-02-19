@@ -77,12 +77,17 @@ export class CameraPlaybackService {
         const serviceUrl = element.url;
         const servicePort = element.port;
         const uurl = `http://${serviceUrl}:${servicePort}/camera_playback`
-        const results = await this.axios.axiosRef.get(uurl)
-        await Promise.all(results.data.playbacks.map(async (elm) => {
-          if (elm.subscribers === 0) {
-            await this.axios.axiosRef.delete(uurl + '/' + elm.session_id + '/stop')
-          }
-        }));
+        try {
+          const results = await this.axios.axiosRef.get(uurl)
+          await Promise.all(results.data.playbacks.map(async (elm) => {
+            if (elm.subscribers === 0) {
+              await this.axios.axiosRef.delete(uurl + '/' + elm.session_id + '/stop')
+            }
+          }));
+        } catch (err: any) {
+          this.loggerService.log_and_notify_admins(`Playback service disconnected: ${serviceUrl}:${servicePort} - ${err?.message || 'unreachable'}`, 1);
+          console.log('error scanning playbackservice', serviceUrl, err?.message);
+        }
       }));
     } catch (error) {
       console.log('error scanning playbackservices', error)

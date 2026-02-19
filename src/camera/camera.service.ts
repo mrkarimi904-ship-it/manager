@@ -877,13 +877,13 @@ export class CameraService {
           } else {
             await this.db.camera.update({ where: { id: element.id }, data: { status: 'error: ' + health.data.error } })
             if (element.status === 'ok') {
-              this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, element.id, undefined);
+              this.loggerService.log_and_notify_admins(`Camera disconnected: ${health.data.error || 'unknown error'}`, 1, undefined, undefined, undefined, element.id, undefined);
             }
           }
         } catch (e2) {
           await this.db.camera.update({ where: { id: element.id }, data: { status: 'error: Network error' } })
           if (element.status === 'ok') {
-            this.loggerService.log(`Camera disconnected`, 1, undefined, undefined, undefined, element.id, undefined);
+            this.loggerService.log_and_notify_admins(`Camera disconnected: Network error`, 1, undefined, undefined, undefined, element.id, undefined);
           }
           if (e2 === 1) { console.log(true) }
         }
