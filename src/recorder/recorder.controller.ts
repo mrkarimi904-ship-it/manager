@@ -50,6 +50,13 @@ export class RecorderController {
     return this.recorderService.put_item(user, camera_id, recorder_id, body);
   }
 
+  @Put(':camera_id/:recorder_id/schedule')
+  @AccountRoles('actions_recorder')
+  @UseGuards(AccountGuard)
+  async put_schedule(@User() user, @Param('camera_id', new ParseUUIDPipe({ version: "4" })) camera_id: string , @Param('recorder_id', new ParseUUIDPipe({ version: "4" })) recorder_id: string, @Body() body: dtos.recorderScheduleDto): Promise<generalResponse> {
+    return this.recorderService.put_schedule(user, camera_id, recorder_id, body);
+  }
+
   @Delete(':camera_id/:recorder_id')
   @AccountRoles('actions_recorder')
   @UseGuards(AccountGuard)

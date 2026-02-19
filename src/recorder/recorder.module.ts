@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { RecorderService } from './recorder.service';
 import { RecorderController } from './recorder.controller';
+import { RecorderScheduleService } from './recorder_schedule.service';
 import { DbModule } from 'src/db/db.module';
 import { HttpModule } from '@nestjs/axios';
 import { LoggerModule } from 'src/logger/logger.module';
@@ -10,7 +11,7 @@ import { LicenseModule } from 'src/license/license.module';
 
 @Module({
   imports: [DbModule, HttpModule, LoggerModule, CameraRecorderModule, StreamModule, LicenseModule],
-  providers: [RecorderService],
+  providers: [RecorderService, RecorderScheduleService],
   controllers: [RecorderController],
   exports: [RecorderService]
 })

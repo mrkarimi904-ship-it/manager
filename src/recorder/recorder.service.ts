@@ -162,13 +162,42 @@ export class RecorderService {
       const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} } })
       if (!list) { throw new ConflictException() }
 
-      if (list.status === 'RUNNING') { await this.stop_item(user, camera_id, recorder_id) }
+      if (list.status === 'RUNNING') { await this.stop_item(user, camera_id, recorder_id, { fromSchedule: true }) }
 
       const list2 = await this.db.camera_recorder_camera.update({ where: { id: recorder_id }, data: { title: body.title, enable_rotation: body.enable_rotation } })
 
-      if (list.status === 'RUNNING') { await this.start_item(user, camera_id, recorder_id) }
+      if (list.status === 'RUNNING') { await this.start_item(user, camera_id, recorder_id, { fromSchedule: true }) }
 
       this.loggerService.log(`Recorder edited`, 0, user, undefined, undefined, camera_id, undefined)
+      return { status: true, data: list2, error: null, msg: null }
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async put_schedule(user: any, camera_id: string, recorder_id: string, body: dtos.recorderScheduleDto): Promise<generalResponse> {
+    try {
+      const where = { id: camera_id, AND: [] }
+      if (user.isSuperAdmin !== true) {
+        where['AND'].push({ OR: [
+          { user_accounts: { some: { id: { equals: user.id } } } },
+          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
+          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
+        ] })
+      }
+      const camera = await this.db.camera.findUnique({ where });
+      if (!camera) { throw new ConflictException() }
+
+      const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} } })
+      if (!list) { throw new ConflictException() }
+
+      const list2 = await this.db.camera_recorder_camera.update({
+        where: { id: recorder_id },
+        data: { schedule_enabled: body.schedule_enabled, schedule_slots: body.schedule_slots }
+      })
+
+      this.loggerService.log(`Recorder schedule updated`, 0, user, undefined, undefined, camera_id, undefined)
       return { status: true, data: list2, error: null, msg: null }
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -192,7 +221,7 @@ export class RecorderService {
       const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} } })
       if (!list) { throw new ConflictException() }
 
-      await this.stop_item(user, camera_id, recorder_id)
+      await this.stop_item(user, camera_id, recorder_id, { fromSchedule: true })
       await this.clear_item(user, camera_id, recorder_id)
 
       const list2 = await this.db.camera_recorder_camera.delete({ where: { id: recorder_id, camera: { some: { id: camera_id } } } })
@@ -204,7 +233,7 @@ export class RecorderService {
     }
   }
 
-  async start_item(user: any, camera_id: string, recorder_id: string): Promise<generalResponse> {
+  async start_item(user: any, camera_id: string, recorder_id: string, options?: { fromSchedule?: boolean }): Promise<generalResponse> {
     try {
       const where = { id: camera_id, AND: [] }
       if (user.isSuperAdmin !== true) {
@@ -220,6 +249,10 @@ export class RecorderService {
 
       const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} }, include: { camera_recorder: true } })
       if (!list) { throw new ConflictException() }
+
+      if (!options?.fromSchedule && list.schedule_enabled) {
+        throw { message: 'Disable recorder schedule to manually control start/stop' };
+      }
 
       if (list.isActive && list.status === 'RUNNING') { return { status: true, data: list, error: null, msg: null } }
 
@@ -256,7 +289,7 @@ export class RecorderService {
     }
   }
 
-  async stop_item(user: any, camera_id: string, recorder_id: string): Promise<generalResponse> {
+  async stop_item(user: any, camera_id: string, recorder_id: string, options?: { fromSchedule?: boolean }): Promise<generalResponse> {
     try {
       const where = { id: camera_id, AND: [] }
       if (user.isSuperAdmin !== true) {
@@ -272,6 +305,10 @@ export class RecorderService {
 
       const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} }, include: { camera_recorder: true } })
       if (!list) { throw new ConflictException() }
+
+      if (!options?.fromSchedule && list.schedule_enabled) {
+        throw { message: 'Disable recorder schedule to manually control start/stop' };
+      }
 
       if (list.status === 'STOPPED') {
         await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { isActive: false } });
@@ -314,7 +351,7 @@ export class RecorderService {
       const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} }, include: { camera_recorder: true } })
       if (!list) { throw new ConflictException() }
 
-      await this.stop_item(user, camera_id, recorder_id)
+      await this.stop_item(user, camera_id, recorder_id, { fromSchedule: true })
 
       const service_url = list.camera_recorder[0].url
       const service_port = list.camera_recorder[0].port

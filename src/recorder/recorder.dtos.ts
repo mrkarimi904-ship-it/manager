@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsNumber, IsString, IsUUID, Length, Matches, Min } from 'class-validator';
 import { ApiProperty } from "@nestjs/swagger";
 
 export class recorderDto {
@@ -54,4 +54,16 @@ export class recorderPutDto {
   @IsBoolean()
   @ApiProperty()
   enable_rotation: boolean = true;
+}
+
+export class recorderScheduleDto {
+  @IsBoolean()
+  @ApiProperty()
+  schedule_enabled: boolean;
+
+  @IsString()
+  @Length(168, 168)
+  @Matches(/^[01]{168}$/, { message: 'schedule_slots must be exactly 168 characters of 0 or 1' })
+  @ApiProperty({ description: '168 chars: day*24+hour, "0"=off "1"=on, day 0=Sun..6=Sat' })
+  schedule_slots: string;
 }

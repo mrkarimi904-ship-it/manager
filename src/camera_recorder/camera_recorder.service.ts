@@ -26,7 +26,7 @@ export class CameraRecorderService implements OnModuleInit {
     try {
       await this.syncRecorderStatuses();
       const toRestart = await this.db.camera_recorder_camera.findMany({
-        where: { isActive: true, status: { not: 'RUNNING' } },
+        where: { isActive: true, schedule_enabled: false, status: { not: 'RUNNING' } },
         include: { camera: true },
       });
       toRestart.forEach((item) => {
@@ -117,7 +117,7 @@ export class CameraRecorderService implements OnModuleInit {
       console.debug('scanning camerarecorders ...', new Date().toString());
       await this.syncRecorderStatuses();
       const toRestart = await this.db.camera_recorder_camera.findMany({
-        where: { isActive: true, status: { not: 'RUNNING' } },
+        where: { isActive: true, schedule_enabled: false, status: { not: 'RUNNING' } },
         include: { camera: true },
       });
       if (toRestart.length > 0) {
@@ -138,7 +138,7 @@ export class CameraRecorderService implements OnModuleInit {
     const cameraRecorder = await this.db.camera_recorder.findUnique({ where: { id: body.id } });
     if (!cameraRecorder) return;
     const active_recorders = await this.db.camera_recorder_camera.findMany({
-      where: { camera_recorder: { some: { id: cameraRecorder.id } }, isActive: true },
+      where: { camera_recorder: { some: { id: cameraRecorder.id } }, isActive: true, schedule_enabled: false },
       include: { camera: true },
     });
     active_recorders.forEach((item) => {
