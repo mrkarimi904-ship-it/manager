@@ -259,16 +259,20 @@ export class RecorderService {
       // check license for active recorder count limit (exclude current recorder so restart after manager_improved restart does not hit limit)
       if (await this.licenseService.can_add_new_active_recorder(recorder_id) === false) { throw { message: 'License limit: active recorder limit reached' }; }
 
-      await this.steamService.start(user, { cameraId: camera_id, type: 'HIGH' })
+      const streamResult = await this.steamService.start(user, { cameraId: camera_id, type: 'HIGH' })
+      const streamData = streamResult?.data as { port?: number; cameraService?: { url?: string } } | null | undefined
+      const streamPort = streamData?.port
+      const streamService = streamData?.cameraService
+      if (!streamPort || streamPort === 0 || !streamService?.url) {
+        throw { message: 'Stream not available: cannot start recorder' };
+      }
 
       const service_url = list.camera_recorder[0].url
       const service_port = list.camera_recorder[0].port
       const service = `http://${service_url}:${service_port}/camera_recorder/`
 
-      const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: camera_id } }, type: 'record' }, include: { camera_service: true } })
-      const stream = await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } })
-      const stream_url = stream.url
-      const stream_port = stream_service.port
+      const stream_url = streamService.url
+      const stream_port = streamPort
 
       if (list.session === 'none')
       {

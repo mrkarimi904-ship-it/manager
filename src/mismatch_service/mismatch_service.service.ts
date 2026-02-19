@@ -101,6 +101,7 @@ export class MismatchServiceService {
     await new Promise(resolve => setTimeout(resolve, 1000));
     console.log('start backgrount task to start mismatches', body)
     const mismatchService = await this.db.mismatch_service.findUnique({ where: { id: body.id} })
+    if (!mismatchService) return
     // try to start currently registered mismatches
     const mismatch = await this.db.mismatch.findMany({ where: { mismatch_service: { some: { id: mismatchService.id }}, isActive: true }, include: { camera1: true, camera2: true } })
     void Promise.all(mismatch.map(async (element) => {

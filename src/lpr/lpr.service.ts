@@ -255,6 +255,14 @@ export class LprService {
       // check license for active LPR count limit (exclude current LPR so restart after manager_improved restart does not hit limit)
       if (await this.licenseService.can_add_new_lpr(lpr_id) === false) { throw { message: 'License limit: active LPR limit reached' }; }
 
+      const streamResult = await this.stream.start(user, { cameraId: camera_id, type: "HIGH" })
+      const streamData = streamResult?.data as { port?: number; cameraService?: { url?: string } } | null | undefined
+      const streamPort = streamData?.port
+      const streamService = streamData?.cameraService
+      if (!streamPort || streamPort === 0 || !streamService?.url) {
+        throw new ConflictException('Stream not available: cannot start LPR');
+      }
+
       const url = list.camera_lpr[0].url
       const port = list.camera_lpr[0].port
       const prepare = `http://${url}:${port}/lpr_service`
@@ -265,12 +273,9 @@ export class LprService {
           const externalStatus = result[0].lpr_status
           await this.db.camera_lpr_camera.update({ where: { id: list.id }, data: { status: externalStatus, isActive: true, session: list.id } })
         } else {
-          const cam_stream = await this.stream.start(user, { cameraId: camera_id, type: "HIGH" })
-          const streamPort = cam_stream.data['port']
-          const serv = cam_stream.data['cameraService']
           const cdata = {
             "id": list.id,
-            "ip": serv.url,
+            "ip": streamService.url,
             "port": streamPort,
             "redis_q": "lpr_queue",
             "roi": list.roi ? list.roi : '',

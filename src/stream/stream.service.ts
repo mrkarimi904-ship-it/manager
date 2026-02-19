@@ -2,6 +2,7 @@ import { ConflictException, HttpException, Injectable } from '@nestjs/common';
 
 import { DbService } from 'src/db/db.service';
 import { HttpService } from '@nestjs/axios';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import * as dtos from './stream.dtos';
 
@@ -10,7 +11,7 @@ import { LoggerService } from 'src/logger/logger.service';
 
 @Injectable()
 export class StreamService {
-  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService ) {}
+  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService, private eventEmitter: EventEmitter2) {}
 
   async status(user, body: dtos.streamDto): Promise<generalResponse> {
     try {
@@ -45,8 +46,10 @@ export class StreamService {
       const cameraServicePort = cameraService.port;
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
       const results = await this.axios.axiosRef.get(uurl)
-      const result = results.data.data.filter(x => x.cameraId === body.cameraId && x.port === cameraServiceInfo.port).map(x => { return x.subscribers })
-      const response: generalResponse = { status: true, data: { status:  cameraServiceInfo.status, port: cameraServiceInfo.port, id: cameraServiceInfo.id, subscribers: result[0], cameraService: cameraService, camera: camera, rtsp: cameraInfo.value }, error: null, msg: null };
+      const matching = results.data.data.filter(x => x.cameraId === body.cameraId && x.port === cameraServiceInfo.port)
+      const streamOnService = matching.length > 0
+      const subscribers = matching[0]?.subscribers ?? 0
+      const response: generalResponse = { status: true, data: { status: cameraServiceInfo.status, port: cameraServiceInfo.port, id: cameraServiceInfo.id, subscribers, streamOnService, cameraService: cameraService, camera: camera, rtsp: cameraInfo.value }, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -57,16 +60,15 @@ export class StreamService {
     try {
       // check if camera available
       const { data } = await this.status(user, body);
-      // const subscribers = data['subscribers'];
       const port = data['port'];
-      const status = data['status'];
+      const streamOnService = data['streamOnService'];
       const cameraService = data['cameraService'];
       const cameraServiceInfoId = data['id']
       const camera = data['camera'];
       const cameraRTSPUrl = data['rtsp'];
 
-      // check if already started
-      if (port !== 0 && status === true) { return { status: true, data: { status: true, port: port, cameraService: cameraService }, error: null, msg: null }; }
+      // only treat as already started when stream is verified on camera service
+      if (streamOnService && port !== 0) { return { status: true, data: { status: true, port, cameraService }, error: null, msg: null }; }
 
       const cameraUsername = camera.username;
       const cameraPassword = camera.password;
@@ -84,7 +86,7 @@ export class StreamService {
 
       // check if current running recorders need to be updated
       if (port !== new_port) {
-        const current_running_recorders = await this.db.camera_recorder_camera.findMany({ where: { camera_recorder: { some: { id: camera.id }}, status: 'RUNNING' }, include: { camera_recorder: true, camera: true } })
+        const current_running_recorders = await this.db.camera_recorder_camera.findMany({ where: { camera: { some: { id: camera.id }}, status: 'RUNNING' }, include: { camera_recorder: true, camera: true } })
         if (current_running_recorders.length > 0) {
           this.loggerService.log(`error detected in steam port and recorder port`, 0, user, undefined, undefined, body.cameraId, undefined)
         }
@@ -122,29 +124,30 @@ export class StreamService {
 
       // check if current running recorders need to be updated
       if (port !== new_port) {
-        const current_running_recorders = await this.db.camera_recorder_camera.findMany({ where: { camera_recorder: { some: { id: camera.id }}, status: 'RUNNING' }, include: { camera_recorder: true, camera: true } })
+        const current_running_recorders = await this.db.camera_recorder_camera.findMany({ where: { camera: { some: { id: camera.id }}, status: 'RUNNING' }, include: { camera_recorder: true, camera: true } })
         if (current_running_recorders.length > 0) {
           await Promise.all(current_running_recorders.map(async (item) => {
-            // get recorder url and port
-            const temp_url = item.camera_recorder[0].url
-            const temp_port = item.camera_recorder[0].port
-            // get recorder session
+            const recorderSvc = item.camera_recorder?.[0]
+            const cam = item.camera?.[0]
+            if (!recorderSvc || !cam) return
+            const temp_url = recorderSvc.url
+            const temp_port = recorderSvc.port
             const session = item.session
             const temp_u1 = `http://${temp_url}:${temp_port}/camera_recorder/recorder/` + session
             const temp_u2 = `http://${temp_url}:${temp_port}/camera_recorder/recorder/` + session + `/start`
-            // stop
             await this.axios.axiosRef.delete(temp_u1)
-            // wait
             await new Promise(resolve => setTimeout(resolve, 500));
-            // start
-            const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: item.camera[0].id } }, type: 'record' }, include: { camera_service: true } })
-            const stream = await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } })
-            const stream_url = stream.url
-            const stream_port = stream_service.port
-            const cc = await this.axios.axiosRef.post(temp_u2, { stream_host: stream_url, stream_port:stream_port, rotation: item.enable_rotation })
+            const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: cam.id } }, type: 'record' }, include: { camera_service: true } })
+            const stream = stream_service?.camera_service?.[0] ? await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } }) : null
+            if (!stream || !stream_service?.port) return
+            const cc = await this.axios.axiosRef.post(temp_u2, { stream_host: stream.url, stream_port: stream_service.port, rotation: item.enable_rotation })
             await this.db.camera_recorder_camera.update({ where: { id: item.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
           }));
         }
+      }
+      // notify LPRs to restart whenever record stream is restarted
+      if (body.type === 'HIGH') {
+        this.eventEmitter.emit('stream.record_restarted', { cameraId: body.cameraId });
       }
 
       return { status: true, data: { status: true, port: new_port, cameraService: cameraService }, error: null, msg: null };

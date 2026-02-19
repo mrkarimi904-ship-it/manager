@@ -136,6 +136,7 @@ export class CameraServiceService {
       await new Promise(resolve => setTimeout(resolve, 1000));
       console.log('start backgrount task to start streams', body)
       const camerasService = await this.db.camera_service.findUnique({ where: { id: body.id} })
+      if (!camerasService) return
       // try to start currently registered cameras
       const camera_service_camera = await this.db.camera_service_camera.findMany({ where: { camera_service: { some: { id: camerasService.id }}, status: true }, include: { camera: true } })
       void Promise.all(camera_service_camera.map(async (element) => {

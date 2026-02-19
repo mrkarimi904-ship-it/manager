@@ -163,11 +163,41 @@ export class LprServiceService {
     }
   }
 
+  @OnEvent('stream.record_restarted')
+  async handleStreamRecordRestarted(payload: { cameraId: string }) {
+    try {
+      const activeLprs = await this.db.camera_lpr_camera.findMany({
+        where: { camera: { some: { id: payload.cameraId } }, isActive: true },
+        include: { camera: true },
+      });
+      for (const item of activeLprs) {
+        try {
+          const camId = item.camera?.[0]?.id;
+          if (!camId) continue;
+          // Stop first to clean up old instance (was using dead stream)
+          try {
+            await this.lprSrv.stop({ isSuperAdmin: true }, camId, item.id);
+          } catch (_) {
+            // may already be stopped or in transitional state
+          }
+          await new Promise((r) => setTimeout(r, 2000)); // LPR needs time before restart
+          await this.lprSrv.start({ isSuperAdmin: true }, camId, item.id);
+          await new Promise((r) => setTimeout(r, 2000)); // stagger next LPR; LPR stays PENDING before RUNNING
+        } catch (err) {
+          console.log('error restarting LPR after stream restart', item.id, err?.message || err);
+        }
+      }
+    } catch (err) {
+      console.log('error in stream.record_restarted handler', err?.message || err);
+    }
+  }
+
   @OnEvent('background.camera_lpr')
   async handleBackgroundTask(body: any) {
     await new Promise(resolve => setTimeout(resolve, 1000));
     console.log('start backgrount task to start lprs', body)
     const lprService = await this.db.camera_lpr.findUnique({ where: { id: body.id} })
+    if (!lprService) return
     // try to start currently registered lprs
     const camera_lpr_camera = await this.db.camera_lpr_camera.findMany({ where: { camera_lpr: { some: { id: lprService.id }}, isActive: true }, include: { camera: true } })
     void Promise.all(camera_lpr_camera.map(async (element) => {
