@@ -229,6 +229,21 @@ export class accountSearchQuery {
   @IsOptional()
   @IsString()
   standardOnly: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  accountType?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  isActive?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  expired?: string;
 }
 
 export class roleSearchQuery {

@@ -39,6 +39,12 @@ export class AccountService {
       if (query.userGroupId && query.userGroupFilter === 'Exclude') { where['AND'].push({ user_groups: { none: { id: { equals: query.userGroupId } } } }) }
       if (query.cameraGroupId && query.cameraGroupFilter === 'Include') { where['AND'].push({ camera_groups: { some: { id: { equals: query.cameraGroupId } } } }) }
       if (query.cameraGroupId && query.cameraGroupFilter === 'Exclude') { where['AND'].push({ camera_groups: { none: { id: { equals: query.cameraGroupId } } } }) }
+      if (query.accountType === 'Admin') { where['AND'].push({ isSuperAdmin: true }) }
+      if (query.accountType === 'Standard') { where['AND'].push({ isSuperAdmin: false }) }
+      if (query.isActive === 'true') { where['AND'].push({ isActive: true }) }
+      if (query.isActive === 'false') { where['AND'].push({ isActive: false }) }
+      if (query.expired === 'true') { where['AND'].push({ expired: true }) }
+      if (query.expired === 'false') { where['AND'].push({ expired: false }) }
 
       const include = {}
       const [total, temp] = await this.db.$transaction([
