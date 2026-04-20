@@ -31,6 +31,7 @@ const userRolesData = [
   { id: 'bd370f0b-7a20-4476-9134-08e6b14704c1', name: 'scheduler_user_account', description: 'scheduler : user', default: true },
   { id: 'dd8dbb08-2d67-4c28-8d07-327d58538c70', name: 'scheduler_user_group', description: 'scheduler : user group', default: true },
   { id: 'a4c3641d-d19c-472a-bc0c-33cb4e33606e', name: 'settings_password', description: 'settings : password complexity', default: true },
+  { id: '6d3c12ff-1a38-4ed0-9d8c-0dc8d1a8f2a1', name: 'settings_webhook', description: 'settings : webhooks', default: true },
   { id: 'cdc49697-d21a-4156-9be9-ce60b306558d', name: 'bookmark_list', description: 'bookmarks: list', default: true },
   { id: '53c9df01-5911-477b-a33d-eb8b97a3025e', name: 'bookmark_add', description: 'bookmarks: add', default: true },
   { id: '66bece2f-80ed-47de-9782-0a7529d6d971', name: 'bookmark_delete', description: 'bookmarks: delete', default: true },

@@ -43,6 +43,7 @@ import { MismatchModule } from './mismatch/mismatch.module';
 import { TileviewModule } from './tileview/tileview.module';
 import { TilelayoutModule } from './tilelayout/tilelayout.module';
 import { OnvifModule } from './onvif/onvif.module';
+import { WebhookModule } from './webhook/webhook.module';
 
 @Module({
   imports: [
@@ -59,7 +60,8 @@ import { OnvifModule } from './onvif/onvif.module';
     CameraRecorderModule, CameraPlaybackModule, AssignModule, SettingsModule,
     LoggerModule, PlaybackModule, SchedulerModule, BookmarkModule, LicenseModule,
     LprServiceModule, LprQueueModule, LprModule, LprResultsModule, LprListModule,
-    DevicesModule, OperationsModule, MismatchServiceModule, MismatchModule, TileviewModule, TilelayoutModule, OnvifModule],
+    DevicesModule, OperationsModule, MismatchServiceModule, MismatchModule, TileviewModule, TilelayoutModule, OnvifModule,
+    WebhookModule],
   controllers: [AppController],
   providers: [
     AppService,

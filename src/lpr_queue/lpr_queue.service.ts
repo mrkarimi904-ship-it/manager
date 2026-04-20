@@ -5,6 +5,8 @@ import { OperationsService } from 'src/operations/operations.service';
 import { StorageService } from 'src/storage/storage.service';
 import { Cache } from 'cache-manager';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { webhookBusEventName } from 'src/webhook/webhook.events';
 
 @Injectable()
 export class LprQueueService implements OnModuleInit, OnModuleDestroy {
@@ -13,7 +15,8 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
     private db: DbService,
     private operationsService: OperationsService,
     private storageService: StorageService,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   private client: RedisClientType;
@@ -341,6 +344,38 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
 
         if (result.p2) {
           delete result.p2.id;
+        }
+
+        // Webhook events (best-effort, must not block main flow)
+        const webhookPayload = {
+          ocr: db1.ocr,
+          cameraId: camera_id,
+          resultId: result.p.id,
+          isBlackList: db1.isBlackList,
+          isWhiteList: db1.isWhiteList,
+          isNotifable: db1.isNotifable,
+          time: db1.time,
+          vehiclebrand: db1.vehiclebrand,
+          vehiclecolor: db1.vehiclecolor,
+          vehiclemodel: db1.vehiclemodel,
+          vehicletype: db1.vehicletype,
+          camAddress: db1.camAddress,
+          camMapLat: db1.camMapLat,
+          camMapLng: db1.camMapLng,
+        };
+        try {
+          if (db1.isBlackList === true) {
+            this.eventEmitter.emit(webhookBusEventName('lpr.blacklist_detected'), { eventKey: 'lpr.blacklist_detected', payload: webhookPayload });
+          }
+          if (db1.isWhiteList === true) {
+            this.eventEmitter.emit(webhookBusEventName('lpr.whitelist_detected'), { eventKey: 'lpr.whitelist_detected', payload: webhookPayload });
+          }
+          if (db1.isNotifable === true) {
+            this.eventEmitter.emit(webhookBusEventName('lpr.notifiable_detected'), { eventKey: 'lpr.notifiable_detected', payload: webhookPayload });
+          }
+        } catch (e) {
+          // never throw in main pipeline
+          console.log('webhook emit error', e?.message || e);
         }
 
         if (s1.repeat_detection === true && s1.repeat_threshold_seconds > 0) {
