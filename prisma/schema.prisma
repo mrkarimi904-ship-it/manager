@@ -482,3 +482,19 @@ model tilelayout {
   updated_at  DateTime      @updatedAt
   owner       user_accounts @relation(fields: [owner_id], references: [id])
 }
+
+model webhook_endpoint {
+  id            String   @id @default(uuid())
+  name          String
+  enabled       Boolean  @default(true)
+  event_keys    String   @default("[]")
+  method        String   @default("POST")
+  url           String
+  bearer_token  String   @default("")
+  body_template String   @default("{}")
+  timeout_ms    Int      @default(5000)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@index([enabled])
+}
