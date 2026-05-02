@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Post, Put, Query, Response, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Post, Put, Query, Req, Response, UseGuards } from '@nestjs/common';
 
 import { AccountService } from './account.service';
 
@@ -48,6 +48,27 @@ export class AccountController {
   @UseGuards(AccountGuard)
   async deleteAccountTokens(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Param('token_id', new ParseUUIDPipe({ version: "4" })) token_id: string): Promise<generalResponse> {
     return await this.accountService.deleteAccountTokens(user, id, token_id);
+  }
+
+  @Get(':id/service_tokens')
+  @AccountRoles('account_service_token')
+  @UseGuards(AccountGuard)
+  async getServiceTokens(@Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Token() token): Promise<generalResponse> {
+    return await this.accountService.getServiceTokens(id, token);
+  }
+
+  @Post(':id/service_tokens')
+  @AccountRoles('account_service_token')
+  @UseGuards(AccountGuard)
+  async createServiceToken(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Req() req): Promise<generalResponse> {
+    return await this.accountService.createServiceToken(user, id, req);
+  }
+
+  @Delete(':id/service_tokens/:token_id')
+  @AccountRoles('account_service_token')
+  @UseGuards(AccountGuard)
+  async deleteServiceToken(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Param('token_id', new ParseUUIDPipe({ version: "4" })) token_id: string): Promise<generalResponse> {
+    return await this.accountService.deleteServiceToken(user, id, token_id);
   }
 
   @Put(':id')

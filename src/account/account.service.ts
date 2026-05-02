@@ -1,4 +1,4 @@
-import { HttpException, Inject, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 
 import { DbService } from 'src/db/db.service';
@@ -18,6 +18,11 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import * as speakeasy from 'speakeasy';
 import * as qrcode from 'qrcode';
 import { LicenseService } from 'src/license/license.service';
+
+/** Stored in `user_tokens.service`; excluded from normal session lists and concurrent-session pruning */
+const SERVICE_TOKEN_KIND = 'service_token';
+/** ~100 years (Gregorian average year length) */
+const SERVICE_TOKEN_EXPIRES_SECONDS = Math.floor(100 * 365.25 * 24 * 3600);
 
 @Injectable()
 export class AccountService {
@@ -124,7 +129,10 @@ export class AccountService {
 
   async getAccountTokens(id: string, token: string): Promise<generalResponse> {
     try {
-      const accounts = await this.db.user_tokens.findMany({ where: { user_accounts: { some: { id: id } } }, orderBy: [{ created_at: 'desc' }] })
+      const accounts = await this.db.user_tokens.findMany({
+        where: { user_accounts: { some: { id: id } }, NOT: { service: SERVICE_TOKEN_KIND } },
+        orderBy: [{ created_at: 'desc' }],
+      })
       accounts.forEach(element => {
         if (element.token === token) { element.token = 'current' } else { element.token = '' }
       });
@@ -138,7 +146,14 @@ export class AccountService {
 
   async deleteAccountTokens(user: any, id: string, token_id: string): Promise<generalResponse> {
     try {
-      const accounts = await this.db.user_tokens.delete({ where: { id: token_id, user_accounts: { some: { id: id } } } } )
+      const existing = await this.db.user_tokens.findFirst({ where: { id: token_id, user_accounts: { some: { id: id } } } })
+      if (!existing) {
+        throw new HttpException({ status: false, data: null, error: null, msg: 'token not found' }, HttpStatus.NOT_FOUND)
+      }
+      if (existing.service === SERVICE_TOKEN_KIND) {
+        throw new HttpException({ status: false, data: null, error: null, msg: 'service tokens cannot be revoked here' }, HttpStatus.FORBIDDEN)
+      }
+      const accounts = await this.db.user_tokens.delete({ where: { id: token_id, user_accounts: { some: { id: id } } } })
       // reset cache
       await this.cacheManager.del(`user_token_${id}`)
       // response
@@ -146,6 +161,74 @@ export class AccountService {
       const response: generalResponse = { status: true, data: accounts, error: null, msg: null };
       return response;
     } catch (error) {
+      if (error instanceof HttpException) { throw error }
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async getServiceTokens(id: string, token: string): Promise<generalResponse> {
+    try {
+      const accounts = await this.db.user_tokens.findMany({
+        where: { user_accounts: { some: { id: id } }, service: SERVICE_TOKEN_KIND },
+        orderBy: [{ created_at: 'desc' }],
+      })
+      accounts.forEach(element => {
+        if (element.token === token) { element.token = 'current' } else { element.token = '' }
+      })
+      const response: generalResponse = { status: true, data: accounts, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async createServiceToken(user: any, id: string, req: any): Promise<generalResponse> {
+    try {
+      if (await this.licenseService.is_not_expired() === false) { throw { message: 'License error' } }
+      let account = await this.db.user_accounts.findFirst({ where: { id: id, isActive: true } })
+      if (!account) { throw { message: 'Unauthorized user' } }
+      if (account.expire_at !== null && account.expire_at < new Date()) {
+        account = await this.db.user_accounts.update({ where: { id: account.id }, data: { expired: true } })
+      }
+      if (account.expired === true) { throw { message: 'expired' } }
+      const ip = req?.headers?.['x-forwarded-for'] ? req.headers['x-forwarded-for'] : '-'
+      const mac = '-'
+      account.password = null;
+      account.totp_secret = null;
+      account.totp_url = null;
+      const signed = jwt.sign(account, jwt_secret, { expiresIn: SERVICE_TOKEN_EXPIRES_SECONDS })
+      await this.db.user_tokens.create({
+        data: {
+          token: signed,
+          expiration: new Date(Date.now() + SERVICE_TOKEN_EXPIRES_SECONDS * 1000),
+          service: SERVICE_TOKEN_KIND,
+          ip: typeof ip === 'string' ? ip : '-',
+          mac,
+          user_accounts: { connect: { id: account.id } },
+        },
+      })
+      await this.cacheManager.del(`user_token_${account.id}`)
+      this.loggerService.log('service token created', 0, user, account.id)
+      const response: generalResponse = { status: true, data: { token: signed }, error: null, msg: null };
+      return response;
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async deleteServiceToken(user: any, id: string, token_id: string): Promise<generalResponse> {
+    try {
+      const existing = await this.db.user_tokens.findFirst({ where: { id: token_id, user_accounts: { some: { id: id } } } })
+      if (!existing || existing.service !== SERVICE_TOKEN_KIND) {
+        throw new HttpException({ status: false, data: null, error: null, msg: 'service token not found' }, HttpStatus.NOT_FOUND)
+      }
+      const accounts = await this.db.user_tokens.delete({ where: { id: token_id, user_accounts: { some: { id: id } } } })
+      await this.cacheManager.del(`user_token_${id}`)
+      this.loggerService.log('service token revoked', 0, user, id)
+      const response: generalResponse = { status: true, data: accounts, error: null, msg: null };
+      return response;
+    } catch (error) {
+      if (error instanceof HttpException) { throw error }
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
   }
@@ -281,7 +364,11 @@ export class AccountService {
       // prepare for concurrent logins
       if (account.concurrent > 0)
       {
-        const concurrent = await this.db.user_tokens.findMany({ where: { user_accounts: { some: { id: account.id } } } , skip: account.concurrent - 1, orderBy: { created_at: 'desc' } });
+        const concurrent = await this.db.user_tokens.findMany({
+          where: { user_accounts: { some: { id: account.id } }, NOT: { service: SERVICE_TOKEN_KIND } },
+          skip: account.concurrent - 1,
+          orderBy: { created_at: 'desc' },
+        })
         const concurrentIds = concurrent.map(item => item.id)
         await this.db.user_tokens.deleteMany({ where: { user_accounts: { some: { id: account.id } }, id: { in: concurrentIds} } })
       }

@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>VMS Manager API – Developer Guide (Login + LPR Search)</title>
+    <style>
+      :root{
+        --bg:#0b1020;
+        --panel:#0f1730;
+        --panel2:#101b3a;
+        --text:#e7ecff;
+        --muted:#aab4e6;
+        --line:#23305c;
+        --accent:#7aa2ff;
+        --accent2:#8ef0c5;
+        --warn:#ffcc66;
+        --bad:#ff6b8a;
+        --good:#57e39b;
+        --codebg:#070b17;
+        --shadow: 0 10px 30px rgba(0,0,0,.35);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      html,body{height:100%;}
+      body{
+        margin:0;
+        font-family:var(--sans);
+        color:var(--text);
+        background: radial-gradient(1200px 800px at 20% -10%, rgba(122,162,255,.25), transparent 50%),
+                    radial-gradient(1000px 700px at 90% 10%, rgba(142,240,197,.14), transparent 55%),
+                    var(--bg);
+      }
+      a{color:var(--accent); text-decoration:none;}
+      a:hover{text-decoration:underline;}
+      /* Full-width layout with responsive side padding */
+      .wrap{
+        width:100%;
+        max-width:none;
+        margin:0 auto;
+        padding: clamp(16px, 2.4vw, 32px);
+        padding-bottom: 80px;
+      }
+      header{
+        background: linear-gradient(180deg, rgba(16,27,58,.95), rgba(15,23,48,.75));
+        border:1px solid var(--line);
+        border-radius:16px;
+        padding:22px 18px;
+        box-shadow:var(--shadow);
+      }
+      header h1{margin:0 0 6px; font-size:22px; letter-spacing:.2px;}
+      header p{margin:0; color:var(--muted); line-height:1.45;}
+      .grid{
+        display:grid;
+        grid-template-columns: 280px 1fr;
+        gap:16px;
+        margin-top:16px;
+      }
+      nav{
+        position:sticky;
+        top:12px;
+        align-self:start;
+        background: rgba(15,23,48,.72);
+        border:1px solid var(--line);
+        border-radius:14px;
+        box-shadow:var(--shadow);
+        padding:10px;
+        backdrop-filter: blur(6px);
+      }
+      nav .title{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.12em; margin:6px 8px 10px;}
+      nav a{
+        display:block;
+        padding:8px 10px;
+        border-radius:10px;
+        color:var(--text);
+        font-size:14px;
+      }
+      nav a:hover{background:rgba(122,162,255,.12);}
+      nav a small{display:block; color:var(--muted); font-size:12px; margin-top:2px;}
+      main{
+        background: rgba(15,23,48,.65);
+        border:1px solid var(--line);
+        border-radius:14px;
+        box-shadow:var(--shadow);
+        padding:18px;
+        backdrop-filter: blur(6px);
+      }
+      h2{margin:22px 0 10px; font-size:18px;}
+      h3{margin:18px 0 8px; font-size:15px; color:#d7defc;}
+      p{margin:8px 0; color:var(--text); line-height:1.6;}
+      .muted{color:var(--muted);}
+      .callout{
+        border:1px solid var(--line);
+        background: rgba(16,27,58,.65);
+        border-radius:12px;
+        padding:12px 12px;
+        margin:12px 0;
+      }
+      .callout strong{color:#fff;}
+      .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center;}
+      .pill{
+        display:inline-flex; align-items:center; gap:8px;
+        border:1px solid var(--line);
+        background: rgba(7,11,23,.4);
+        padding:7px 10px;
+        border-radius:999px;
+        color:var(--muted);
+        font-size:13px;
+      }
+      .pill b{color:var(--text); font-weight:600;}
+      .kbd{
+        font-family:var(--mono);
+        font-size:12px;
+        padding:1px 6px;
+        border-radius:7px;
+        border:1px solid rgba(255,255,255,.18);
+        background: rgba(255,255,255,.06);
+        color: var(--text);
+      }
+      table{
+        width:100%;
+        border-collapse:separate;
+        border-spacing:0;
+        margin:10px 0 14px;
+        overflow:hidden;
+        border-radius:12px;
+        border:1px solid var(--line);
+        background: rgba(16,27,58,.45);
+      }
+      th,td{
+        text-align:left;
+        padding:10px 10px;
+        border-bottom:1px solid rgba(35,48,92,.75);
+        vertical-align:top;
+        font-size:13px;
+        line-height:1.45;
+      }
+      th{
+        color:#ffffff;
+        background: rgba(16,27,58,.85);
+        font-weight:600;
+        font-size:13px;
+      }
+      tr:last-child td{border-bottom:none;}
+      code,pre{font-family:var(--mono);}
+      pre{
+        position:relative;
+        background: linear-gradient(180deg, rgba(7,11,23,.95), rgba(7,11,23,.7));
+        border:1px solid rgba(35,48,92,.9);
+        border-radius:12px;
+        padding:12px;
+        overflow:auto;
+        box-shadow: inset 0 0 0 1px rgba(0,0,0,.2);
+        margin:10px 0 14px;
+      }
+      pre code{color:#dbe4ff;}
+      .copy{
+        position:absolute;
+        top:8px;
+        right:8px;
+        border:1px solid rgba(35,48,92,.9);
+        background: rgba(16,27,58,.75);
+        color: var(--text);
+        padding:6px 9px;
+        border-radius:10px;
+        font-size:12px;
+        cursor:pointer;
+      }
+      .copy:hover{background: rgba(122,162,255,.16);}
+      .tag{
+        font-family:var(--mono);
+        font-size:12px;
+        padding:2px 8px;
+        border-radius:999px;
+        border:1px solid rgba(255,255,255,.18);
+        background: rgba(255,255,255,.06);
+      }
+      .tag.good{border-color: rgba(87,227,155,.35); background: rgba(87,227,155,.08); color: var(--good);}
+      .tag.warn{border-color: rgba(255,204,102,.35); background: rgba(255,204,102,.08); color: var(--warn);}
+      .tag.bad{border-color: rgba(255,107,138,.35); background: rgba(255,107,138,.08); color: var(--bad);}
+      .footer{
+        margin-top:18px;
+        padding-top:14px;
+        border-top:1px solid rgba(35,48,92,.9);
+        color:var(--muted);
+        font-size:13px;
+      }
+      @media (max-width: 920px){
+        .grid{grid-template-columns:1fr;}
+        nav{position:relative; top:auto;}
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>VMS Manager API – Developer Guide</h1>
+        <p>
+          This document shows how to connect to <b>VMS Manager</b>, <b>log in</b>, and <b>search LPR results</b>
+          (OCR/plate, brand, model, color, type, camera, date range, and list flags).
+        </p>
+        <div class="row" style="margin-top:12px">
+          <span class="pill"><b>Auth</b> JWT Bearer</span>
+          <span class="pill"><b>Primary prefix</b> <code>/manager</code></span>
+          <span class="pill"><b>Response envelope</b> <code>{ status, data, error, msg }</code></span>
+        </div>
+      </header>
+
+      <div class="grid">
+        <nav>
+          <div class="title">Contents</div>
+          <a href="#connect">Connect to Manager<small>Base URL, health, Swagger</small></a>
+          <a href="#auth">Authentication<small>Token format + headers</small></a>
+          <a href="#login">Login / Logout / Verify<small>Get a JWT + claims</small></a>
+          <a href="#lpr-search">LPR Results Search<small>Search + filters + pagination</small></a>
+          <a href="#lpr-details">LPR Result Details<small>Read + update fields</small></a>
+          <a href="#lpr-meta">LPR Dictionaries<small>Brands, models, colors, types</small></a>
+          <a href="#errors">Errors & status codes<small>What to expect</small></a>
+        </nav>
+
+        <main>
+          <section id="connect">
+            <h2>Connect to Manager</h2>
+            <p class="muted">
+              The Manager service (this repo: <code>vms_manager</code>) is a NestJS API. In the current config, it runs with
+              a global prefix of <code>/manager</code>.
+            </p>
+
+            <div class="callout">
+              <strong>Base URL</strong>
+              <p class="muted" style="margin:6px 0 0">
+                Use your deployment host, plus the Manager prefix. Typical local dev:
+                <span class="tag good"><code>http://localhost:3004/manager</code></span>
+              </p>
+            </div>
+
+            <h3>Health checks</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Method</th>
+                  <th>Path (with prefix)</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="tag good">GET</span></td>
+                  <td><code>/health</code></td>
+                  <td>Basic service health.</td>
+                </tr>
+                <tr>
+                  <td><span class="tag good">GET</span></td>
+                  <td><code>/health/status</code></td>
+                  <td>Health status details.</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <pre><button class="copy" data-copy="curl">Copy</button><code data-lang="bash"># Local example (prefix = /manager)
+curl -sS "http://localhost:3004/manager/health"
+curl -sS "http://localhost:3004/manager/health/status"</code></pre>
+
+            <h3>Swagger UI</h3>
+            <p class="muted">
+              Swagger UI is served at the server root (relative to the prefix). In most deployments it ends up at:
+              <code>http(s)://HOST/manager/</code> (or a reverse-proxy equivalent).
+            </p>
+          </section>
+
+          <section id="auth">
+            <h2>Authentication</h2>
+            <p>
+              Most endpoints require a <b>JWT</b> in the <code>Authorization</code> header:
+            </p>
+            <pre><button class="copy" data-copy="hdr">Copy</button><code data-lang="http">Authorization: Bearer &lt;JWT_TOKEN&gt;</code></pre>
+
+            <div class="callout">
+              <strong>Important</strong>
+              <p class="muted" style="margin:6px 0 0">
+                Login itself does <b>not</b> require a token. After login, include the bearer token for protected routes like
+                <code>/lpr_results</code>.
+              </p>
+            </div>
+          </section>
+
+          <section id="login">
+            <h2>Login / Logout / Verify</h2>
+
+            <h3>Login</h3>
+            <p>
+              <span class="tag good">POST</span> <code>/user/access/login</code>
+            </p>
+            <p class="muted">
+              Returns a JWT plus a user id and a list of claims (roles). Token lifetime depends on <code>service</code> and whether the user is a super admin.
+            </p>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>username</code></td>
+                  <td>string</td>
+                  <td>Yes</td>
+                  <td>Case-insensitive; server normalizes to lowercase.</td>
+                </tr>
+                <tr>
+                  <td><code>password</code></td>
+                  <td>string</td>
+                  <td>Yes</td>
+                  <td>Minimum length is enforced server-side.</td>
+                </tr>
+                <tr>
+                  <td><code>service</code></td>
+                  <td>string</td>
+                  <td>No</td>
+                  <td>Controls token expiration. Supported values: <code>Configtool</code>, <code>Client</code>, otherwise treated as <code>Other</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>ip</code></td>
+                  <td>string</td>
+                  <td>No</td>
+                  <td>Used by scheduler rules (if enabled). If behind a proxy, server may use <code>x-forwarded-for</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>mac</code></td>
+                  <td>string</td>
+                  <td>No</td>
+                  <td>Used by scheduler rules (if enabled).</td>
+                </tr>
+                <tr>
+                  <td><code>totp</code></td>
+                  <td>string</td>
+                  <td>No*</td>
+                  <td>Required only if the account has TOTP enabled; otherwise optional.</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <pre><button class="copy" data-copy="login-curl">Copy</button><code data-lang="bash">curl -sS -X POST "http://localhost:3004/manager/user/access/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "password": "admin1234",
+    "service": "Client",
+    "ip": "192.168.1.10",
+    "mac": "AA:BB:CC:DD:EE:FF",
+    "totp": ""
+  }'</code></pre>
+
+            <pre><button class="copy" data-copy="login-js">Copy</button><code data-lang="js">const baseUrl = "http://localhost:3004/manager";
+
+async function login({ username, password }) {
+  const res = await fetch(`${baseUrl}/user/access/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username,
+      password,
+      service: "Client",
+      ip: "192.168.1.10",
+      mac: "AA:BB:CC:DD:EE:FF",
+      totp: ""
+    })
+  });
+
+  if (!res.ok) throw new Error(`Login failed: ${res.status}`);
+  const json = await res.json();
+  if (!json?.status) throw new Error(`Login error: ${JSON.stringify(json)}`);
+
+  // json.data: { token, id, claims }
+  return json.data;
+}</code></pre>
+
+            <div class="callout">
+              <strong>Login response shape</strong>
+              <pre style="margin:10px 0 0"><button class="copy" data-copy="login-resp">Copy</button><code data-lang="json">{
+  "status": true,
+  "data": {
+    "token": "&lt;JWT&gt;",
+    "id": "&lt;user_uuid&gt;",
+    "claims": [ /* role objects */ ]
+  },
+  "error": null,
+  "msg": null
+}</code></pre>
+            </div>
+
+            <h3>Verify token</h3>
+            <p>
+              <span class="tag good">GET</span> <code>/user/access/verify</code>
+              <span class="muted">— checks the bearer token and echoes identity data; also returns <code>X-User_ID</code> header.</span>
+            </p>
+            <pre><button class="copy" data-copy="verify">Copy</button><code data-lang="bash">TOKEN="&lt;JWT_TOKEN&gt;"
+curl -i -sS "http://localhost:3004/manager/user/access/verify" \
+  -H "Authorization: Bearer ${TOKEN}"</code></pre>
+
+            <h3>Logout</h3>
+            <p>
+              <span class="tag warn">POST</span> <code>/user/access/logout</code>
+              <span class="muted">— revokes the current token (deletes it server-side).</span>
+            </p>
+            <pre><button class="copy" data-copy="logout">Copy</button><code data-lang="bash">TOKEN="&lt;JWT_TOKEN&gt;"
+curl -sS -X POST "http://localhost:3004/manager/user/access/logout" \
+  -H "Authorization: Bearer ${TOKEN}"</code></pre>
+          </section>
+
+          <section id="lpr-search">
+            <h2>LPR Results Search</h2>
+            <p>
+              <span class="tag good">GET</span> <code>/lpr_results</code>
+              <span class="muted">— paginated search over LPR detections.</span>
+            </p>
+
+            <div class="callout">
+              <strong>What does “search” match?</strong>
+              <p class="muted" style="margin:6px 0 0">
+                <code>search</code> is applied to the <code>ocr</code> field using a case-insensitive “contains” match
+                (similar to SQL <code>ILIKE %value%</code>).
+              </p>
+            </div>
+
+            <h3>Query parameters</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Param</th>
+                  <th>Type</th>
+                  <th>Default</th>
+                  <th>Meaning</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>pageIndex</code></td>
+                  <td>string (int)</td>
+                  <td><code>1</code></td>
+                  <td>1-based page number.</td>
+                </tr>
+                <tr>
+                  <td><code>pageSize</code></td>
+                  <td>string (int)</td>
+                  <td><code>20</code></td>
+                  <td>Page size (server caps to max 100).</td>
+                </tr>
+                <tr>
+                  <td><code>search</code></td>
+                  <td>string</td>
+                  <td><code>""</code></td>
+                  <td>OCR/plate search (contains, case-insensitive).</td>
+                </tr>
+                <tr>
+                  <td><code>brand</code></td>
+                  <td>string</td>
+                  <td><code>""</code></td>
+                  <td>Vehicle brand filter (contains, case-insensitive).</td>
+                </tr>
+                <tr>
+                  <td><code>model</code></td>
+                  <td>string</td>
+                  <td><code>""</code></td>
+                  <td>Vehicle model filter (contains, case-insensitive).</td>
+                </tr>
+                <tr>
+                  <td><code>type</code></td>
+                  <td>string</td>
+                  <td><code>""</code></td>
+                  <td>Vehicle type filter (contains, case-insensitive).</td>
+                </tr>
+                <tr>
+                  <td><code>color</code></td>
+                  <td>string</td>
+                  <td><code>""</code></td>
+                  <td>Vehicle color filter (contains, case-insensitive).</td>
+                </tr>
+                <tr>
+                  <td><code>plateType</code></td>
+                  <td>string</td>
+                  <td><code>"Car"</code></td>
+                  <td>Plate type filter (contains, case-insensitive).</td>
+                </tr>
+                <tr>
+                  <td><code>address</code></td>
+                  <td>string</td>
+                  <td><code>""</code></td>
+                  <td>Camera address filter (contains, case-insensitive).</td>
+                </tr>
+                <tr>
+                  <td><code>isBlackList</code></td>
+                  <td>string ("true"/"false")</td>
+                  <td>—</td>
+                  <td>Filter on black-list matches.</td>
+                </tr>
+                <tr>
+                  <td><code>isWhiteList</code></td>
+                  <td>string ("true"/"false")</td>
+                  <td>—</td>
+                  <td>Filter on white-list matches.</td>
+                </tr>
+                <tr>
+                  <td><code>isNotifable</code></td>
+                  <td>string ("true"/"false")</td>
+                  <td>—</td>
+                  <td>Filter on notification flag.</td>
+                </tr>
+                <tr>
+                  <td><code>dateFrom</code></td>
+                  <td>ISO-8601 string</td>
+                  <td>—</td>
+                  <td>Include records with <code>created_at &gt;= dateFrom</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>dateTo</code></td>
+                  <td>ISO-8601 string</td>
+                  <td>—</td>
+                  <td>Include records with <code>created_at &lt;= dateTo</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>cameraIds</code></td>
+                  <td>string</td>
+                  <td>—</td>
+                  <td>Comma-separated camera UUIDs. Server will reject IDs not permitted for the user.</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3>Example: search by OCR + brand + date range</h3>
+            <pre><button class="copy" data-copy="lpr-curl">Copy</button><code data-lang="bash">TOKEN="&lt;JWT_TOKEN&gt;"
+
+curl -sS "http://localhost:3004/manager/lpr_results?pageIndex=1&amp;pageSize=20&amp;search=IR12&amp;brand=Toyota&amp;dateFrom=2026-04-01T00:00:00.000Z&amp;dateTo=2026-04-20T23:59:59.999Z" \
+  -H "Authorization: Bearer ${TOKEN}"</code></pre>
+
+            <h3>Example: multi-camera filter</h3>
+            <pre><button class="copy" data-copy="lpr-cams">Copy</button><code data-lang="bash">TOKEN="&lt;JWT_TOKEN&gt;"
+CAMERA_IDS="uuid1,uuid2,uuid3"
+
+curl -sS "http://localhost:3004/manager/lpr_results?cameraIds=${CAMERA_IDS}&amp;pageIndex=1&amp;pageSize=50" \
+  -H "Authorization: Bearer ${TOKEN}"</code></pre>
+
+            <h3>Response shape</h3>
+            <p class="muted">
+              The API wraps results in the standard response envelope. For searches, <code>data</code> is:
+              <code>{ total, result }</code>, where <code>result</code> is an array of LPR rows (includes <code>lpr_result_image</code>).
+            </p>
+            <pre><button class="copy" data-copy="lpr-resp">Copy</button><code data-lang="json">{
+  "status": true,
+  "data": {
+    "total": 1234,
+    "result": [
+      {
+        "id": "…",
+        "ocr": "IR12ABC345",
+        "vehiclebrand": "Toyota",
+        "vehiclemodel": "Corolla",
+        "vehicletype": "Sedan",
+        "vehiclecolor": "White",
+        "created_at": "2026-04-20T12:34:56.789Z",
+        "isBlackList": false,
+        "isWhiteList": false,
+        "isNotifable": false,
+        "lpr_result_image": [
+          {
+            "plateimage": "…base64…",
+            "vehicleimage": "…base64…",
+            "frame": "…base64…",
+            "generatedplateimage": "…base64…"
+          }
+        ]
+      }
+    ]
+  },
+  "error": null,
+  "msg": null
+}</code></pre>
+
+            <div class="callout">
+              <strong>Images (MinIO vs DB)</strong>
+              <p class="muted" style="margin:6px 0 0">
+                If your deployment uses MinIO, image fields may be stored outside the database; the API attempts to fetch and
+                convert them to base64 in responses.
+              </p>
+            </div>
+          </section>
+
+          <section id="lpr-details">
+            <h2>LPR Result Details</h2>
+            <p>
+              <span class="tag good">GET</span> <code>/lpr_results/details/:id</code>
+              <span class="muted">— get a single LPR result by id (UUID).</span>
+            </p>
+            <pre><button class="copy" data-copy="lpr-one">Copy</button><code data-lang="bash">TOKEN="&lt;JWT_TOKEN&gt;"
+ID="&lt;lpr_result_uuid&gt;"
+
+curl -sS "http://localhost:3004/manager/lpr_results/details/${ID}" \
+  -H "Authorization: Bearer ${TOKEN}"</code></pre>
+
+            <h3>Update editable fields</h3>
+            <p>
+              <span class="tag warn">PUT</span> <code>/lpr_results/details/:id</code>
+              <span class="muted">— updates OCR/brand/model/type/color fields for an LPR result.</span>
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Maps to DB field</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code>plate</code></td><td>string</td><td><code>ocr</code></td></tr>
+                <tr><td><code>brand</code></td><td>string</td><td><code>vehiclebrand</code></td></tr>
+                <tr><td><code>model</code></td><td>string</td><td><code>vehiclemodel</code></td></tr>
+                <tr><td><code>type</code></td><td>string</td><td><code>vehicletype</code></td></tr>
+                <tr><td><code>color</code></td><td>string</td><td><code>vehiclecolor</code></td></tr>
+              </tbody>
+            </table>
+            <pre><button class="copy" data-copy="lpr-put">Copy</button><code data-lang="bash">TOKEN="&lt;JWT_TOKEN&gt;"
+ID="&lt;lpr_result_uuid&gt;"
+
+curl -sS -X PUT "http://localhost:3004/manager/lpr_results/details/${ID}" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "plate": "IR12ABC345",
+    "brand": "Toyota",
+    "model": "Corolla",
+    "type": "Sedan",
+    "color": "White"
+  }'</code></pre>
+          </section>
+
+          <section id="lpr-meta">
+            <h2>LPR Dictionaries (Brands / Models / Colors / Types)</h2>
+            <p class="muted">
+              Use these endpoints to populate filter dropdowns in a UI.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Method</th>
+                  <th>Path</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><span class="tag good">GET</span></td><td><code>/lpr_results/brands</code></td><td>Distinct brands.</td></tr>
+                <tr><td><span class="tag good">GET</span></td><td><code>/lpr_results/models</code></td><td>Distinct models.</td></tr>
+                <tr><td><span class="tag good">GET</span></td><td><code>/lpr_results/colors</code></td><td>Distinct colors.</td></tr>
+                <tr><td><span class="tag good">GET</span></td><td><code>/lpr_results/types</code></td><td>Distinct types.</td></tr>
+              </tbody>
+            </table>
+            <pre><button class="copy" data-copy="lpr-meta-curl">Copy</button><code data-lang="bash">TOKEN="&lt;JWT_TOKEN&gt;"
+curl -sS "http://localhost:3004/manager/lpr_results/brands" -H "Authorization: Bearer ${TOKEN}"
+curl -sS "http://localhost:3004/manager/lpr_results/models" -H "Authorization: Bearer ${TOKEN}"
+curl -sS "http://localhost:3004/manager/lpr_results/colors" -H "Authorization: Bearer ${TOKEN}"
+curl -sS "http://localhost:3004/manager/lpr_results/types"  -H "Authorization: Bearer ${TOKEN}"</code></pre>
+          </section>
+
+          <section id="errors">
+            <h2>Errors & status codes</h2>
+            <p class="muted">
+              Errors are returned as JSON in the same envelope shape; HTTP codes vary by endpoint.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>HTTP</th>
+                  <th>When</th>
+                  <th>Common causes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="tag bad">401</span></td>
+                  <td>Unauthorized</td>
+                  <td>Missing/invalid token, revoked token, bad username/password, missing TOTP when required.</td>
+                </tr>
+                <tr>
+                  <td><span class="tag bad">403</span></td>
+                  <td>Forbidden</td>
+                  <td>User lacks required role/claim for the route.</td>
+                </tr>
+                <tr>
+                  <td><span class="tag warn">406</span></td>
+                  <td>Not acceptable</td>
+                  <td>Validation errors or logical errors (e.g., camera not permitted for the user).</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <pre><button class="copy" data-copy="err">Copy</button><code data-lang="json">{
+  "status": false,
+  "data": null,
+  "error": { "message": "…" },
+  "msg": "…"
+}</code></pre>
+
+            <div class="footer">
+              <p style="margin:0">
+                Source of truth: <code>vms_manager/client/swagger.json</code> and the service implementation under <code>vms_manager/src/</code>.
+              </p>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      // Simple copy-to-clipboard for code blocks.
+      (function () {
+        function closest(el, sel) {
+          while (el && el.nodeType === 1) {
+            if (el.matches(sel)) return el;
+            el = el.parentElement;
+          }
+          return null;
+        }
+
+        async function copyText(text) {
+          try {
+            await navigator.clipboard.writeText(text);
+            return true;
+          } catch (e) {
+            // Fallback for older browsers
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+            return ok;
+          }
+        }
+
+        document.addEventListener("click", async (e) => {
+          const btn = e.target && e.target.matches(".copy") ? e.target : null;
+          if (!btn) return;
+          const pre = closest(btn, "pre");
+          const code = pre ? pre.querySelector("code") : null;
+          if (!code) return;
+          const ok = await copyText(code.textContent || "");
+          const old = btn.textContent;
+          btn.textContent = ok ? "Copied" : "Copy failed";
+          btn.style.borderColor = ok ? "rgba(87,227,155,.6)" : "rgba(255,107,138,.6)";
+          setTimeout(() => {
+            btn.textContent = old;
+            btn.style.borderColor = "rgba(35,48,92,.9)";
+          }, 900);
+        });
+      })();
+    </script>
+  </body>
+</html>

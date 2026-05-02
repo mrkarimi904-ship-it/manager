@@ -18,6 +18,7 @@ const userRolesData = [
   { id: 'f9a2f8fd-f577-44be-b7af-82fa0e9822e9', name: 'account_add', description: 'user : add', default: true },
   { id: '89c67cc2-c348-4027-920c-0adb2e1815ae', name: 'account_delete', description: 'user : delete', default: true },
   { id: '02e10f22-d8b4-4d58-9d29-e41a16888968', name: 'account_edit', description: 'user : edit', default: true },
+  { id: 'f7c8e9d0-b1a2-4c3d-9e8f-a7b6c5d4e3f2', name: 'account_service_token', description: 'user : manage service tokens', default: false },
   { id: 'd2d6a705-ead9-4786-a94c-c00741fd4403', name: 'account_list', description: 'user : list', default: false },
   { id: 'de1d6219-57b8-45a6-a036-2bf5783b7cab', name: 'cameragroup_list', description: 'camera group : list', default: true },
   { id: 'b9e3d061-ddc0-4e14-aab0-8e7c2e843dc8', name: 'cameragroup_add', description: 'camera group : add', default: true },
