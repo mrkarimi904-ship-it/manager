@@ -44,6 +44,8 @@ import { TileviewModule } from './tileview/tileview.module';
 import { TilelayoutModule } from './tilelayout/tilelayout.module';
 import { OnvifModule } from './onvif/onvif.module';
 import { WebhookModule } from './webhook/webhook.module';
+import { WorkersModule } from './workers/workers.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -61,7 +63,7 @@ import { WebhookModule } from './webhook/webhook.module';
     LoggerModule, PlaybackModule, SchedulerModule, BookmarkModule, LicenseModule,
     LprServiceModule, LprQueueModule, LprModule, LprResultsModule, LprListModule,
     DevicesModule, OperationsModule, MismatchServiceModule, MismatchModule, TileviewModule, TilelayoutModule, OnvifModule,
-    WebhookModule],
+    WebhookModule, WorkersModule, StorageModule],
   controllers: [AppController],
   providers: [
     AppService,

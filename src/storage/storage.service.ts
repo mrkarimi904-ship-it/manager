@@ -73,6 +73,28 @@ export class StorageService implements OnModuleInit {
     return this.isEnabled && this.minioClient !== null;
   }
 
+  async checkHealth(): Promise<{ ok: boolean; enabled: boolean; bucket: string | null; message?: string }> {
+    if (!this.isMinIOEnabled() || !this.minioClient) {
+      return { ok: true, enabled: false, bucket: null, message: 'MinIO not configured' };
+    }
+    try {
+      const exists = await this.minioClient.bucketExists(this.bucketName);
+      return {
+        ok: exists,
+        enabled: true,
+        bucket: this.bucketName,
+        message: exists ? 'Bucket reachable' : 'Bucket not found',
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        enabled: true,
+        bucket: this.bucketName,
+        message: error?.message || 'MinIO unreachable',
+      };
+    }
+  }
+
   /**
    * Upload a base64 image to MinIO
    * @param base64Image Base64 encoded image string

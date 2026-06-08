@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Inject } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { createClient, RedisClientType } from 'redis';
 import { DbService } from 'src/db/db.service';
 import { OperationsService } from 'src/operations/operations.service';
@@ -26,10 +27,7 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     try {
-      this.client = createClient({ url: process.env.REDIS_URL, password: process.env.REDIS_PASSWORD });
-      this.client.on('error', (err) => console.error('Redis Client Error', err));
-      this.client.on('connect', () => { this.redisConnected = true; });
-      this.client.on('disconnect', () => { this.redisConnected = false; });
+      this.client = this.createRedisClient();
       await this.client.connect();
       this.redisConnected = true;
 
@@ -45,18 +43,51 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   async checkRedisHealth(): Promise<boolean> {
-    if (!this.client) return false;
+    return this.reconnectRedis(false);
+  }
+
+  private createRedisClient(): RedisClientType {
+    const client = createClient({ url: process.env.REDIS_URL, password: process.env.REDIS_PASSWORD });
+    client.on('error', (err) => console.error('Redis Client Error', err));
+    client.on('connect', () => { this.redisConnected = true; });
+    client.on('disconnect', () => { this.redisConnected = false; });
+    return client as RedisClientType;
+  }
+
+  async reconnectRedis(restartProcessing = true): Promise<boolean> {
     try {
+      if (!this.client) {
+        this.client = this.createRedisClient();
+      }
       if (!this.client.isOpen) {
         await this.client.connect();
-        this.redisConnected = true;
       }
       await this.client.ping();
+      this.redisConnected = true;
+      if (restartProcessing && !this.isProcessing && !this.shutdownRequested) {
+        this.startProcessing();
+      }
       return true;
     } catch (error) {
       this.redisConnected = false;
+      console.warn('Redis reconnect failed:', error?.message || error);
       return false;
     }
+  }
+
+  @Cron('0 * * * * *')
+  async ensureRedisConnection() {
+    if (process.env.NODE_ENV) { return; }
+    if (!process.env.REDIS_URL) { return; }
+    if (this.redisConnected && this.client?.isOpen) {
+      try {
+        await this.client.ping();
+        return;
+      } catch {
+        this.redisConnected = false;
+      }
+    }
+    await this.reconnectRedis(true);
   }
 
   async onModuleDestroy() {
