@@ -13,6 +13,18 @@ import { Cron } from '@nestjs/schedule';
 import { LoggerService } from 'src/logger/logger.service';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 
+export const SLOTS_PER_CAMERA = 2;
+
+export type ServiceCapacity = {
+  id: string;
+  url: string;
+  port: string;
+  total: number;
+  used: number;
+  free: number;
+  canAddCamera: boolean;
+};
+
 @Injectable()
 export class CameraServiceService {
   constructor(private db: DbService, private streamService: StreamService, private readonly axios: HttpService, private loggerService: LoggerService, private eventEmitter: EventEmitter2) {}
@@ -63,18 +75,52 @@ export class CameraServiceService {
     }
   }
 
+  async getServiceCapacity(serviceId: string): Promise<{ total: number; used: number; free: number }> {
+    const service = await this.db.camera_service.findUnique({ where: { id: serviceId } });
+    if (!service) {
+      throw new HttpException({ status: false, data: null, error: 'Camera service not found', msg: 'Camera service not found' }, 406);
+    }
+    const used = await this.db.camera_service_camera.count({ where: { camera_service: { some: { id: serviceId } } } });
+    const total = parseInt(service.port_to) - parseInt(service.port_from) + 1;
+    const free = total - used;
+    return { total, used, free };
+  }
+
+  async validateServiceCapacity(serviceId: string, slotsRequired = SLOTS_PER_CAMERA): Promise<void> {
+    const { free } = await this.getServiceCapacity(serviceId);
+    if (free < slotsRequired) {
+      throw new HttpException({
+        status: false,
+        data: null,
+        error: 'Insufficient capacity',
+        msg: `Camera service has ${free} free slot(s); ${slotsRequired} required`,
+      }, 406);
+    }
+  }
+
+  async listServiceAvailability(): Promise<ServiceCapacity[]> {
+    const camerasService = await this.db.camera_service.findMany({ orderBy: [{ created_at: 'desc' }] });
+    const services: ServiceCapacity[] = [];
+    for (const element of camerasService) {
+      const { total, used, free } = await this.getServiceCapacity(element.id);
+      services.push({
+        id: element.id,
+        url: element.url,
+        port: element.port,
+        total,
+        used,
+        free,
+        canAddCamera: free >= SLOTS_PER_CAMERA,
+      });
+    }
+    return services;
+  }
+
   async getAvailable(): Promise<generalResponse> {
     try {
-      let result = 0
-      const camerasService: dtos.cameraServiceDto[] = await this.db.camera_service.findMany();
-      await Promise.all(camerasService.map(async (element) => {
-        const id = element.id
-        const camerasServiceCameras = await this.db.camera_service_camera.findMany({ where: { camera_service: { some: { id: id } } }, include: { camera: true } });
-        const used_ports = camerasServiceCameras.length
-        const available_ports = parseInt(element.port_to) - parseInt(element.port_from) + 1
-        result = result + available_ports - used_ports;
-      }));
-      const response: generalResponse = { status: true, data: { count: result }, error: null, msg: null };
+      const services = await this.listServiceAvailability();
+      const count = services.reduce((sum, s) => sum + s.free, 0);
+      const response: generalResponse = { status: true, data: { count, services }, error: null, msg: null };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -83,19 +129,76 @@ export class CameraServiceService {
 
   async getFreeCameraServiceId(): Promise<string> {
     try {
-      let result = null
-      const camerasService: dtos.cameraServiceDto[] = await this.db.camera_service.findMany();
-      await Promise.all(camerasService.map(async (element) => {
-        const id = element.id
-        const camerasServiceCameras = await this.db.camera_service_camera.findMany({ where: { camera_service: { some: { id: id } } }, include: { camera: true } });
-        const used_ports = camerasServiceCameras.length
-        const available_ports = parseInt(element.port_to) - parseInt(element.port_from) + 1
-        if (used_ports < available_ports) { result = id; return true }
-      }));
-      return result;
+      const services = await this.listServiceAvailability();
+      const available = services.find((s) => s.canAddCamera);
+      return available?.id ?? null;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
+  }
+
+  async resolveCameraServiceIdForAdd(options: { cameraServiceId?: string; autoAssign?: boolean }): Promise<string> {
+    const { cameraServiceId, autoAssign } = options;
+    if (cameraServiceId) {
+      await this.validateServiceCapacity(cameraServiceId, SLOTS_PER_CAMERA);
+      return cameraServiceId;
+    }
+    if (autoAssign === true || autoAssign === undefined) {
+      const id = await this.getFreeCameraServiceId();
+      if (!id) {
+        throw new HttpException({
+          status: false,
+          data: null,
+          error: 'No free camera service available',
+          msg: 'No free camera service available',
+        }, 406);
+      }
+      return id;
+    }
+    throw new HttpException({
+      status: false,
+      data: null,
+      error: 'Camera service required',
+      msg: 'Provide cameraServiceId or set autoAssign to true',
+    }, 406);
+  }
+
+  async assignCameraToService(cameraId: string, serviceId: string): Promise<void> {
+    await this.validateServiceCapacity(serviceId, SLOTS_PER_CAMERA);
+    await this.db.$transaction([
+      this.db.camera_service_camera.create({
+        data: {
+          type: 'live',
+          port: 0,
+          status: false,
+          camera_service: { connect: { id: serviceId } },
+          camera: { connect: { id: cameraId } },
+        },
+      }),
+      this.db.camera_service_camera.create({
+        data: {
+          type: 'record',
+          port: 0,
+          status: false,
+          camera_service: { connect: { id: serviceId } },
+          camera: { connect: { id: cameraId } },
+        },
+      }),
+    ]);
+  }
+
+  async reassignCameraServiceRows(liveRowId: string, recordRowId: string, newServiceId: string): Promise<void> {
+    await this.validateServiceCapacity(newServiceId, SLOTS_PER_CAMERA);
+    const reset = {
+      port: 0,
+      status: false,
+      state: 'none',
+      camera_service: { set: [{ id: newServiceId }] },
+    };
+    await this.db.$transaction([
+      this.db.camera_service_camera.update({ where: { id: liveRowId }, data: reset }),
+      this.db.camera_service_camera.update({ where: { id: recordRowId }, data: reset }),
+    ]);
   }
 
   @Cron('0 */5 * * * *')

@@ -64,6 +64,13 @@ export class CameraController {
     return this.cameraService.putSingleProfile(id, body, user);
   }
 
+  @Put(':id/camera-service')
+  @AccountRoles('camera_edit')
+  @UseGuards(AccountGuard)
+  async putCameraService(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Body() body: dtos.reassignCameraServiceDto): Promise<generalResponse> {
+    return this.cameraService.putCameraService(user, id, body);
+  }
+
   @Post('/pre_register')
   @AccountRoles('camera_add')
   @UseGuards(AccountGuard)

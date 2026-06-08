@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsNumber, IsOptional, IsBoolean, Matches, MaxLength } from 'class-validator';
+import { IsString, IsEnum, IsNumber, IsOptional, IsBoolean, IsUUID, Matches, MaxLength } from 'class-validator';
 import { ApiParam, ApiProperty, ApiQuery, getSchemaPath } from "@nestjs/swagger";
 
 enum cameraTypeDto {
@@ -25,7 +25,19 @@ export class cameraDto {
   password: string;
 }
 
-export class postPreCameraDto {
+export class cameraServiceAssignmentDto {
+  @IsOptional()
+  @IsUUID('4')
+  @ApiProperty({ required: false, description: 'Manually selected camera_service instance id' })
+  cameraServiceId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  @ApiProperty({ required: false, description: 'Auto-assign to an available camera_service (default when cameraServiceId is omitted)' })
+  autoAssign?: boolean;
+}
+
+export class postPreCameraDto extends cameraServiceAssignmentDto {
   @IsString()
   @ApiProperty()
   url: string;
@@ -39,7 +51,7 @@ export class postPreCameraDto {
   password: string;
 }
 
-export class postCameraDto {
+export class postCameraDto extends cameraServiceAssignmentDto {
   @IsString()
   @ApiProperty()
   url: string;
@@ -321,4 +333,15 @@ export class editCameraProfileDto {
   @IsString()
   @ApiProperty()
   profile_high: string;
+}
+
+export class reassignCameraServiceDto {
+  @IsUUID('4')
+  @ApiProperty({ description: 'Target camera_service instance id' })
+  cameraServiceId: string;
+
+  @IsOptional()
+  @IsBoolean()
+  @ApiProperty({ required: false, default: true, description: 'Restart active streams on the new worker after reassignment' })
+  restartActiveStreams?: boolean;
 }

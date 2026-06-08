@@ -22,6 +22,16 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 const superadminUser = { isSuperAdmin: true };
 
+const cameraServiceCameraInclude = {
+  select: {
+    type: true,
+    status: true,
+    port: true,
+    state: true,
+    camera_service: { select: { id: true, url: true, port: true } },
+  },
+};
+
 @Injectable()
 export class CameraService {
   constructor(
@@ -140,7 +150,7 @@ export class CameraService {
         if (lprOr.length) { where['AND'].push({ OR: lprOr }); }
       }
 
-      const include = { camera_info: { select: { key: true, value: true } }, camera_service_camera: { select: { type: true,  status: true, port: true } }, camera_lpr_camera: { select: { status: true, session: true } }, camera_recorder_camera: { select: { status: true, session: true } } }
+      const include = { camera_info: { select: { key: true, value: true } }, camera_service_camera: cameraServiceCameraInclude, camera_lpr_camera: { select: { status: true, session: true } }, camera_recorder_camera: { select: { status: true, session: true } } }
       // run query
       const [total, temp] = await this.db.$transaction([
         this.db.camera.count({ where }),
@@ -166,7 +176,7 @@ export class CameraService {
       // db include
       const include = {
         camera_info: { select: { key: true, value: true } },
-        camera_service_camera: { select: { type: true,  status: true, port: true } },
+        camera_service_camera: cameraServiceCameraInclude,
         user_accounts: { select: { id: true, username: true, firstname: true, lastname: true } },
         user_groups: { select: { id: true, name: true } },
         camera_groups: { select: { id: true, name: true } },
@@ -454,9 +464,6 @@ export class CameraService {
         if (high.length < 1) { throw { message: 'High profile is not valid' }; }
         const low = onvif_response.data.filter(x => x.token === body.profile_low).map(x => { return x.stream?.rtsp })
         if (low.length < 1) { throw { message: 'Low profile is not valid' }; }
-        // camera service
-        const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
-        if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
         // add camera to db
         try {
           if (is_restart_required_live) {
@@ -589,9 +596,10 @@ export class CameraService {
         const low_profile = low.profile
         const high_rtsp = high.rtsp
         const low_rtsp = low.rtsp
-        // camera service
-        const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
-        if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
+        const cameraserviceID = await this.cameraservice.resolveCameraServiceIdForAdd({
+          cameraServiceId: body.cameraServiceId,
+          autoAssign: body.autoAssign,
+        })
         // get ptz info
         const ptzPanTilt = onvif_info.data.PTZ.true
         const ptzZoom = onvif_info.data.PTZ.zoom
@@ -623,9 +631,7 @@ export class CameraService {
                 ]
               }
             }});
-          // add info to camera service
-          await this.db.camera_service_camera.create({ data: { type: 'live', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
-          await this.db.camera_service_camera.create({ data: { type: 'record', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
+          await this.cameraservice.assignCameraToService(temp.id, cameraserviceID)
           // generate response
           this.loggerService.log('camera added', 0, user, undefined, undefined, temp.id)
           const response: generalResponse = { status: true, data: temp, error: null, msg: null };
@@ -681,9 +687,10 @@ export class CameraService {
         const low_profile = low.profile
         const high_rtsp = high.rtsp
         const low_rtsp = low.rtsp
-        // camera service
-        const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
-        if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
+        const cameraserviceID = await this.cameraservice.resolveCameraServiceIdForAdd({
+          cameraServiceId: body.cameraServiceId,
+          autoAssign: body.autoAssign,
+        })
         // get ptz info
         const ptzPanTilt = onvif_info.data.PTZ.true
         const ptzZoom = onvif_info.data.PTZ.zoom
@@ -714,9 +721,7 @@ export class CameraService {
               ]
             }
           }});
-        // add info to camera service
-        await this.db.camera_service_camera.create({ data: { type: 'live', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
-        await this.db.camera_service_camera.create({ data: { type: 'record', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
+        await this.cameraservice.assignCameraToService(temp.id, cameraserviceID)
         // generate response
         this.loggerService.log('camera addeed', 0, user, undefined, undefined, temp.id)
         const response: generalResponse = { status: true, data: temp, error: null, msg: null };
@@ -734,9 +739,10 @@ export class CameraService {
     try {
       // check license
       if (await this.licenseService.can_add_new_camera() === false) { throw { message: 'License limit' }; }
-      // camera service
-      const cameraserviceID = await this.cameraservice.getFreeCameraServiceId()
-      if (!cameraserviceID) { throw { message: 'No free camera serive available' }; }
+      const cameraserviceID = await this.cameraservice.resolveCameraServiceIdForAdd({
+        cameraServiceId: body.cameraServiceId,
+        autoAssign: body.autoAssign,
+      })
       // make sure port is included in url to prevent duplication
       if (body.url.includes(':')) { body.url = body.url } else { body.url = body.url + ':80' }
       // check for duplicate camera
@@ -765,9 +771,7 @@ export class CameraService {
               ]
             }
           }});
-        // add info to camera service
-        await this.db.camera_service_camera.create({ data: { type: 'live', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
-        await this.db.camera_service_camera.create({ data: { type: 'record', port: 0, status: false, camera_service: { connect: { id: cameraserviceID } }, camera: { connect: { id: temp.id } }  } })
+        await this.cameraservice.assignCameraToService(temp.id, cameraserviceID)
         // generate response
         this.loggerService.log('camera added', 0, user, undefined, undefined, temp.id)
         const response: generalResponse = { status: true, data: temp, error: null, msg: null };
@@ -777,6 +781,54 @@ export class CameraService {
         const response: generalResponse = { status: false, data: null, error: 'error_adding_camera', msg: error };
         return response;
       }
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async putCameraService(user: any, id: string, body: dtos.reassignCameraServiceDto): Promise<generalResponse> {
+    try {
+      const where = { id, deleted: false, AND: [] as any[] };
+      if (user.isSuperAdmin !== true) {
+        buildUserPermissionWhere(user, where);
+      }
+      const camera = await this.db.camera.findUnique({ where });
+      if (!camera) { throw { message: 'camera not found or user has no access to camera' }; }
+
+      const rows = await this.db.camera_service_camera.findMany({
+        where: { camera: { some: { id } } },
+        include: { camera_service: { select: { id: true } } },
+      });
+      const liveRow = rows.find((x) => x.type === 'live');
+      const recordRow = rows.find((x) => x.type === 'record');
+      if (!liveRow || !recordRow) { throw { message: 'Stream service not configured for this camera' }; }
+
+      const currentServiceId = liveRow.camera_service[0]?.id;
+      if (currentServiceId === body.cameraServiceId) {
+        return this.getSingle(user, id);
+      }
+
+      const wasLiveActive = liveRow.status;
+      const wasRecordActive = recordRow.status;
+      const restartActiveStreams = body.restartActiveStreams !== false;
+
+      await this.streamService.force_stop(superadminUser, { cameraId: id, type: 'LOW' });
+      await this.streamService.force_stop(superadminUser, { cameraId: id, type: 'HIGH' });
+      await new Promise((r) => setTimeout(r, 1000));
+
+      await this.cameraservice.reassignCameraServiceRows(liveRow.id, recordRow.id, body.cameraServiceId);
+
+      if (restartActiveStreams) {
+        if (wasLiveActive) {
+          await this.streamService.restart({ cameraId: id, type: 'LOW' });
+        }
+        if (wasRecordActive) {
+          await this.streamService.restart({ cameraId: id, type: 'HIGH' });
+        }
+      }
+
+      this.loggerService.log('camera service reassigned', 0, user, undefined, undefined, id);
+      return this.getSingle(user, id);
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
