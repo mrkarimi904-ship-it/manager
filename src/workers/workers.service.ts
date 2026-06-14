@@ -7,6 +7,24 @@ import { toErrorResponse } from 'src/common/error.util';
 
 type WorkerType = 'camera_service' | 'camera_recorder' | 'camera_playback' | 'lpr_service' | 'mismatch_service';
 
+type AssignmentType = 'stream' | 'recorder' | 'lpr' | 'mismatch';
+
+type WorkerAssignment = {
+  id: string;
+  assignmentType: AssignmentType;
+  assignmentLabel: string;
+  cameraId: string | null;
+  cameraName: string | null;
+  targetType: 'camera' | 'mismatch';
+  targetId: string;
+};
+
+const CAMERA_NAME_SELECT = {
+  id: true,
+  url: true,
+  camera_info: { where: { key: 'name' }, select: { value: true }, take: 1 },
+} as const;
+
 const WORKER_PROBE: Record<WorkerType, string> = {
   camera_service: '/camera_service',
   camera_recorder: '/camera_recorder/recorder',
@@ -32,40 +50,57 @@ export class WorkersService {
     }
   }
 
-  private async getCameraSummaries(cameraIds: string[]): Promise<{ id: string; name: string }[]> {
-    const uniqueIds = [...new Set(cameraIds.filter(Boolean))];
-    if (!uniqueIds.length) return [];
-
-    const cameras = await this.db.camera.findMany({
-      where: { id: { in: uniqueIds }, deleted: false },
-      select: {
-        id: true,
-        url: true,
-        camera_info: { where: { key: 'name' }, select: { value: true }, take: 1 },
-      },
-    });
-
-    return cameras.map((camera) => ({
-      id: camera.id,
-      name: camera.camera_info[0]?.value || camera.url || camera.id,
-    }));
+  private cameraDisplayName(camera: { id: string; url: string; camera_info: { value: string }[] }): string {
+    return camera.camera_info[0]?.value || camera.url || camera.id;
   }
 
-  private async resolveAssignmentCameraIds(type: WorkerType, id: string, url?: string): Promise<string[]> {
+  private streamTypeLabel(type: string): string {
+    return type === 'live' ? 'LOW' : 'HIGH';
+  }
+
+  private async resolveAssignments(type: WorkerType, id: string, url?: string): Promise<WorkerAssignment[]> {
     switch (type) {
       case 'camera_service': {
         const rows = await this.db.camera_service_camera.findMany({
           where: { camera_service: { some: { id } } },
-          select: { camera: { select: { id: true } } },
+          select: {
+            id: true,
+            type: true,
+            camera: { select: CAMERA_NAME_SELECT },
+          },
         });
-        return rows.flatMap((row) => row.camera.map((camera) => camera.id));
+        return rows.flatMap((row) =>
+          row.camera.map((camera) => ({
+            id: row.id,
+            assignmentType: 'stream' as const,
+            assignmentLabel: this.streamTypeLabel(row.type),
+            cameraId: camera.id,
+            cameraName: this.cameraDisplayName(camera),
+            targetType: 'camera' as const,
+            targetId: camera.id,
+          })),
+        );
       }
       case 'camera_recorder': {
         const rows = await this.db.camera_recorder_camera.findMany({
           where: { camera_recorder: { some: { id } } },
-          select: { camera: { select: { id: true } } },
+          select: {
+            id: true,
+            title: true,
+            camera: { select: CAMERA_NAME_SELECT },
+          },
         });
-        return rows.flatMap((row) => row.camera.map((camera) => camera.id));
+        return rows.flatMap((row) =>
+          row.camera.map((camera) => ({
+            id: row.id,
+            assignmentType: 'recorder' as const,
+            assignmentLabel: row.title,
+            cameraId: camera.id,
+            cameraName: this.cameraDisplayName(camera),
+            targetType: 'camera' as const,
+            targetId: camera.id,
+          })),
+        );
       }
       case 'camera_playback': {
         if (!url) return [];
@@ -76,23 +111,64 @@ export class WorkersService {
         if (!recorders.length) return [];
         const rows = await this.db.camera_recorder_camera.findMany({
           where: { camera_recorder: { some: { id: { in: recorders.map((recorder) => recorder.id) } } } },
-          select: { camera: { select: { id: true } } },
+          select: {
+            id: true,
+            title: true,
+            camera: { select: CAMERA_NAME_SELECT },
+          },
         });
-        return rows.flatMap((row) => row.camera.map((camera) => camera.id));
+        return rows.flatMap((row) =>
+          row.camera.map((camera) => ({
+            id: row.id,
+            assignmentType: 'recorder' as const,
+            assignmentLabel: row.title,
+            cameraId: camera.id,
+            cameraName: this.cameraDisplayName(camera),
+            targetType: 'camera' as const,
+            targetId: camera.id,
+          })),
+        );
       }
       case 'lpr_service': {
         const rows = await this.db.camera_lpr_camera.findMany({
           where: { camera_lpr: { some: { id } } },
-          select: { camera: { select: { id: true } } },
+          select: {
+            id: true,
+            title: true,
+            camera: { select: CAMERA_NAME_SELECT },
+          },
         });
-        return rows.flatMap((row) => row.camera.map((camera) => camera.id));
+        return rows.flatMap((row) =>
+          row.camera.map((camera) => ({
+            id: row.id,
+            assignmentType: 'lpr' as const,
+            assignmentLabel: row.title,
+            cameraId: camera.id,
+            cameraName: this.cameraDisplayName(camera),
+            targetType: 'camera' as const,
+            targetId: camera.id,
+          })),
+        );
       }
       case 'mismatch_service': {
         const mismatches = await this.db.mismatch.findMany({
           where: { mismatch_service: { some: { id } } },
-          select: { camera1_id: true, camera2_id: true },
+          select: {
+            id: true,
+            title: true,
+            camera1: { select: CAMERA_NAME_SELECT },
+            camera2: { select: CAMERA_NAME_SELECT },
+          },
         });
-        return mismatches.flatMap((mismatch) => [mismatch.camera1_id, mismatch.camera2_id]);
+        return mismatches.map((mismatch) => ({
+          id: mismatch.id,
+          assignmentType: 'mismatch' as const,
+          assignmentLabel: mismatch.title,
+          cameraId: null,
+          cameraName: `${this.cameraDisplayName(mismatch.camera1)} / ${this.cameraDisplayName(mismatch.camera2)}`,
+          targetType: 'mismatch' as const,
+          targetId: mismatch.id,
+        }));
       }
       default:
         return [];
@@ -110,10 +186,26 @@ export class WorkersService {
         throw new HttpException({ status: false, data: null, error: 'Worker not found', msg: 'Worker not found' }, 406);
       }
 
-      const cameraIds = await this.resolveAssignmentCameraIds(workerType, id, row.url);
-      const cameras = await this.getCameraSummaries(cameraIds);
+      const [assignments, online] = await Promise.all([
+        this.resolveAssignments(workerType, id, row.url),
+        this.probe(row.url, row.port, WORKER_PROBE[workerType]),
+      ]);
 
-      return { status: true, data: { cameras }, error: null, msg: null };
+      return {
+        status: true,
+        data: {
+          worker: {
+            id: row.id,
+            type: workerType,
+            url: row.url,
+            port: row.port,
+            online,
+          },
+          assignments,
+        },
+        error: null,
+        msg: null,
+      };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       throw new HttpException(toErrorResponse(error, 'Failed to list worker assignments'), 406);
@@ -244,18 +336,18 @@ export class WorkersService {
     }
   }
 
-  private async getWorkerRow(type: WorkerType, id: string): Promise<{ id: string; url: string } | null> {
+  private async getWorkerRow(type: WorkerType, id: string): Promise<{ id: string; url: string; port: string } | null> {
     switch (type) {
       case 'camera_service':
-        return this.db.camera_service.findUnique({ where: { id }, select: { id: true, url: true } });
+        return this.db.camera_service.findUnique({ where: { id }, select: { id: true, url: true, port: true } });
       case 'camera_recorder':
-        return this.db.camera_recorder.findUnique({ where: { id }, select: { id: true, url: true } });
+        return this.db.camera_recorder.findUnique({ where: { id }, select: { id: true, url: true, port: true } });
       case 'camera_playback':
-        return this.db.camera_playback.findUnique({ where: { id }, select: { id: true, url: true } });
+        return this.db.camera_playback.findUnique({ where: { id }, select: { id: true, url: true, port: true } });
       case 'lpr_service':
-        return this.db.camera_lpr.findUnique({ where: { id }, select: { id: true, url: true } });
+        return this.db.camera_lpr.findUnique({ where: { id }, select: { id: true, url: true, port: true } });
       case 'mismatch_service':
-        return this.db.mismatch_service.findUnique({ where: { id }, select: { id: true, url: true } });
+        return this.db.mismatch_service.findUnique({ where: { id }, select: { id: true, url: true, port: true } });
       default:
         return null;
     }
