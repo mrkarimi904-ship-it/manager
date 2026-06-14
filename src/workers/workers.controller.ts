@@ -18,6 +18,16 @@ export class WorkersController {
     return this.workersService.getAll();
   }
 
+  @Get(':type/:id/assignments')
+  @AccountRoles('license')
+  @UseGuards(AccountGuard)
+  async getAssignments(
+    @Param('type') type: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<generalResponse> {
+    return this.workersService.getAssignments(type, id);
+  }
+
   @Delete(':type/:id')
   @AccountRoles('license')
   @UseGuards(AccountGuard)

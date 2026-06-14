@@ -32,6 +32,94 @@ export class WorkersService {
     }
   }
 
+  private async getCameraSummaries(cameraIds: string[]): Promise<{ id: string; name: string }[]> {
+    const uniqueIds = [...new Set(cameraIds.filter(Boolean))];
+    if (!uniqueIds.length) return [];
+
+    const cameras = await this.db.camera.findMany({
+      where: { id: { in: uniqueIds }, deleted: false },
+      select: {
+        id: true,
+        url: true,
+        camera_info: { where: { key: 'name' }, select: { value: true }, take: 1 },
+      },
+    });
+
+    return cameras.map((camera) => ({
+      id: camera.id,
+      name: camera.camera_info[0]?.value || camera.url || camera.id,
+    }));
+  }
+
+  private async resolveAssignmentCameraIds(type: WorkerType, id: string, url?: string): Promise<string[]> {
+    switch (type) {
+      case 'camera_service': {
+        const rows = await this.db.camera_service_camera.findMany({
+          where: { camera_service: { some: { id } } },
+          select: { camera: { select: { id: true } } },
+        });
+        return rows.flatMap((row) => row.camera.map((camera) => camera.id));
+      }
+      case 'camera_recorder': {
+        const rows = await this.db.camera_recorder_camera.findMany({
+          where: { camera_recorder: { some: { id } } },
+          select: { camera: { select: { id: true } } },
+        });
+        return rows.flatMap((row) => row.camera.map((camera) => camera.id));
+      }
+      case 'camera_playback': {
+        if (!url) return [];
+        const recorders = await this.db.camera_recorder.findMany({
+          where: { url },
+          select: { id: true },
+        });
+        if (!recorders.length) return [];
+        const rows = await this.db.camera_recorder_camera.findMany({
+          where: { camera_recorder: { some: { id: { in: recorders.map((recorder) => recorder.id) } } } },
+          select: { camera: { select: { id: true } } },
+        });
+        return rows.flatMap((row) => row.camera.map((camera) => camera.id));
+      }
+      case 'lpr_service': {
+        const rows = await this.db.camera_lpr_camera.findMany({
+          where: { camera_lpr: { some: { id } } },
+          select: { camera: { select: { id: true } } },
+        });
+        return rows.flatMap((row) => row.camera.map((camera) => camera.id));
+      }
+      case 'mismatch_service': {
+        const mismatches = await this.db.mismatch.findMany({
+          where: { mismatch_service: { some: { id } } },
+          select: { camera1_id: true, camera2_id: true },
+        });
+        return mismatches.flatMap((mismatch) => [mismatch.camera1_id, mismatch.camera2_id]);
+      }
+      default:
+        return [];
+    }
+  }
+
+  async getAssignments(type: string, id: string): Promise<generalResponse> {
+    try {
+      if (!Object.prototype.hasOwnProperty.call(WORKER_PROBE, type)) {
+        throw new HttpException({ status: false, data: null, error: 'Invalid worker type', msg: 'Invalid worker type' }, 406);
+      }
+      const workerType = type as WorkerType;
+      const row = await this.getWorkerRow(workerType, id);
+      if (!row) {
+        throw new HttpException({ status: false, data: null, error: 'Worker not found', msg: 'Worker not found' }, 406);
+      }
+
+      const cameraIds = await this.resolveAssignmentCameraIds(workerType, id, row.url);
+      const cameras = await this.getCameraSummaries(cameraIds);
+
+      return { status: true, data: { cameras }, error: null, msg: null };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException(toErrorResponse(error, 'Failed to list worker assignments'), 406);
+    }
+  }
+
   private async assignmentCount(type: WorkerType, id: string, url?: string): Promise<number> {
     switch (type) {
       case 'camera_service':
