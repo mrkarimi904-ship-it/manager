@@ -169,7 +169,7 @@ export class CameraServiceService {
       this.db.camera_service_camera.create({
         data: {
           type: 'live',
-          port: 0,
+          port: '0',
           status: false,
           camera_service: { connect: { id: serviceId } },
           camera: { connect: { id: cameraId } },
@@ -178,7 +178,7 @@ export class CameraServiceService {
       this.db.camera_service_camera.create({
         data: {
           type: 'record',
-          port: 0,
+          port: '0',
           status: false,
           camera_service: { connect: { id: serviceId } },
           camera: { connect: { id: cameraId } },
@@ -190,7 +190,7 @@ export class CameraServiceService {
   async reassignCameraServiceRows(liveRowId: string, recordRowId: string, newServiceId: string): Promise<void> {
     await this.validateServiceCapacity(newServiceId, SLOTS_PER_CAMERA);
     const reset = {
-      port: 0,
+      port: '0',
       status: false,
       state: 'none',
       camera_service: { set: [{ id: newServiceId }] },
@@ -218,9 +218,9 @@ export class CameraServiceService {
           await Promise.all(results.data.data.map(async (elm) => {
             if (elm.subscribers === 0) {
               await this.axios.axiosRef.post(uurl + '/remove', { url: elm.rtspUrl, id: elm.cameraId })
-              await this.db.camera_service_camera.updateMany({ where: { camera_service: { some: { id: cameraServiceId } } , camera: { some: { id: elm.cameraId } }, port: elm.port }, data: { status: false, port: 0, state: 'none' } })
+              await this.db.camera_service_camera.updateMany({ where: { camera_service: { some: { id: cameraServiceId } } , camera: { some: { id: elm.cameraId } }, port: String(elm.port) }, data: { status: false, port: '0', state: 'none' } })
             } else {
-              await this.db.camera_service_camera.updateMany({ where: { camera_service: { some: { id: cameraServiceId } } , camera: { some: { id: elm.cameraId } }, port: elm.port }, data: { status: true, state: elm.subscribers.toString() } })
+              await this.db.camera_service_camera.updateMany({ where: { camera_service: { some: { id: cameraServiceId } } , camera: { some: { id: elm.cameraId } }, port: String(elm.port) }, data: { status: true, state: elm.subscribers.toString() } })
             }
           }));
         } catch (err: any) {
@@ -228,7 +228,7 @@ export class CameraServiceService {
           console.log('error scanning cameraservice', cameraServiceUrl, err?.message);
         }
       }));
-      await this.db.camera_service_camera.updateMany({ where: { state: 'loading ...' },  data: { port: 0, status: false, state: 'none' } })
+      await this.db.camera_service_camera.updateMany({ where: { state: 'loading ...' },  data: { port: '0', status: false, state: 'none' } })
     } catch (error) {
       console.log('error scanning cameraservices', error)
     }

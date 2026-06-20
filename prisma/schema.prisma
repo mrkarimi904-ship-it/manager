@@ -148,7 +148,7 @@ model camera_service {
 model camera_service_camera {
   id             String           @id @default(uuid())
   type           String
-  port           Int
+  port           String           @default("0")
   status         Boolean
   state          String           @default("none")
   camera         camera[]         @relation("cameraTocamera_service_camera")

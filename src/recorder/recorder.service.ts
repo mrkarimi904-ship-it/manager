@@ -284,10 +284,10 @@ export class RecorderService {
       if (await this.licenseService.can_add_new_active_recorder(recorder_id) === false) { throw { message: 'License limit: active recorder limit reached' }; }
 
       const streamResult = await this.steamService.start(user, { cameraId: camera_id, type: 'HIGH' })
-      const streamData = streamResult?.data as { port?: number; cameraService?: { url?: string } } | null | undefined
+      const streamData = streamResult?.data as { port?: string; cameraService?: { url?: string } } | null | undefined
       const streamPort = streamData?.port
       const streamService = streamData?.cameraService
-      if (!streamPort || streamPort === 0 || !streamService?.url) {
+      if (!streamPort || streamPort === '0' || !streamService?.url) {
         throw { message: 'Stream not available: cannot start recorder' };
       }
 

@@ -9,6 +9,18 @@ import * as dtos from './stream.dtos';
 import { generalResponse } from 'src/app.consts';
 import { LoggerService } from 'src/logger/logger.service';
 
+const IDLE_STREAM_PORT = '0';
+
+function parseWorkerStreamPort(raw: unknown): string {
+  if (raw == null || raw === '') return IDLE_STREAM_PORT;
+  const s = String(raw);
+  return s === IDLE_STREAM_PORT ? IDLE_STREAM_PORT : s;
+}
+
+function isActiveStreamPort(port: string): boolean {
+  return port !== IDLE_STREAM_PORT;
+}
+
 @Injectable()
 export class StreamService {
   constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService, private eventEmitter: EventEmitter2) {}
@@ -46,7 +58,7 @@ export class StreamService {
       const cameraServicePort = cameraService.port;
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
       const results = await this.axios.axiosRef.get(uurl)
-      const matching = results.data.data.filter(x => x.cameraId === body.cameraId && x.port === cameraServiceInfo.port)
+      const matching = results.data.data.filter(x => x.cameraId === body.cameraId && String(x.port) === cameraServiceInfo.port)
       const streamOnService = matching.length > 0
       const subscribers = matching[0]?.subscribers ?? 0
       const response: generalResponse = { status: true, data: { status: cameraServiceInfo.status, port: cameraServiceInfo.port, id: cameraServiceInfo.id, subscribers, streamOnService, cameraService: cameraService, camera: camera, rtsp: cameraInfo.value }, error: null, msg: null };
@@ -68,7 +80,7 @@ export class StreamService {
       const cameraRTSPUrl = data['rtsp'];
 
       // only treat as already started when stream is verified on camera service
-      if (streamOnService && port !== 0) { return { status: true, data: { status: true, port, cameraService }, error: null, msg: null }; }
+      if (streamOnService && isActiveStreamPort(port)) { return { status: true, data: { status: true, port, cameraService }, error: null, msg: null }; }
 
       const cameraUsername = camera.username;
       const cameraPassword = camera.password;
@@ -78,7 +90,7 @@ export class StreamService {
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
 
       const x1 = await this.axios.axiosRef.post(uurl, { url: completeRTSP, port: port, id: body.cameraId, tcp: camera.tcp })
-      const new_port = x1.data?.data[0]?.port ? x1.data.data[0].port : 0
+      const new_port = parseWorkerStreamPort(x1.data?.data[0]?.port)
 
       this.loggerService.log(`Stream ${body.type} started`, 0, user, undefined, undefined, body.cameraId, undefined)
 
@@ -118,7 +130,7 @@ export class StreamService {
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
 
       const x1 = await this.axios.axiosRef.post(uurl, { url: completeRTSP, port: port, id: body.cameraId, tcp: camera.tcp })
-      const new_port = x1.data?.data[0]?.port ? x1.data.data[0].port : 0
+      const new_port = parseWorkerStreamPort(x1.data?.data[0]?.port)
 
       await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: true, port: new_port } })
 
@@ -139,7 +151,7 @@ export class StreamService {
             await new Promise(resolve => setTimeout(resolve, 500));
             const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: cam.id } }, type: 'record' }, include: { camera_service: true } })
             const stream = stream_service?.camera_service?.[0] ? await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } }) : null
-            if (!stream || !stream_service?.port) return
+            if (!stream || !isActiveStreamPort(stream_service.port)) return
             const cc = await this.axios.axiosRef.post(temp_u2, { stream_host: stream.url, stream_port: stream_service.port, rotation: item.enable_rotation })
             await this.db.camera_recorder_camera.update({ where: { id: item.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
           }));
@@ -169,7 +181,7 @@ export class StreamService {
       const cameraRTSPUrl = data['rtsp'];
 
       // check if already started
-      if (port === 0 && status === false) { return { status: true, data: { status: false, port: 0, cameraService: cameraService }, error: null, msg: null }; }
+      if (port === IDLE_STREAM_PORT && status === false) { return { status: true, data: { status: false, port: IDLE_STREAM_PORT, cameraService: cameraService }, error: null, msg: null }; }
       // if already have subscribers
       if (parseInt(subscribers) > 1) { return { status: true, data: { status: true, port: port, cameraService: cameraService }, error: null, msg: null } }
 
