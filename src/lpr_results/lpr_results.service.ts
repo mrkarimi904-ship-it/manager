@@ -21,6 +21,29 @@ export class LprResultsService {
     private storageService: StorageService
   ) {}
 
+  private async resolveAllowedCameraIds(user: any, cameraIds?: string): Promise<string[]> {
+    const where: any = { AND: [] }
+    if (user.isSuperAdmin !== true) {
+      buildUserPermissionWhere(user, where)
+      where.deleted = false
+    }
+    const cameras_q = await this.db.camera.findMany({ where, select: { id: true } })
+    if (!cameras_q || cameras_q.length === 0) { throw { message: 'no camera found for this user' } }
+    let cameras = cameras_q.map(x => x.id)
+    const requestedIds: string[] = []
+    if (cameraIds && cameraIds.trim() !== '') {
+      requestedIds.push(...cameraIds.split(',').map(id => id.trim()).filter(Boolean))
+    }
+    if (requestedIds.length > 0) {
+      const valid = requestedIds.filter(id => cameras.includes(id))
+      if (valid.length === 0) {
+        throw { message: 'camera not valid for this user' }
+      }
+      cameras = valid
+    }
+    return cameras
+  }
+
   async findAll(user: any, query: dtos.lprSearchQuery): Promise<generalResponse> {
     try {
       // create where
@@ -28,27 +51,7 @@ export class LprResultsService {
       if (!query.pageSize) { query.pageSize = "20" }
       const skip: number = (parseInt(query.pageIndex) - 1) * parseInt(query.pageSize)
       const take: number = Math.min(parseInt(query.pageSize), 100) // Max 100 records per page for performance
-      const where: any = { AND: [] } //
-      // check if user is limited
-      if (user.isSuperAdmin !== true) {
-        buildUserPermissionWhere(user, where);
-        where.deleted = false
-      }
-      // get cameras - only IDs needed for performance
-      const cameras_q = await this.db.camera.findMany({ where, select: { id: true } });
-      if (!cameras_q || cameras_q.length === 0) { throw { message: 'no camera found for this user' } }
-      let cameras = cameras_q.map(x => { return x.id })
-      const requestedIds: string[] = []
-      if (query.cameraIds && query.cameraIds.trim() !== '') {
-        requestedIds.push(...query.cameraIds.split(',').map(id => id.trim()).filter(Boolean))
-      }
-      if (requestedIds.length > 0) {
-        const valid = requestedIds.filter(id => cameras.includes(id))
-        if (valid.length === 0) {
-          throw { message: 'camera not valid for this user' }
-        }
-        cameras = valid
-      }
+      const cameras = await this.resolveAllowedCameraIds(user, query.cameraIds)
       // fint lpr
       const conditions: any = { AND: [] }
       if (query.isBlackList) { conditions.isBlackList = query.isBlackList === 'false' ? false : true }
@@ -285,20 +288,7 @@ export class LprResultsService {
 
   async reportHourly(user: any, query: dtos.lprReportQuery): Promise<generalResponse> {
     try {
-      const where: any = { AND: [] } //
-      // check if user is limited
-      if (user.isSuperAdmin !== true) {
-        where['AND'].push({ OR: [
-          { user_accounts: { some: { id: { equals: user.id } } } },
-          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
-        ] })
-        where.deleted = false
-      }
-      // get cameras
-      const cameras = await this.db.camera.findMany({ where });
-      if (!cameras) { throw { message: 'no camera found for this user' } }
+      const cameras = await this.resolveAllowedCameraIds(user, query.cameraIds)
       // fint lpr
       const conditions: any = { AND: [] }
       if (query.isBlackList) { conditions.isBlackList = query.isBlackList === 'false' ? false : true }
@@ -315,7 +305,7 @@ export class LprResultsService {
       const results_temp = await this.db.lpr_result.findMany({ where: {
           ocr: { contains: query.search, mode: 'insensitive' },
           ...conditions,
-          camera: { some: { id: { in: cameras.map(x => { return x.id }) } } }
+          camera: { some: { id: { in: cameras } } }
         } , orderBy: [{ created_at: 'desc' }] })
 
       const hourlyCounts: { [key: number]: number } = {};
@@ -339,20 +329,7 @@ export class LprResultsService {
 
   async reportWeekDay(user: any, query: dtos.lprReportQuery): Promise<generalResponse> {
     try {
-      const where: any = { AND: [] } //
-      // check if user is limited
-      if (user.isSuperAdmin !== true) {
-        where['AND'].push({ OR: [
-          { user_accounts: { some: { id: { equals: user.id } } } },
-          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
-        ] })
-        where.deleted = false
-      }
-      // get cameras
-      const cameras = await this.db.camera.findMany({ where });
-      if (!cameras) { throw { message: 'no camera found for this user' } }
+      const cameras = await this.resolveAllowedCameraIds(user, query.cameraIds)
       // fint lpr
       const conditions: any = { AND: [] }
       if (query.isBlackList) { conditions.isBlackList = query.isBlackList === 'false' ? false : true }
@@ -369,7 +346,7 @@ export class LprResultsService {
       const results_temp = await this.db.lpr_result.findMany({ where: {
           ocr: { contains: query.search, mode: 'insensitive' },
           ...conditions,
-          camera: { some: { id: { in: cameras.map(x => { return x.id }) } } }
+          camera: { some: { id: { in: cameras } } }
         } , orderBy: [{ created_at: 'desc' }] })
 
       const dailyCounts: { [key: number]: number } = {};
@@ -394,20 +371,7 @@ export class LprResultsService {
 
   async reportMonthDay(user: any, query: dtos.lprReportQuery): Promise<generalResponse> {
     try {
-      const where: any = { AND: [] } //
-      // check if user is limited
-      if (user.isSuperAdmin !== true) {
-        where['AND'].push({ OR: [
-          { user_accounts: { some: { id: { equals: user.id } } } },
-          { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
-          { camera_groups: { some: { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } } } }
-        ] })
-        where.deleted = false
-      }
-      // get cameras
-      const cameras = await this.db.camera.findMany({ where });
-      if (!cameras) { throw { message: 'no camera found for this user' } }
+      const cameras = await this.resolveAllowedCameraIds(user, query.cameraIds)
       // fint lpr
       const conditions: any = { AND: [] }
       if (query.isBlackList) { conditions.isBlackList = query.isBlackList === 'false' ? false : true }
@@ -424,7 +388,7 @@ export class LprResultsService {
       const results_temp = await this.db.lpr_result.findMany({ where: {
           ocr: { contains: query.search, mode: 'insensitive' },
           ...conditions,
-          camera: { some: { id: { in: cameras.map(x => { return x.id }) } } }
+          camera: { some: { id: { in: cameras } } }
         } , orderBy: [{ created_at: 'desc' }] })
 
       const dailyCounts: { [key: number]: number } = {};

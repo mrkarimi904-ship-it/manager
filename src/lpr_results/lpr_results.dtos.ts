@@ -133,6 +133,11 @@ export class lprReportQuery {
     @IsOptional()
     @ApiPropertyOptional()
     dateTo: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional({ description: 'Comma-separated camera IDs (one or more)' })
+    cameraIds: string;
 }
 
 export class lprExportQuery {
