@@ -233,7 +233,9 @@ export class LprService {
       const list = await this.db.camera_lpr_camera.findUnique({ where: { id: lpr_id, camera: { some: { id: camera_id } } }, include: { camera_lpr: true } })
       if (!list) { throw new ConflictException() }
 
-      await this.stop(user, camera_id, lpr_id)
+      if (list.status !== 'STOPPED' && list.status !== 'none') {
+        await this.stop(user, camera_id, lpr_id)
+      }
 
       await this.db.camera_lpr_camera.delete({ where: { id: list.id } })
 
@@ -359,7 +361,7 @@ export class LprService {
       const list = await this.db.camera_lpr_camera.findUnique({ where: { id: lpr_id, camera: { some: { id: camera_id } } }, include: { camera_lpr: true } })
       if (!list) { throw new ConflictException() }
 
-      if (list.status === 'STOPPED') { return { status: true, data: list, error: null, msg: null } }
+      if (list.status === 'STOPPED' || list.status === 'none') { return { status: true, data: list, error: null, msg: null } }
       if (list.status === 'STARTING') { throw new ConflictException('Cannot stop LPR while it is starting') }
 
       const url = list.camera_lpr[0].url
