@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsString, IsUUID } from 'class-validator';
 import { ApiProperty } from "@nestjs/swagger";
 
 export class lprServiceDto {
@@ -12,7 +12,7 @@ export class lprServiceDto {
 }
 
 export class postLprServiceDto {
-  @IsString()
+  @IsUUID('4')
   @ApiProperty()
   id: string;
 

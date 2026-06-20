@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsString, IsUUID } from 'class-validator';
 import { ApiProperty } from "@nestjs/swagger";
 
 export class mismatchServiceDto {
@@ -12,7 +12,7 @@ export class mismatchServiceDto {
 }
 
 export class postMismatchServiceDto {
-  @IsString()
+  @IsUUID('4')
   @ApiProperty()
   id: string;
 
