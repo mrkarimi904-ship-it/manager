@@ -13,6 +13,6 @@ import { LicenseModule } from 'src/license/license.module';
   imports: [DbModule, HttpModule, LoggerModule, CameraRecorderModule, StreamModule, LicenseModule],
   providers: [RecorderService, RecorderScheduleService],
   controllers: [RecorderController],
-  exports: [RecorderService]
+  exports: [RecorderService, RecorderScheduleService]
 })
 export class RecorderModule {}

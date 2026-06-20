@@ -1,4 +1,4 @@
-import { ConflictException, HttpException, Injectable } from '@nestjs/common';
+import { ConflictException, forwardRef, HttpException, Inject, Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 
 import { DbService } from 'src/db/db.service';
@@ -11,10 +11,24 @@ import { LoggerService } from 'src/logger/logger.service';
 import { CameraRecorderService } from 'src/camera_recorder/camera_recorder.service';
 import { StreamService } from 'src/stream/stream.service';
 import { LicenseService } from 'src/license/license.service';
+import { RecorderScheduleService } from './recorder_schedule.service';
+
+function normalizeRecorderStatus(status: string | null | undefined): string {
+  return (status || 'none').trim().toUpperCase();
+}
 
 @Injectable()
 export class RecorderService {
-  constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService, private camera_recorder_service: CameraRecorderService, private steamService: StreamService, private licenseService: LicenseService) {}
+  constructor(
+    private db: DbService,
+    private readonly axios: HttpService,
+    private loggerService: LoggerService,
+    private camera_recorder_service: CameraRecorderService,
+    private steamService: StreamService,
+    private licenseService: LicenseService,
+    @Inject(forwardRef(() => RecorderScheduleService))
+    private recorderScheduleService: RecorderScheduleService,
+  ) {}
 
   async get_list(user: any, camera_id: string): Promise<generalResponse> {
     try {
@@ -192,10 +206,18 @@ export class RecorderService {
       const list = await this.db.camera_recorder_camera.findUnique({ where: { id: recorder_id, camera: { some: { id: camera_id }} } })
       if (!list) { throw new ConflictException() }
 
+      if (body.schedule_enabled && !/^[01]{168}$/.test(body.schedule_slots || '')) {
+        throw { message: 'schedule_slots must be exactly 168 characters of 0 or 1' };
+      }
+
       const list2 = await this.db.camera_recorder_camera.update({
         where: { id: recorder_id },
         data: { schedule_enabled: body.schedule_enabled, schedule_slots: body.schedule_slots }
       })
+
+      if (list2.schedule_enabled) {
+        await this.recorderScheduleService.applyForRecorder(recorder_id);
+      }
 
       this.loggerService.log(`Recorder schedule updated`, 0, user, undefined, undefined, camera_id, undefined)
       return { status: true, data: list2, error: null, msg: null }
@@ -254,7 +276,9 @@ export class RecorderService {
         throw { message: 'Disable recorder schedule to manually control start/stop' };
       }
 
-      if (list.isActive && list.status === 'RUNNING') { return { status: true, data: list, error: null, msg: null } }
+      if (list.isActive && normalizeRecorderStatus(list.status) === 'RUNNING') {
+        return { status: true, data: list, error: null, msg: null };
+      }
 
       // check license for active recorder count limit (exclude current recorder so restart after manager_improved restart does not hit limit)
       if (await this.licenseService.can_add_new_active_recorder(recorder_id) === false) { throw { message: 'License limit: active recorder limit reached' }; }
@@ -314,7 +338,7 @@ export class RecorderService {
         throw { message: 'Disable recorder schedule to manually control start/stop' };
       }
 
-      if (list.status === 'STOPPED') {
+      if (normalizeRecorderStatus(list.status) === 'STOPPED') {
         await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { isActive: false } });
         return { status: true, data: { ...list, isActive: false }, error: null, msg: null };
       }
