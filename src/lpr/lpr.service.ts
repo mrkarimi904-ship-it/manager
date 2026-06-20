@@ -42,7 +42,11 @@ export class LprService {
       const camera = await this.db.camera.findUnique({ where });
       if (!camera) { throw new ConflictException() }
 
-      const list = await this.db.camera_lpr_camera.findMany({ where: { camera: { some: { id: camera_id } } }, orderBy: { id: 'desc' } })
+      const list = await this.db.camera_lpr_camera.findMany({
+        where: { camera: { some: { id: camera_id } } },
+        orderBy: { id: 'desc' },
+        include: { camera_lpr: { select: { id: true, url: true, port: true } } },
+      })
       return { status: true, data: list, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -137,10 +141,14 @@ export class LprService {
 
   async update(user: any, camera_id: string, lpr_id: string, body: dtos.UpdateLprDto): Promise<generalResponse> {
     try {
-      // check it lpr is not running
       const list = await this.db.camera_lpr_camera.findUnique({ where: { id: lpr_id, camera: { some: { id: camera_id } } }, include: { camera_lpr: true } })
       if (!list) { throw new ConflictException() }
-      if (list.status === 'RUNNING' || list.status === 'PENDING' || list.status === 'STARTING') { throw new ConflictException('Stop lpr before editing') }
+      if (list.status === 'RUNNING' || list.status === 'PENDING' || list.status === 'STARTING' || list.isActive) {
+        throw new ConflictException('Stop lpr before editing')
+      }
+
+      const lpr = await this.db.camera_lpr.findFirst({ where: { id: body.lpr_id } })
+      if (!lpr) { throw new ConflictException() }
 
       // check if camera available
       const where = { id: camera_id, deleted: false, AND: [] }
@@ -154,8 +162,6 @@ export class LprService {
       }
       const camera = await this.db.camera.findUnique({ where });
       if (!camera) { throw new ConflictException() }
-
-      if (!list.camera_lpr) { throw new ConflictException() }
 
       const new_body = {
         title: body.title,
@@ -192,7 +198,13 @@ export class LprService {
         repeat_threshold_seconds: body.repeat_threshold_seconds ?? 0
       }
 
-      const res = await this.db.camera_lpr_camera.update({ where: { id: lpr_id}, data: { ...new_body } })
+      const res = await this.db.camera_lpr_camera.update({
+        where: { id: lpr_id },
+        data: {
+          ...new_body,
+          camera_lpr: { set: [{ id: lpr.id }] },
+        },
+      })
 
       await this.cacheManager.del(`camera_lpr_session_${lpr_id}`)
 

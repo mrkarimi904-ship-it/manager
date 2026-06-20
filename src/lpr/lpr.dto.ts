@@ -138,6 +138,10 @@ export class CreateLprDto {
 }
 
 export class UpdateLprDto {
+    @IsString()
+    @ApiProperty()
+    lpr_id: string;
+
       @IsString()
     @ApiProperty()
     title: string;
