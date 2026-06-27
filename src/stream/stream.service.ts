@@ -8,22 +8,33 @@ import * as dtos from './stream.dtos';
 
 import { generalResponse } from 'src/app.consts';
 import { LoggerService } from 'src/logger/logger.service';
-
-const IDLE_STREAM_PORT = '0';
-
-function parseWorkerStreamPort(raw: unknown): string {
-  if (raw == null || raw === '') return IDLE_STREAM_PORT;
-  const s = String(raw);
-  return s === IDLE_STREAM_PORT ? IDLE_STREAM_PORT : s;
-}
-
-function isActiveStreamPort(port: string): boolean {
-  return port !== IDLE_STREAM_PORT;
-}
+import {
+  IDLE_KAFKA_TOPIC,
+  IDLE_STREAM_FIELDS,
+  isActiveStreamAssignment,
+  parseWorkerStreamAssignment,
+  toCameraServiceStartBody,
+  toDbStreamFields,
+  toStreamClientData,
+  toStreamConnectionFields,
+  workerListItemMatchesDbRow,
+} from './stream.worker';
 
 @Injectable()
 export class StreamService {
   constructor(private db: DbService, private readonly axios: HttpService, private loggerService: LoggerService, private eventEmitter: EventEmitter2) {}
+
+  private buildClientData(cameraServiceInfo: {
+    status: boolean;
+    kafka_topic: string;
+    use_kafka: boolean;
+    use_service_ip: boolean;
+    zmq_port: number;
+    service_ip: string | null;
+    kafka_server: string | null;
+  }, cameraService: object) {
+    return toStreamClientData(cameraServiceInfo, cameraService);
+  }
 
   async status(user, body: dtos.streamDto): Promise<generalResponse> {
     try {
@@ -58,10 +69,25 @@ export class StreamService {
       const cameraServicePort = cameraService.port;
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
       const results = await this.axios.axiosRef.get(uurl)
-      const matching = results.data.data.filter(x => x.cameraId === body.cameraId && String(x.port) === cameraServiceInfo.port)
-      const streamOnService = matching.length > 0
+      const workerItems = Array.isArray(results.data?.data) ? results.data.data : [];
+      const matching = workerItems.filter((item) =>
+        workerListItemMatchesDbRow(item as Record<string, unknown>, body.cameraId, cameraServiceInfo.kafka_topic),
+      );
+      const streamOnService = matching.length > 0 && isActiveStreamAssignment(cameraServiceInfo)
       const subscribers = matching[0]?.subscribers ?? 0
-      const response: generalResponse = { status: true, data: { status: cameraServiceInfo.status, port: cameraServiceInfo.port, id: cameraServiceInfo.id, subscribers, streamOnService, cameraService: cameraService, camera: camera, rtsp: cameraInfo.value }, error: null, msg: null };
+      const response: generalResponse = {
+        status: true,
+        data: {
+          ...this.buildClientData(cameraServiceInfo, cameraService),
+          id: cameraServiceInfo.id,
+          subscribers,
+          streamOnService,
+          camera: camera,
+          rtsp: cameraInfo.value,
+        },
+        error: null,
+        msg: null,
+      };
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
@@ -72,7 +98,8 @@ export class StreamService {
     try {
       // check if camera available
       const { data } = await this.status(user, body);
-      const port = data['port'];
+      const kafkaTopic = data['kafka_topic'];
+      const zmqPort = data['zmq_port'];
       const streamOnService = data['streamOnService'];
       const cameraService = data['cameraService'];
       const cameraServiceInfoId = data['id']
@@ -80,7 +107,9 @@ export class StreamService {
       const cameraRTSPUrl = data['rtsp'];
 
       // only treat as already started when stream is verified on camera service
-      if (streamOnService && isActiveStreamPort(port)) { return { status: true, data: { status: true, port, cameraService }, error: null, msg: null }; }
+      if (streamOnService && isActiveStreamAssignment({ kafka_topic: kafkaTopic, zmq_port: data['zmq_port'] })) {
+        return { status: true, data: this.buildClientData(data as any, cameraService), error: null, msg: null };
+      }
 
       const cameraUsername = camera.username;
       const cameraPassword = camera.password;
@@ -89,22 +118,31 @@ export class StreamService {
       const completeRTSP = cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", function() { return `rtsp://${cameraUsername}:${cameraPassword}@` })
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
 
-      const x1 = await this.axios.axiosRef.post(uurl, { url: completeRTSP, port: port, id: body.cameraId, tcp: camera.tcp })
-      const new_port = parseWorkerStreamPort(x1.data?.data[0]?.port)
+      const x1 = await this.axios.axiosRef.post(uurl, toCameraServiceStartBody({
+        url: completeRTSP,
+        zmqPort,
+        cameraId: body.cameraId,
+        tcp: camera.tcp,
+      }))
+      const assignment = parseWorkerStreamAssignment(x1.data);
+      if (!assignment) {
+        throw new HttpException({ status: false, data: null, error: 'Invalid stream service response', msg: 'Invalid stream service response' }, 406);
+      }
 
       this.loggerService.log(`Stream ${body.type} started`, 0, user, undefined, undefined, body.cameraId, undefined)
 
-      await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: true, port: new_port } })
+      const dbFields = toDbStreamFields(assignment);
+      await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: dbFields })
 
       // check if current running recorders need to be updated
-      if (port !== new_port) {
+      if (kafkaTopic !== assignment.kafka_topic || zmqPort !== assignment.zmq_port) {
         const current_running_recorders = await this.db.camera_recorder_camera.findMany({ where: { camera: { some: { id: camera.id }}, status: 'RUNNING' }, include: { camera_recorder: true, camera: true } })
         if (current_running_recorders.length > 0) {
           this.loggerService.log(`error detected in steam port and recorder port`, 0, user, undefined, undefined, body.cameraId, undefined)
         }
       }
 
-      return { status: true, data: { status: true, port: new_port, cameraService: cameraService }, error: null, msg: null };
+      return { status: true, data: this.buildClientData(dbFields, cameraService), error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
@@ -114,9 +152,8 @@ export class StreamService {
     try {
       // check if camera available
       const { data } = await this.status({ isSuperAdmin: true }, body);
-      // const subscribers = data['subscribers'];
-      const port = data['port'];
-      // const status = data['status'];
+      const kafkaTopic = data['kafka_topic'];
+      const zmqPort = data['zmq_port'];
       const cameraService = data['cameraService'];
       const cameraServiceInfoId = data['id']
       const camera = data['camera'];
@@ -129,13 +166,22 @@ export class StreamService {
       const completeRTSP = cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", function() { return `rtsp://${cameraUsername}:${cameraPassword}@` })
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
 
-      const x1 = await this.axios.axiosRef.post(uurl, { url: completeRTSP, port: port, id: body.cameraId, tcp: camera.tcp })
-      const new_port = parseWorkerStreamPort(x1.data?.data[0]?.port)
+      const x1 = await this.axios.axiosRef.post(uurl, toCameraServiceStartBody({
+        url: completeRTSP,
+        zmqPort,
+        cameraId: body.cameraId,
+        tcp: camera.tcp,
+      }))
+      const assignment = parseWorkerStreamAssignment(x1.data);
+      if (!assignment) {
+        throw new HttpException({ status: false, data: null, error: 'Invalid stream service response', msg: 'Invalid stream service response' }, 406);
+      }
 
-      await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: true, port: new_port } })
+      const dbFields = toDbStreamFields(assignment);
+      await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: dbFields })
 
       // check if current running recorders need to be updated
-      if (port !== new_port) {
+      if (kafkaTopic !== assignment.kafka_topic || zmqPort !== assignment.zmq_port) {
         const current_running_recorders = await this.db.camera_recorder_camera.findMany({ where: { camera: { some: { id: camera.id }}, status: 'RUNNING' }, include: { camera_recorder: true, camera: true } })
         if (current_running_recorders.length > 0) {
           await Promise.all(current_running_recorders.map(async (item) => {
@@ -149,10 +195,12 @@ export class StreamService {
             const temp_u2 = `http://${temp_url}:${temp_port}/camera_recorder/recorder/` + session + `/start`
             await this.axios.axiosRef.delete(temp_u1)
             await new Promise(resolve => setTimeout(resolve, 500));
-            const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: cam.id } }, type: 'record' }, include: { camera_service: true } })
-            const stream = stream_service?.camera_service?.[0] ? await this.db.camera_service.findUnique({ where: { id: stream_service.camera_service[0].id } }) : null
-            if (!stream || !isActiveStreamPort(stream_service.port)) return
-            const cc = await this.axios.axiosRef.post(temp_u2, { stream_host: stream.url, stream_port: stream_service.port, rotation: item.enable_rotation })
+            const stream_service = await this.db.camera_service_camera.findFirst({ where: { camera: { some: { id: cam.id } }, type: 'record' } })
+            if (!stream_service || !isActiveStreamAssignment(stream_service)) return
+            const cc = await this.axios.axiosRef.post(temp_u2, {
+              ...toStreamConnectionFields(stream_service),
+              rotation: item.enable_rotation,
+            })
             await this.db.camera_recorder_camera.update({ where: { id: item.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id } })
           }));
         }
@@ -162,7 +210,7 @@ export class StreamService {
         this.eventEmitter.emit('stream.record_restarted', { cameraId: body.cameraId });
       }
 
-      return { status: true, data: { status: true, port: new_port, cameraService: cameraService }, error: null, msg: null };
+      return { status: true, data: this.buildClientData(dbFields, cameraService), error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
@@ -173,7 +221,7 @@ export class StreamService {
       // check if camera available
       const { data } = await this.status(user, body);
       const subscribers = data['subscribers'];
-      const port = data['port'];
+      const kafkaTopic = data['kafka_topic'];
       const status = data['status'];
       const cameraService = data['cameraService'];
       const cameraServiceInfoId = data['id']
@@ -181,9 +229,12 @@ export class StreamService {
       const cameraRTSPUrl = data['rtsp'];
 
       // check if already started
-      if (port === IDLE_STREAM_PORT && status === false) { return { status: true, data: { status: false, port: IDLE_STREAM_PORT, cameraService: cameraService }, error: null, msg: null }; }
-      // if already have subscribers
-      if (parseInt(subscribers) > 1) { return { status: true, data: { status: true, port: port, cameraService: cameraService }, error: null, msg: null } }
+      if (kafkaTopic === IDLE_KAFKA_TOPIC && status === false) {
+        return { status: true, data: this.buildClientData(data as any, cameraService), error: null, msg: null };
+      }
+      if (parseInt(subscribers) > 1) {
+        return { status: true, data: this.buildClientData(data as any, cameraService), error: null, msg: null };
+      }
 
       const cameraUsername = camera.username;
       const cameraPassword = camera.password;
@@ -196,8 +247,11 @@ export class StreamService {
 
       this.loggerService.log(`Stream ${body.type} stopped`, 0, user, undefined, undefined, body.cameraId, undefined)
 
-      await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: false } })
-      return { status: true, data: { status: false, port: port, cameraService: cameraService }, error: null, msg: null };
+      await this.db.camera_service_camera.update({
+        where: { id: cameraServiceInfoId },
+        data: { status: false, ...IDLE_STREAM_FIELDS },
+      })
+      return { status: true, data: this.buildClientData({ status: false, ...IDLE_STREAM_FIELDS }, cameraService), error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
     }
@@ -207,9 +261,6 @@ export class StreamService {
     try {
       // check if camera available
       const { data } = await this.status(user, body);
-      // const subscribers = data['subscribers'];
-      // const port = data['port'];
-      // const status = data['status'];
       const cameraService = data['cameraService'];
       const cameraServiceInfoId = data['id']
       const camera = data['camera'];
@@ -226,7 +277,10 @@ export class StreamService {
 
       this.loggerService.log(`Stream ${body.type} force stopped`, 0, undefined, undefined, undefined, body.cameraId, undefined)
 
-      await this.db.camera_service_camera.update({ where: { id: cameraServiceInfoId }, data: { status: false } })
+      await this.db.camera_service_camera.update({
+        where: { id: cameraServiceInfoId },
+        data: { status: false, ...IDLE_STREAM_FIELDS },
+      })
       return { status: true, data: null, error: null, msg: null };
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);

@@ -26,7 +26,12 @@ const cameraServiceCameraInclude = {
   select: {
     type: true,
     status: true,
-    port: true,
+    kafka_topic: true,
+    use_kafka: true,
+    use_service_ip: true,
+    zmq_port: true,
+    service_ip: true,
+    kafka_server: true,
     state: true,
     camera_service: { select: { id: true, url: true, port: true } },
   },

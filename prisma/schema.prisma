@@ -146,13 +146,18 @@ model camera_service {
 }
 
 model camera_service_camera {
-  id             String           @id @default(uuid())
-  type           String
-  port           String           @default("0")
-  status         Boolean
-  state          String           @default("none")
-  camera         camera[]         @relation("cameraTocamera_service_camera")
-  camera_service camera_service[] @relation("camera_serviceTocamera_service_camera")
+  id              String           @id @default(uuid())
+  type            String
+  zmq_port        Int              @default(0)
+  use_kafka       Boolean          @default(false)
+  kafka_topic     String           @default("0")
+  kafka_server    String?
+  use_service_ip  Boolean          @default(false)
+  service_ip      String?
+  status          Boolean
+  state           String           @default("none")
+  camera          camera[]         @relation("cameraTocamera_service_camera")
+  camera_service  camera_service[] @relation("camera_serviceTocamera_service_camera")
 }
 
 model camera_recorder {

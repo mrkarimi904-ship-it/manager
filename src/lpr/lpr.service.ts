@@ -6,6 +6,7 @@ import { generalResponse } from 'src/app.consts';
 import { DbService } from 'src/db/db.service';
 import { HttpService } from '@nestjs/axios';
 import { StreamService } from 'src/stream/stream.service';
+import { isActiveStreamAssignment, StreamClientData, toStreamConnectionFields } from 'src/stream/stream.worker';
 import { LicenseService } from 'src/license/license.service';
 
 import * as Jimp from 'jimp';
@@ -270,11 +271,12 @@ export class LprService {
       if (await this.licenseService.can_add_new_lpr(lpr_id) === false) { throw { message: 'License limit: active LPR limit reached' }; }
 
       const streamResult = await this.stream.start(user, { cameraId: camera_id, type: "HIGH" })
-      const streamData = streamResult?.data as { port?: string; cameraService?: { url?: string } } | null | undefined
-      const streamPort = streamData?.port
-      const streamService = streamData?.cameraService
-      if (!streamPort || streamPort === '0' || !streamService?.url) {
+      const streamData = streamResult?.data as StreamClientData | null | undefined
+      if (!isActiveStreamAssignment(streamData)) {
         throw new ConflictException('Stream not available: cannot start LPR');
+      }
+      if (streamData.use_kafka && !streamData.kafka_server) {
+        throw new ConflictException('Stream not available: kafka_server missing');
       }
 
       const url = list.camera_lpr[0].url
@@ -288,12 +290,11 @@ export class LprService {
           await this.db.camera_lpr_camera.update({ where: { id: list.id }, data: { status: externalStatus, isActive: true, session: list.id } })
         } else {
           const cdata = {
-            "id": list.id,
-            "ip": streamService.url,
-            "port": streamPort,
-            "redis_q": "lpr_queue",
-            "roi": list.roi ? list.roi : '',
-            "config": {
+            ...toStreamConnectionFields(streamData),
+            id: list.id,
+            redis_q: 'lpr_queue',
+            roi: list.roi ? list.roi : '',
+            config: {
               "processType": list.processType,
               "country": list.country,
               "useROI": list.useROI,
@@ -322,7 +323,7 @@ export class LprService {
               "trackingDistanceTh": list.trackingDistanceTh,
               "trackingInactiveTh": list.trackingInactiveTh,
               "trackingActiveTh": list.trackingActiveTh,
-              "tickCount": list.tickCount
+              tickCount: list.tickCount
             }
           }
           const cr = await this.axios.axiosRef.post(prepare, cdata, { timeout: 2 * 60 * 1000 })

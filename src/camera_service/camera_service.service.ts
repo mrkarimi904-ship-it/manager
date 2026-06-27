@@ -12,6 +12,15 @@ import { HttpService } from '@nestjs/axios';
 import { Cron } from '@nestjs/schedule';
 import { LoggerService } from 'src/logger/logger.service';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import {
+  getWorkerListItemRtspUrl,
+  getWorkerListItemKafkaTopic,
+  getWorkerListItemUseKafka,
+  getWorkerListItemZmqPort,
+  getWorkerListItemCameraId,
+  IDLE_KAFKA_TOPIC,
+  IDLE_STREAM_FIELDS,
+} from 'src/stream/stream.worker';
 
 export const SLOTS_PER_CAMERA = 2;
 
@@ -169,7 +178,7 @@ export class CameraServiceService {
       this.db.camera_service_camera.create({
         data: {
           type: 'live',
-          port: '0',
+          kafka_topic: IDLE_KAFKA_TOPIC,
           status: false,
           camera_service: { connect: { id: serviceId } },
           camera: { connect: { id: cameraId } },
@@ -178,7 +187,7 @@ export class CameraServiceService {
       this.db.camera_service_camera.create({
         data: {
           type: 'record',
-          port: '0',
+          kafka_topic: IDLE_KAFKA_TOPIC,
           status: false,
           camera_service: { connect: { id: serviceId } },
           camera: { connect: { id: cameraId } },
@@ -190,7 +199,7 @@ export class CameraServiceService {
   async reassignCameraServiceRows(liveRowId: string, recordRowId: string, newServiceId: string): Promise<void> {
     await this.validateServiceCapacity(newServiceId, SLOTS_PER_CAMERA);
     const reset = {
-      port: '0',
+      ...IDLE_STREAM_FIELDS,
       status: false,
       state: 'none',
       camera_service: { set: [{ id: newServiceId }] },
@@ -215,12 +224,40 @@ export class CameraServiceService {
         const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
         try {
           const results = await this.axios.axiosRef.get(uurl)
-          await Promise.all(results.data.data.map(async (elm) => {
+          const workerItems = Array.isArray(results.data?.data) ? results.data.data : [];
+          await Promise.all(workerItems.map(async (item) => {
+            const elm = item as Record<string, unknown>;
+            const cameraId = getWorkerListItemCameraId(elm);
+            const kafkaTopic = getWorkerListItemKafkaTopic(elm);
             if (elm.subscribers === 0) {
-              await this.axios.axiosRef.post(uurl + '/remove', { url: elm.rtspUrl, id: elm.cameraId })
-              await this.db.camera_service_camera.updateMany({ where: { camera_service: { some: { id: cameraServiceId } } , camera: { some: { id: elm.cameraId } }, port: String(elm.port) }, data: { status: false, port: '0', state: 'none' } })
+              await this.axios.axiosRef.post(uurl + '/remove', { url: getWorkerListItemRtspUrl(elm), id: cameraId })
+              await this.db.camera_service_camera.updateMany({
+                where: {
+                  camera_service: { some: { id: cameraServiceId } },
+                  camera: { some: { id: cameraId } },
+                  kafka_topic: kafkaTopic,
+                },
+                data: {
+                  status: false,
+                  ...IDLE_STREAM_FIELDS,
+                  state: 'none',
+                },
+              })
             } else {
-              await this.db.camera_service_camera.updateMany({ where: { camera_service: { some: { id: cameraServiceId } } , camera: { some: { id: elm.cameraId } }, port: String(elm.port) }, data: { status: true, state: elm.subscribers.toString() } })
+              await this.db.camera_service_camera.updateMany({
+                where: {
+                  camera_service: { some: { id: cameraServiceId } },
+                  camera: { some: { id: cameraId } },
+                  kafka_topic: kafkaTopic,
+                },
+                data: {
+                  status: true,
+                  kafka_topic: kafkaTopic,
+                  zmq_port: getWorkerListItemZmqPort(elm),
+                  use_kafka: getWorkerListItemUseKafka(elm),
+                  state: String(elm.subscribers),
+                },
+              })
             }
           }));
         } catch (err: any) {
@@ -228,7 +265,14 @@ export class CameraServiceService {
           console.log('error scanning cameraservice', cameraServiceUrl, err?.message);
         }
       }));
-      await this.db.camera_service_camera.updateMany({ where: { state: 'loading ...' },  data: { port: '0', status: false, state: 'none' } })
+      await this.db.camera_service_camera.updateMany({
+        where: { state: 'loading ...' },
+        data: {
+          ...IDLE_STREAM_FIELDS,
+          status: false,
+          state: 'none',
+        },
+      })
     } catch (error) {
       console.log('error scanning cameraservices', error)
     }

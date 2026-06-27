@@ -10,6 +10,7 @@ import { generalResponse } from 'src/app.consts';
 import { LoggerService } from 'src/logger/logger.service';
 import { CameraRecorderService } from 'src/camera_recorder/camera_recorder.service';
 import { StreamService } from 'src/stream/stream.service';
+import { isActiveStreamAssignment, StreamClientData, toStreamConnectionFields } from 'src/stream/stream.worker';
 import { LicenseService } from 'src/license/license.service';
 import { RecorderScheduleService } from './recorder_schedule.service';
 
@@ -284,30 +285,41 @@ export class RecorderService {
       if (await this.licenseService.can_add_new_active_recorder(recorder_id) === false) { throw { message: 'License limit: active recorder limit reached' }; }
 
       const streamResult = await this.steamService.start(user, { cameraId: camera_id, type: 'HIGH' })
-      const streamData = streamResult?.data as { port?: string; cameraService?: { url?: string } } | null | undefined
-      const streamPort = streamData?.port
-      const streamService = streamData?.cameraService
-      if (!streamPort || streamPort === '0' || !streamService?.url) {
+      const streamData = streamResult?.data as StreamClientData | null | undefined
+      if (!isActiveStreamAssignment(streamData)) {
         throw { message: 'Stream not available: cannot start recorder' };
+      }
+      if (streamData.use_kafka && !streamData.kafka_server) {
+        throw { message: 'Stream not available: kafka_server missing' };
       }
 
       const service_url = list.camera_recorder[0].url
       const service_port = list.camera_recorder[0].port
       const service = `http://${service_url}:${service_port}/camera_recorder/`
 
-      const stream_url = streamService.url
-      const stream_port = streamPort
+      const streamFields = toStreamConnectionFields(streamData)
 
       if (list.session === 'none')
       {
         const newurl = service + `recorder/start`
-        const cc = await this.axios.axiosRef.post(newurl, { name: list.title, camera_id: camera_id, storage_path: list.storage_path, quota: list.quota, block_size:list.block_size, stream_host: stream_url, stream_port:stream_port, rotation: list.enable_rotation })
+        const cc = await this.axios.axiosRef.post(newurl, {
+          ...streamFields,
+          name: list.title,
+          camera_id: camera_id,
+          storage_path: list.storage_path,
+          quota: list.quota,
+          block_size: list.block_size,
+          rotation: list.enable_rotation,
+        })
         await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id, isActive: true } })
         this.loggerService.log('Recorder started', 0, user, undefined, undefined, camera_id, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
       } else {
         const newurl = service + `recorder/` + list.session + `/start`
-        const cc = await this.axios.axiosRef.post(newurl, { stream_host: stream_url, stream_port:stream_port, rotation: list.enable_rotation })
+        const cc = await this.axios.axiosRef.post(newurl, {
+          ...streamFields,
+          rotation: list.enable_rotation,
+        })
         await this.db.camera_recorder_camera.update({ where: { id: list.id }, data: { status: cc.data?.recorder.status, session: cc.data?.recorder.session_id, isActive: true } })
         this.loggerService.log('Recorder started', 0, user, undefined, undefined, camera_id, undefined)
         return { status: true, data: { status: true, session: cc.data?.recorder.session_id }, error: null, msg: null };
