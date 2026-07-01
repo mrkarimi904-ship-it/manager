@@ -146,9 +146,9 @@ export function toCameraServiceStartBody(params: {
   tcp: boolean;
 }) {
   return {
-    url: params.url,
+    rtsp_url: params.url,
     zmq_port: params.zmqPort,
-    id: params.cameraId,
+    camera_id: params.cameraId,
     tcp: params.tcp,
   };
 }
