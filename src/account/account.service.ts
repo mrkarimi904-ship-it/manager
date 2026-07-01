@@ -691,10 +691,10 @@ export class AccountService {
         where: { expiration: { lt: new Date() } }
       });
       if (deleted.count > 0) {
-        console.debug(`Cleaned up ${deleted.count} expired tokens`);
+        await this.loggerService.log(`Cleaned up ${deleted.count} expired tokens`, 0);
       }
     } catch (error) {
-      console.error('Error cleaning up expired tokens:', error);
+      await this.loggerService.log(`Failed to cleanup expired tokens: ${error?.message || error}`, 1);
     }
   }
 }
