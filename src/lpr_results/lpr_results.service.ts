@@ -277,6 +277,11 @@ export class LprResultsService {
 
   async getClearAll(user: any): Promise<generalResponse> {
     try {
+      // delete MinIO objects before removing DB rows
+      if (this.storageService.isMinIOEnabled()) {
+        const allRecords = await this.db.lpr_result.findMany({ select: { id: true } })
+        await Promise.allSettled(allRecords.map(r => this.storageService.deleteLprImages(r.id)))
+      }
       await this.db.lpr_result_image.deleteMany({})
       await this.db.lpr_result.deleteMany({})
       const response: generalResponse = { status: true, data: null, error: null, msg: null };
@@ -576,6 +581,18 @@ export class LprResultsService {
       // delete records from db
       if (query.deleteFromDatabase === 'true')
       {
+        // collect IDs before deleting so MinIO objects can be cleaned up
+        const toDelete = await this.db.lpr_result.findMany({ where: {
+            ocr: { contains: query.search, mode: 'insensitive' },
+            ...conditions,
+            camera: { some: { id: { in: cameras.map(x => { return x.id }) } } }
+          }, select: { id: true } })
+
+        // delete MinIO objects for each record
+        if (this.storageService.isMinIOEnabled()) {
+          await Promise.allSettled(toDelete.map(r => this.storageService.deleteLprImages(r.id)))
+        }
+
         await this.db.lpr_result.deleteMany({ where: {
             ocr: { contains: query.search, mode: 'insensitive' },
             ...conditions,
