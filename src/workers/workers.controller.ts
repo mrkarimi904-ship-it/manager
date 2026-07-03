@@ -18,6 +18,13 @@ export class WorkersController {
     return this.workersService.getAll();
   }
 
+  @Get('incidents')
+  @AccountRoles()
+  @UseGuards(AccountGuard)
+  getIncidents(): generalResponse {
+    return this.workersService.getIncidents();
+  }
+
   @Get(':type/:id/assignments')
   @AccountRoles('license')
   @UseGuards(AccountGuard)

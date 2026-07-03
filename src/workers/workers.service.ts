@@ -1,7 +1,10 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, Injectable, OnModuleInit } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
+import { Cron } from '@nestjs/schedule';
 import { DbService } from 'src/db/db.service';
 import { CameraServiceService } from 'src/camera_service/camera_service.service';
+import { LprQueueService } from 'src/lpr_queue/lpr_queue.service';
+import { StorageService } from 'src/storage/storage.service';
 import { generalResponse } from 'src/app.consts';
 import { toErrorResponse } from 'src/common/error.util';
 
@@ -33,13 +36,213 @@ const WORKER_PROBE: Record<WorkerType, string> = {
   mismatch_service: '/lpr-mismatch/status',
 };
 
+const LPR_HEALTHY_STATUSES = ['RUNNING', 'PENDING', 'STARTING'];
+
+type IncidentSeverity = 'critical' | 'error' | 'warning';
+
+type Incident = {
+  code: string;
+  severity: IncidentSeverity;
+  sourceType: string;
+  sourceId: string;
+  message: string;
+  meta?: Record<string, string>;
+};
+
 @Injectable()
-export class WorkersService {
+export class WorkersService implements OnModuleInit {
+  private incidentsSnapshot: { updatedAt: string | null; incidents: Incident[] } = {
+    updatedAt: null,
+    incidents: [],
+  };
+
+  private incidentsRefreshing = false;
+
   constructor(
     private db: DbService,
     private readonly axios: HttpService,
     private cameraServiceService: CameraServiceService,
+    private lprQueueService: LprQueueService,
+    private storageService: StorageService,
   ) {}
+
+  onModuleInit() {
+    void this.refreshIncidents();
+  }
+
+  getIncidents(): generalResponse {
+    return {
+      status: true,
+      data: {
+        updatedAt: this.incidentsSnapshot.updatedAt,
+        incidents: this.incidentsSnapshot.incidents,
+      },
+      error: null,
+      msg: null,
+    };
+  }
+
+  @Cron('0/30 * * * * *')
+  async refreshIncidents() {
+    if (this.incidentsRefreshing) return;
+    this.incidentsRefreshing = true;
+    try {
+      this.incidentsSnapshot = {
+        updatedAt: new Date().toISOString(),
+        incidents: await this.buildIncidents(),
+      };
+    } catch (error) {
+      console.error('Failed to refresh worker incidents:', error?.message || error);
+    } finally {
+      this.incidentsRefreshing = false;
+    }
+  }
+
+  private async buildIncidents(): Promise<Incident[]> {
+    const incidents: Incident[] = [];
+
+    const [
+      databaseOk,
+      redisOk,
+      minioHealth,
+      cameraServices,
+      cameraRecorders,
+      cameraPlaybacks,
+      lprServices,
+      mismatchServices,
+      badRecorders,
+      badLprs,
+      offlineDevices,
+    ] = await Promise.all([
+      this.db.checkHealth(),
+      this.lprQueueService.checkRedisHealth(),
+      this.storageService.checkHealth(),
+      this.db.camera_service.findMany({ select: { id: true, url: true, port: true } }),
+      this.db.camera_recorder.findMany({ select: { id: true, url: true, port: true } }),
+      this.db.camera_playback.findMany({ select: { id: true, url: true, port: true } }),
+      this.db.camera_lpr.findMany({ select: { id: true, url: true, port: true } }),
+      this.db.mismatch_service.findMany({ select: { id: true, url: true, port: true } }),
+      this.db.camera_recorder_camera.findMany({
+        where: { isActive: true, status: { not: 'RUNNING' } },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          camera_recorder: { select: { id: true, url: true, port: true }, take: 1 },
+        },
+      }),
+      this.db.camera_lpr_camera.findMany({
+        where: { isActive: true, status: { notIn: LPR_HEALTHY_STATUSES } },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          camera_lpr: { select: { id: true, url: true, port: true }, take: 1 },
+        },
+      }),
+      this.db.device.findMany({
+        where: { deleted: false, status: 'offline' },
+        select: { id: true, name: true, url: true },
+      }),
+    ]);
+
+    if (!databaseOk) {
+      incidents.push({
+        code: 'infra_down',
+        severity: 'critical',
+        sourceType: 'postgres',
+        sourceId: 'main',
+        message: 'PostgreSQL is unreachable',
+      });
+    }
+
+    if (!redisOk) {
+      incidents.push({
+        code: 'infra_down',
+        severity: 'critical',
+        sourceType: 'redis',
+        sourceId: 'main',
+        message: 'Redis is unreachable',
+      });
+    }
+
+    if (minioHealth.enabled && !minioHealth.ok) {
+      incidents.push({
+        code: 'infra_down',
+        severity: 'error',
+        sourceType: 'minio',
+        sourceId: 'main',
+        message: minioHealth.message || 'MinIO is unreachable',
+        meta: minioHealth.bucket ? { bucket: minioHealth.bucket } : undefined,
+      });
+    }
+
+    const workerRows: Array<{ type: WorkerType; row: { id: string; url: string; port: string } }> = [
+      ...cameraServices.map((row) => ({ type: 'camera_service' as const, row })),
+      ...cameraRecorders.map((row) => ({ type: 'camera_recorder' as const, row })),
+      ...cameraPlaybacks.map((row) => ({ type: 'camera_playback' as const, row })),
+      ...lprServices.map((row) => ({ type: 'lpr_service' as const, row })),
+      ...mismatchServices.map((row) => ({ type: 'mismatch_service' as const, row })),
+    ];
+
+    const workerResults = await Promise.all(
+      workerRows.map(async ({ type, row }) => ({
+        type,
+        row,
+        online: await this.probe(row.url, row.port, WORKER_PROBE[type]),
+      })),
+    );
+
+    for (const { type, row, online } of workerResults) {
+      if (!online) {
+        incidents.push({
+          code: 'worker_offline',
+          severity: 'error',
+          sourceType: type,
+          sourceId: row.id,
+          message: `${type} offline: ${row.url}:${row.port}`,
+          meta: { url: row.url, port: row.port },
+        });
+      }
+    }
+
+    for (const recorder of badRecorders) {
+      const host = recorder.camera_recorder[0];
+      incidents.push({
+        code: 'recorder_not_running',
+        severity: 'warning',
+        sourceType: 'camera_recorder_camera',
+        sourceId: recorder.id,
+        message: `Recorder "${recorder.title}" not running (${recorder.status})`,
+        meta: host ? { workerId: host.id, url: host.url, port: host.port } : undefined,
+      });
+    }
+
+    for (const lpr of badLprs) {
+      const host = lpr.camera_lpr[0];
+      incidents.push({
+        code: 'lpr_not_running',
+        severity: 'warning',
+        sourceType: 'camera_lpr_camera',
+        sourceId: lpr.id,
+        message: `LPR "${lpr.title}" not running (${lpr.status})`,
+        meta: host ? { workerId: host.id, url: host.url, port: host.port } : undefined,
+      });
+    }
+
+    for (const device of offlineDevices) {
+      incidents.push({
+        code: 'device_offline',
+        severity: 'warning',
+        sourceType: 'device',
+        sourceId: device.id,
+        message: `Device offline: ${device.name || device.url}`,
+        meta: { url: device.url },
+      });
+    }
+
+    return incidents;
+  }
 
   private async probe(url: string, port: string, path: string): Promise<boolean> {
     try {
