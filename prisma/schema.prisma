@@ -217,6 +217,28 @@ model setting_password_complexity {
   haveDigits              Boolean @default(true)
 }
 
+model setting_backup_restore {
+  id                               String   @id @default("main")
+  postgres_data_path               String   @default("/var/lib/postgresql/data")
+  minio_data_path                  String   @default("/data")
+  disk_space_start_archive_percent Int      @default(20)
+  disk_space_stop_archive_percent  Int      @default(30)
+  disk_space_critical_percent      Int      @default(5)
+  lpr_backup_batch_size            Int      @default(1000)
+  lpr_backup_min_age_days          Int      @default(7)
+  lpr_backup_enabled               Boolean  @default(false)
+  logger_backup_keep_count         Int      @default(100000)
+  logger_backup_batch_size         Int      @default(50000)
+  logger_backup_enabled            Boolean  @default(false)
+  rotation_backup_type             String   @default("local")
+  rotation_backup_local_path       String   @default("/mnt/backup-storage/lpr-archives")
+  rotation_backup_s3_endpoint      String   @default("")
+  rotation_backup_s3_bucket        String   @default("")
+  rotation_backup_s3_access_key    String   @default("")
+  rotation_backup_s3_secret_key    String   @default("")
+  updated_at                        DateTime @updatedAt
+}
+
 model license {
   id         String   @id @default("main")
   key        String   @default("")

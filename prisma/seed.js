@@ -133,6 +133,14 @@ async function main() {
   })
   console.log('Seeded license_keys')
 
+  // 6. setting_backup_restore
+  await prisma.setting_backup_restore.upsert({
+    where: { id: 'main' },
+    update: {},
+    create: { id: 'main' },
+  })
+  console.log('Seeded setting_backup_restore')
+
   console.log('Seed data completed successfully!')
 }
 

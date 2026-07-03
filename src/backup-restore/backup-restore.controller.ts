@@ -35,7 +35,8 @@ export class BackupRestoreController {
   @UseGuards(AccountGuard)
   async triggerDiskCheck(): Promise<generalResponse> {
     try {
-      await this.backupRestoreService.checkDiskSpace();
+      const settings = await this.backupRestoreService.getSettings();
+      await this.backupRestoreService.checkDiskSpace(settings);
       const data = this.backupRestoreService.getDiskSpaceStatus();
       const response: generalResponse = { status: true, data, error: null, msg: 'Disk space check completed' };
       return response;

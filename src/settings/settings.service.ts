@@ -110,4 +110,24 @@ export class SettingsService {
     return new RegExp(regexPattern);
   }
 
+  async getBackupRestoreSettings(user: any): Promise<generalResponse> {
+    try {
+      const info = await this.db.setting_backup_restore.findFirst()
+      return { status: true, data: info, error: null, msg: null };
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  async setBackupRestoreSettings(user: any, body: any): Promise<generalResponse> {
+    try {
+      await this.db.setting_backup_restore.updateMany({ data: body })
+      const info = await this.db.setting_backup_restore.findFirst()
+      this.loggerService.log('backup & restore settings changed', 0, user)
+      return { status: true, data: info, error: null, msg: null };
+    } catch (error) {
+      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
 }

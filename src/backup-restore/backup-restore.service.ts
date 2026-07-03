@@ -3,7 +3,6 @@ import { Cron } from '@nestjs/schedule';
 import { DbService } from 'src/db/db.service';
 import { StorageService } from 'src/storage/storage.service';
 import { LoggerService } from 'src/logger/logger.service';
-import { generalResponse } from 'src/app.consts';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -25,23 +24,54 @@ export class BackupRestoreService {
   // track when emergency stop was triggered to avoid repeated attempts
   private emergencyStopTriggered = false;
 
+  // cached settings for the current cron tick (cleared after each tick)
+  private cachedSettings: any = null;
+
   constructor(
     private readonly db: DbService,
     private readonly storageService: StorageService,
     private readonly loggerService: LoggerService,
   ) {}
 
-  // ── helpers ──
+  /**
+   * Read backup-restore settings from DB, falling back to env vars.
+   * Result is cached for the duration of one cron tick so all methods
+   * in the same tick use consistent values.
+   */
+  async getSettings(): Promise<any> {
+    if (this.cachedSettings) return this.cachedSettings;
 
-  private config(key: string, fallback: string): string {
-    return process.env[key] || fallback;
-  }
+    try {
+      const dbSettings = await this.db.setting_backup_restore.findFirst();
+      if (dbSettings) {
+        this.cachedSettings = dbSettings;
+        return dbSettings;
+      }
+    } catch {
+      // DB not available — fall through to env vars
+    }
 
-  private configNum(key: string, fallback: number): number {
-    const v = process.env[key];
-    if (!v) return fallback;
-    const n = parseFloat(v);
-    return isNaN(n) ? fallback : n;
+    // hardcoded defaults (DB is the source of truth; this is only used if DB is unreachable)
+    this.cachedSettings = {
+      postgres_data_path:               '/var/lib/postgresql/data',
+      minio_data_path:                  '/data',
+      disk_space_start_archive_percent: 20,
+      disk_space_stop_archive_percent:  30,
+      disk_space_critical_percent:      5,
+      lpr_backup_batch_size:            1000,
+      lpr_backup_min_age_days:          7,
+      lpr_backup_enabled:               false,
+      logger_backup_keep_count:         100000,
+      logger_backup_batch_size:         50000,
+      logger_backup_enabled:            false,
+      rotation_backup_type:             'local',
+      rotation_backup_local_path:       '/mnt/backup-storage/lpr-archives',
+      rotation_backup_s3_endpoint:      '',
+      rotation_backup_s3_bucket:        '',
+      rotation_backup_s3_access_key:    '',
+      rotation_backup_s3_secret_key:    '',
+    };
+    return this.cachedSettings;
   }
 
   // ── cron entry point (every 60s) ──
@@ -50,17 +80,20 @@ export class BackupRestoreService {
   async handleCron() {
     if (this.isRunning) return;
     this.isRunning = true;
+    this.cachedSettings = null; // fresh DB read each tick
 
     try {
+      const settings = await this.getSettings();
+
       // 1. check disk space on all monitored paths
-      await this.checkDiskSpace();
+      await this.checkDiskSpace(settings);
 
       const minFree = this.getMinFreePercent();
       if (minFree === null) return; // no paths configured
 
-      const startThreshold = this.configNum('DISK_SPACE_START_ARCHIVE_PERCENT', 20);
-      const stopThreshold = this.configNum('DISK_SPACE_STOP_ARCHIVE_PERCENT', 30);
-      const criticalThreshold = this.configNum('DISK_SPACE_CRITICAL_PERCENT', 5);
+      const startThreshold = settings.disk_space_start_archive_percent;
+      const stopThreshold = settings.disk_space_stop_archive_percent;
+      const criticalThreshold = settings.disk_space_critical_percent;
 
       // 2. if above stop threshold, nothing to do — reset emergency flag
       if (minFree >= stopThreshold) {
@@ -74,24 +107,22 @@ export class BackupRestoreService {
         return;
       }
 
-      // 3. if below start threshold, run one archive batch
+      // 3. if below start threshold, run one LPR archive batch (if enabled)
       if (minFree < startThreshold) {
-        const lprArchived = await this.archiveLprBatch();
-        const loggerArchived = await this.archiveLoggerBatch();
+        let lprArchived = 0;
+        if (settings.lpr_backup_enabled) {
+          lprArchived = await this.archiveLprBatch(settings);
+        }
 
         // 4. re-check disk space after archiving
-        await this.checkDiskSpace();
+        await this.checkDiskSpace(settings);
         const newMinFree = this.getMinFreePercent();
 
-        // 5. if still below critical threshold AND nothing was archived (backup not working
-        //    or no eligible records), trigger emergency LPR stop
+        // 5. if still below critical threshold AND nothing was archived, trigger emergency LPR stop
         if (newMinFree !== null && newMinFree < criticalThreshold) {
-          if (lprArchived === 0 && loggerArchived === 0) {
-            // nothing was archived — backup is likely broken or no eligible data
+          if (lprArchived === 0) {
             await this.emergencyStopLpr(newMinFree, criticalThreshold);
           } else if (newMinFree < criticalThreshold) {
-            // archiving worked but disk is still critically low
-            // keep archiving on next ticks, but also stop LPR to slow incoming data
             await this.emergencyStopLpr(newMinFree, criticalThreshold);
           }
         }
@@ -106,15 +137,36 @@ export class BackupRestoreService {
     }
   }
 
+  // ── logger backup cron (every 5 min, independent of disk space) ──
+
+  @Cron('0 */5 * * * *')
+  async handleLoggerBackupCron() {
+    try {
+      const settings = await this.getSettings();
+
+      if (!settings.logger_backup_enabled) return;
+
+      const totalCount = await this.db.logger_logs.count();
+      if (totalCount <= settings.logger_backup_keep_count) return;
+
+      await this.archiveLoggerBatch(settings);
+    } catch (error) {
+      await this.loggerService.log(
+        `Logger backup cron failed: ${error?.message || error}`,
+        1,
+      );
+    }
+  }
+
   // ── disk space ──
 
   /**
    * Check disk space on all configured paths using check-disk-space.
    * Async, non-blocking. Stores results in memory.
    */
-  async checkDiskSpace() {
-    const postgresPath = this.config('POSTGRES_DATA_PATH', '');
-    const minioPath = this.config('MINIO_DATA_PATH', '');
+  async checkDiskSpace(settings: any) {
+    const postgresPath = settings.postgres_data_path || '';
+    const minioPath = settings.minio_data_path || '';
 
     if (postgresPath) {
       try {
@@ -196,9 +248,9 @@ export class BackupRestoreService {
    * Archive one batch of oldest LPR results.
    * Returns the number of records archived (0 if none eligible or backup failed).
    */
-  private async archiveLprBatch(): Promise<number> {
-    const batchSize = this.configNum('LPR_BACKUP_BATCH_SIZE', 1000);
-    const minAgeDays = this.configNum('LPR_BACKUP_MIN_AGE_DAYS', 7);
+  private async archiveLprBatch(settings: any): Promise<number> {
+    const batchSize = settings.lpr_backup_batch_size;
+    const minAgeDays = settings.lpr_backup_min_age_days;
     const cutoff = new Date(Date.now() - minAgeDays * 86400_000);
 
     try {
@@ -235,10 +287,10 @@ export class BackupRestoreService {
       const { zipPath, zipSize } = await this.buildLprZip(archiveEntries, zipName);
 
       // upload to backup destination
-      const uploadRef = await this.uploadToBackup(zipPath, zipName);
+      await this.uploadToBackup(zipPath, zipName, settings);
 
       // verify
-      const verified = await this.verifyBackup(zipName, zipSize);
+      const verified = await this.verifyBackup(zipName, zipSize, settings);
       if (!verified) {
         await this.loggerService.log(
           `LPR backup verification FAILED for ${zipName} (${records.length} records). Data NOT deleted.`,
@@ -435,9 +487,9 @@ export class BackupRestoreService {
    * Keeps the configured number of recent entries, archives anything older.
    * Returns the number of records archived.
    */
-  private async archiveLoggerBatch(): Promise<number> {
-    const keepCount = this.configNum('LOGGER_BACKUP_KEEP_COUNT', 100000);
-    const batchSize = this.configNum('LOGGER_BACKUP_BATCH_SIZE', 50000);
+  private async archiveLoggerBatch(settings: any): Promise<number> {
+    const keepCount = settings.logger_backup_keep_count;
+    const batchSize = settings.logger_backup_batch_size;
 
     try {
       // find the ID of the Nth most recent record (the cutoff)
@@ -509,10 +561,10 @@ export class BackupRestoreService {
       const zipSize = fs.statSync(zipPath).size;
 
       // upload
-      await this.uploadToBackup(zipPath, zipName);
+      await this.uploadToBackup(zipPath, zipName, settings);
 
       // verify
-      const verified = await this.verifyBackup(zipName, zipSize);
+      const verified = await this.verifyBackup(zipName, zipSize, settings);
       if (!verified) {
         await this.loggerService.log(
           `Logger backup verification FAILED for ${zipName} (${toArchive.length} records). Data NOT deleted.`,
@@ -558,48 +610,44 @@ export class BackupRestoreService {
   /**
    * Upload a file to the configured backup destination.
    */
-  private async uploadToBackup(localPath: string, remoteName: string): Promise<string> {
-    const backupType = this.config('ROTATION_BACKUP_TYPE', 'local');
+  private async uploadToBackup(localPath: string, remoteName: string, settings: any): Promise<string> {
+    const backupType = settings.rotation_backup_type;
 
     if (backupType === 's3') {
-      return this.uploadToS3(localPath, remoteName);
+      return this.uploadToS3(localPath, remoteName, settings);
     } else {
-      // default: local
-      return this.uploadToLocal(localPath, remoteName);
+      return this.uploadToLocal(localPath, remoteName, settings);
     }
   }
 
   /**
-   * Upload to S3-compatible storage using the existing MinIO client or a separate S3 endpoint.
+   * Upload to S3-compatible storage.
    */
-  private async uploadToS3(localPath: string, remoteName: string): Promise<string> {
-    const endpoint = this.config('ROTATION_BACKUP_S3_ENDPOINT', '');
-    const bucket = this.config('ROTATION_BACKUP_S3_BUCKET', '');
-    const accessKey = this.config('ROTATION_BACKUP_S3_ACCESS_KEY', '');
-    const secretKey = this.config('ROTATION_BACKUP_S3_SECRET_KEY', '');
-    const region = this.config('ROTATION_BACKUP_S3_REGION', 'us-east-1');
-    const useSSL = this.config('ROTATION_BACKUP_S3_USE_SSL', 'true') === 'true';
+  private async uploadToS3(localPath: string, remoteName: string, settings: any): Promise<string> {
+    const endpoint = settings.rotation_backup_s3_endpoint;
+    const bucket = settings.rotation_backup_s3_bucket;
+    const accessKey = settings.rotation_backup_s3_access_key;
+    const secretKey = settings.rotation_backup_s3_secret_key;
 
     if (!endpoint || !bucket || !accessKey || !secretKey) {
       throw new Error('S3 backup destination not fully configured');
     }
 
-    // use dynamic import to avoid requiring the minio package if not using S3
     const MinIO = require('minio');
     const url = new URL(endpoint);
+    const useSSL = url.protocol === 'https:';
     const client = new MinIO.Client({
       endPoint: url.hostname,
       port: parseInt(url.port) || (useSSL ? 443 : 9000),
       useSSL: useSSL,
       accessKey: accessKey,
       secretKey: secretKey,
-      region: region,
     });
 
     // ensure bucket exists
     const bucketExists = await client.bucketExists(bucket);
     if (!bucketExists) {
-      await client.makeBucket(bucket, region);
+      await client.makeBucket(bucket, 'us-east-1');
     }
 
     const fileStream = fs.createReadStream(localPath);
@@ -615,8 +663,8 @@ export class BackupRestoreService {
   /**
    * Upload to a local filesystem path (mounted network drive, external disk, etc.).
    */
-  private async uploadToLocal(localPath: string, remoteName: string): Promise<string> {
-    const backupDir = this.config('ROTATION_BACKUP_LOCAL_PATH', '');
+  private async uploadToLocal(localPath: string, remoteName: string, settings: any): Promise<string> {
+    const backupDir = settings.rotation_backup_local_path;
 
     if (!backupDir) {
       throw new Error('ROTATION_BACKUP_LOCAL_PATH not configured');
@@ -633,36 +681,34 @@ export class BackupRestoreService {
   /**
    * Verify that the uploaded backup exists and has the expected size.
    */
-  private async verifyBackup(remoteName: string, expectedSize: number): Promise<boolean> {
-    const backupType = this.config('ROTATION_BACKUP_TYPE', 'local');
+  private async verifyBackup(remoteName: string, expectedSize: number, settings: any): Promise<boolean> {
+    const backupType = settings.rotation_backup_type;
 
     try {
       if (backupType === 's3') {
-        const endpoint = this.config('ROTATION_BACKUP_S3_ENDPOINT', '');
-        const bucket = this.config('ROTATION_BACKUP_S3_BUCKET', '');
-        const accessKey = this.config('ROTATION_BACKUP_S3_ACCESS_KEY', '');
-        const secretKey = this.config('ROTATION_BACKUP_S3_SECRET_KEY', '');
-        const region = this.config('ROTATION_BACKUP_S3_REGION', 'us-east-1');
-        const useSSL = this.config('ROTATION_BACKUP_S3_USE_SSL', 'true') === 'true';
+        const endpoint = settings.rotation_backup_s3_endpoint;
+        const bucket = settings.rotation_backup_s3_bucket;
+        const accessKey = settings.rotation_backup_s3_access_key;
+        const secretKey = settings.rotation_backup_s3_secret_key;
 
         if (!endpoint || !bucket) return false;
 
         const MinIO = require('minio');
         const url = new URL(endpoint);
+        const useSSL = url.protocol === 'https:';
         const client = new MinIO.Client({
           endPoint: url.hostname,
           port: parseInt(url.port) || (useSSL ? 443 : 9000),
           useSSL: useSSL,
           accessKey: accessKey,
           secretKey: secretKey,
-          region: region,
         });
 
         const stat = await client.statObject(bucket, remoteName);
         return stat.size === expectedSize;
       } else {
         // local
-        const backupDir = this.config('ROTATION_BACKUP_LOCAL_PATH', '');
+        const backupDir = settings.rotation_backup_local_path;
         if (!backupDir) return false;
 
         const destPath = path.join(backupDir, remoteName);
