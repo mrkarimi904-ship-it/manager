@@ -1,9 +1,10 @@
-import { Controller, Get, Post, UseGuards, HttpException } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards, HttpException } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { AccountRoles } from 'src/account/account.decorator';
+import { AccountRoles, User } from 'src/account/account.decorator';
 import { AccountGuard } from 'src/account/account.guard';
 import { generalResponse } from 'src/app.consts';
 import { BackupRestoreService } from './backup-restore.service';
+import { RestoreBackupDto } from './backup-restore.dtos';
 
 @ApiBearerAuth()
 @ApiTags('backup-restore')
@@ -42,6 +43,30 @@ export class BackupRestoreController {
       return response;
     } catch (error) {
       throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+    }
+  }
+
+  @Post('restore/lpr')
+  @AccountRoles('license')
+  @UseGuards(AccountGuard)
+  async restoreLpr(@User() user, @Body() body: RestoreBackupDto): Promise<generalResponse> {
+    try {
+      return await this.backupRestoreService.restoreLpr(body.filename, user);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException({ status: false, data: null, error: error, msg: error?.message || 'LPR restore failed' }, 406);
+    }
+  }
+
+  @Post('restore/logger')
+  @AccountRoles('license')
+  @UseGuards(AccountGuard)
+  async restoreLogger(@User() user, @Body() body: RestoreBackupDto): Promise<generalResponse> {
+    try {
+      return await this.backupRestoreService.restoreLogger(body.filename, user);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException({ status: false, data: null, error: error, msg: error?.message || 'Logger restore failed' }, 406);
     }
   }
 }

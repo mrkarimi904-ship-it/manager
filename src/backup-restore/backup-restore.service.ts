@@ -1,18 +1,39 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { DbService } from 'src/db/db.service';
 import { StorageService } from 'src/storage/storage.service';
 import { LoggerService } from 'src/logger/logger.service';
+import { generalResponse } from 'src/app.consts';
 
 import * as fs from 'fs';
 import * as path from 'path';
 import * as archiver from 'archiver';
+import * as AdmZip from 'adm-zip';
 import { promises as fsPromises } from 'fs';
+import { randomUUID } from 'crypto';
 import checkDiskSpace from 'check-disk-space';
+
+const LPR_IMAGE_FILES = [
+  { file: 'plateimage.jpg', field: 'plateimage' },
+  { file: 'vehicleimage.jpg', field: 'vehicleimage' },
+  { file: 'frame.jpg', field: 'frame' },
+  { file: 'generatedplateimage.jpg', field: 'generatedplateimage' },
+] as const;
+
+type RestoreType = 'lpr' | 'logger';
+
+type RestoreResult = {
+  filename: string;
+  restored: number;
+  skipped: number;
+  failed: number;
+  errors: string[];
+};
 
 @Injectable()
 export class BackupRestoreService {
   private isRunning = false;
+  private isRestoring = false;
 
   // in-memory disk space state
   private diskSpaceStatus: {
@@ -78,7 +99,7 @@ export class BackupRestoreService {
 
   @Cron('0 * * * * *')
   async handleCron() {
-    if (this.isRunning) return;
+    if (this.isRunning || this.isRestoring) return;
     this.isRunning = true;
     this.cachedSettings = null; // fresh DB read each tick
 
@@ -141,6 +162,7 @@ export class BackupRestoreService {
 
   @Cron('0 */5 * * * *')
   async handleLoggerBackupCron() {
+    if (this.isRestoring) return;
     try {
       const settings = await this.getSettings();
 
@@ -240,6 +262,333 @@ export class BackupRestoreService {
       ...this.diskSpaceStatus,
       minFreePercent: minFree,
     };
+  }
+
+  // ── restore ──
+
+  async restoreLpr(filename: string, user?: any): Promise<generalResponse> {
+    return this.runRestore('lpr', filename, user);
+  }
+
+  async restoreLogger(filename: string, user?: any): Promise<generalResponse> {
+    return this.runRestore('logger', filename, user);
+  }
+
+  private async runRestore(type: RestoreType, filename: string, user?: any): Promise<generalResponse> {
+    if (this.isRestoring) {
+      throw new HttpException({ status: false, data: null, error: 'Restore in progress', msg: 'Another restore is already running' }, 406);
+    }
+
+    this.isRestoring = true;
+    this.cachedSettings = null;
+
+    const safeFilename = this.validateBackupFilename(filename, type);
+    let tempZipPath: string | null = null;
+    let extractDir: string | null = null;
+    let deleteTempZip = false;
+
+    try {
+      const settings = await this.getSettings();
+      const zipResolution = await this.resolveBackupZipPath(safeFilename, settings);
+      tempZipPath = zipResolution.zipPath;
+      deleteTempZip = zipResolution.deleteAfterUse;
+
+      extractDir = await this.extractBackupZip(tempZipPath);
+
+      const result = type === 'lpr'
+        ? await this.restoreLprFromExtractDir(extractDir)
+        : await this.restoreLoggerFromExtractDir(extractDir);
+
+      result.filename = safeFilename;
+
+      await this.loggerService.log(
+        `${type.toUpperCase()} restore completed: ${result.restored} restored, ${result.skipped} skipped, ${result.failed} failed (${safeFilename})`,
+        result.failed > 0 ? 1 : 0,
+        user,
+      );
+
+      return { status: true, data: result, error: null, msg: null };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException({
+        status: false,
+        data: null,
+        error: error,
+        msg: error?.message || 'Restore failed',
+      }, 406);
+    } finally {
+      if (extractDir) await this.cleanupTempDir(extractDir);
+      if (tempZipPath && deleteTempZip) await this.cleanupTempFile(tempZipPath);
+      this.isRestoring = false;
+    }
+  }
+
+  private validateBackupFilename(filename: string, type: RestoreType): string {
+    const base = path.basename(filename);
+    if (base !== filename || base.includes('..')) {
+      throw new HttpException({ status: false, data: null, error: 'Invalid filename', msg: 'Invalid backup filename' }, 406);
+    }
+    const pattern = type === 'lpr' ? /^lpr_backup_.+\.zip$/ : /^logger_backup_.+\.zip$/;
+    if (!pattern.test(base)) {
+      throw new HttpException({ status: false, data: null, error: 'Invalid filename', msg: `Filename must match ${type} backup pattern` }, 406);
+    }
+    return base;
+  }
+
+  private getExportRoot(): string {
+    return path.join(__dirname, '..', '..', 'exports');
+  }
+
+  private createBackupS3Client(settings: any) {
+    const endpoint = settings.rotation_backup_s3_endpoint;
+    const accessKey = settings.rotation_backup_s3_access_key;
+    const secretKey = settings.rotation_backup_s3_secret_key;
+
+    if (!endpoint || !accessKey || !secretKey) {
+      throw new HttpException({ status: false, data: null, error: 'S3 not configured', msg: 'S3 backup destination not fully configured' }, 406);
+    }
+
+    const MinIO = require('minio');
+    const url = new URL(endpoint);
+    const useSSL = url.protocol === 'https:';
+    return new MinIO.Client({
+      endPoint: url.hostname,
+      port: parseInt(url.port) || (useSSL ? 443 : 9000),
+      useSSL,
+      accessKey,
+      secretKey,
+    });
+  }
+
+  private async resolveBackupZipPath(filename: string, settings: any): Promise<{ zipPath: string; deleteAfterUse: boolean }> {
+    if (settings.rotation_backup_type === 's3') {
+      const bucket = settings.rotation_backup_s3_bucket;
+      if (!bucket) {
+        throw new HttpException({ status: false, data: null, error: 'S3 bucket missing', msg: 'S3 backup bucket not configured' }, 406);
+      }
+
+      const exportRoot = this.getExportRoot();
+      await fsPromises.mkdir(exportRoot, { recursive: true });
+      const tempZipPath = path.join(exportRoot, `restore_download_${randomUUID()}.zip`);
+
+      const client = this.createBackupS3Client(settings);
+      try {
+        await client.statObject(bucket, filename);
+      } catch {
+        throw new HttpException({ status: false, data: null, error: 'Backup not found', msg: `Backup file not found: ${filename}` }, 406);
+      }
+
+      await client.fGetObject(bucket, filename, tempZipPath);
+      return { zipPath: tempZipPath, deleteAfterUse: true };
+    }
+
+    const backupDir = settings.rotation_backup_local_path;
+    if (!backupDir) {
+      throw new HttpException({ status: false, data: null, error: 'Local path missing', msg: 'Local backup path not configured' }, 406);
+    }
+
+    const zipPath = path.join(backupDir, filename);
+    if (!fs.existsSync(zipPath)) {
+      throw new HttpException({ status: false, data: null, error: 'Backup not found', msg: `Backup file not found: ${zipPath}` }, 406);
+    }
+
+    return { zipPath, deleteAfterUse: false };
+  }
+
+  private async extractBackupZip(zipPath: string): Promise<string> {
+    const exportRoot = this.getExportRoot();
+    await fsPromises.mkdir(exportRoot, { recursive: true });
+    const extractDir = path.join(exportRoot, `restore_${randomUUID()}`);
+
+    const zip = new AdmZip(zipPath);
+    zip.extractAllTo(extractDir, true);
+
+    return extractDir;
+  }
+
+  private async readJsonFile<T>(filePath: string): Promise<T> {
+    const raw = await fsPromises.readFile(filePath, 'utf8');
+    return JSON.parse(raw) as T;
+  }
+
+  private async restoreLprFromExtractDir(extractDir: string): Promise<RestoreResult> {
+    const recordsPath = path.join(extractDir, 'records.json');
+    if (!fs.existsSync(recordsPath)) {
+      throw new HttpException({ status: false, data: null, error: 'Invalid backup', msg: 'records.json not found in backup archive' }, 406);
+    }
+
+    const records = await this.readJsonFile<any[]>(recordsPath);
+    if (!Array.isArray(records)) {
+      throw new HttpException({ status: false, data: null, error: 'Invalid backup', msg: 'records.json must be an array' }, 406);
+    }
+
+    records.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    const result: RestoreResult = { filename: '', restored: 0, skipped: 0, failed: 0, errors: [] };
+
+    for (const record of records) {
+      try {
+        const existing = await this.db.lpr_result.findUnique({ where: { id: record.id }, select: { id: true } });
+        if (existing) {
+          result.skipped++;
+          continue;
+        }
+
+        const cameraIds: string[] = Array.isArray(record.camera_ids) ? record.camera_ids : [];
+        const existingCameras = cameraIds.length
+          ? await this.db.camera.findMany({ where: { id: { in: cameraIds } }, select: { id: true } })
+          : [];
+        const connectCameras = existingCameras.map((c) => ({ id: c.id }));
+
+        const {
+          id,
+          camera_ids,
+          lpr_result_image,
+          camera,
+          ...scalarFields
+        } = record;
+
+        const images = await this.readLprImagesFromExtract(extractDir, id);
+
+        await this.db.$transaction(async (tx) => {
+          await tx.lpr_result.create({
+            data: {
+              ...scalarFields,
+              id,
+              created_at: new Date(record.created_at),
+              ...(connectCameras.length ? { camera: { connect: connectCameras } } : {}),
+            },
+          });
+
+          if (Object.keys(images).length > 0) {
+            if (this.storageService.isMinIOEnabled()) {
+              try {
+                await this.storageService.uploadLprImages(id, images);
+              } catch {
+                await tx.lpr_result_image.create({
+                  data: {
+                    plateimage: images.plateimage || '',
+                    vehicleimage: images.vehicleimage || '',
+                    frame: images.frame || '',
+                    generatedplateimage: images.generatedplateimage || '',
+                    lpr_result: { connect: { id } },
+                  },
+                });
+              }
+            } else {
+              await tx.lpr_result_image.create({
+                data: {
+                  plateimage: images.plateimage || '',
+                  vehicleimage: images.vehicleimage || '',
+                  frame: images.frame || '',
+                  generatedplateimage: images.generatedplateimage || '',
+                  lpr_result: { connect: { id } },
+                },
+              });
+            }
+          }
+        });
+
+        result.restored++;
+      } catch (error) {
+        result.failed++;
+        if (result.errors.length < 20) {
+          result.errors.push(`${record.id}: ${error?.message || error}`);
+        }
+      }
+    }
+
+    return result;
+  }
+
+  private async readLprImagesFromExtract(extractDir: string, recordId: string): Promise<Record<string, string>> {
+    const images: Record<string, string> = {};
+    const imageDir = path.join(extractDir, 'images', recordId);
+
+    for (const { file, field } of LPR_IMAGE_FILES) {
+      const filePath = path.join(imageDir, file);
+      if (!fs.existsSync(filePath)) continue;
+      const buffer = await fsPromises.readFile(filePath);
+      if (buffer.length > 0) {
+        images[field] = buffer.toString('base64');
+      }
+    }
+
+    return images;
+  }
+
+  private async restoreLoggerFromExtractDir(extractDir: string): Promise<RestoreResult> {
+    const logsPath = path.join(extractDir, 'logs.json');
+    if (!fs.existsSync(logsPath)) {
+      throw new HttpException({ status: false, data: null, error: 'Invalid backup', msg: 'logs.json not found in backup archive' }, 406);
+    }
+
+    const logs = await this.readJsonFile<any[]>(logsPath);
+    if (!Array.isArray(logs)) {
+      throw new HttpException({ status: false, data: null, error: 'Invalid backup', msg: 'logs.json must be an array' }, 406);
+    }
+
+    const result: RestoreResult = { filename: '', restored: 0, skipped: 0, failed: 0, errors: [] };
+    const batchSize = 500;
+
+    for (let i = 0; i < logs.length; i += batchSize) {
+      const batch = logs.slice(i, i + batchSize);
+      const ids = batch.map((log) => log.id);
+      const existing = await this.db.logger_logs.findMany({
+        where: { id: { in: ids } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existing.map((row) => row.id));
+
+      const toCreate = batch.filter((log) => !existingIds.has(log.id));
+      result.skipped += batch.length - toCreate.length;
+
+      if (toCreate.length === 0) continue;
+
+      try {
+        await this.db.logger_logs.createMany({
+          data: toCreate.map((log) => ({
+            id: log.id,
+            log: log.log,
+            level: log.level,
+            by: log.by,
+            user: log.user,
+            user_group: log.user_group,
+            camera: log.camera,
+            camera_group: log.camera_group,
+            created_at: new Date(log.created_at),
+          })),
+          skipDuplicates: true,
+        });
+        result.restored += toCreate.length;
+      } catch (error) {
+        for (const log of toCreate) {
+          try {
+            await this.db.logger_logs.create({
+              data: {
+                id: log.id,
+                log: log.log,
+                level: log.level,
+                by: log.by,
+                user: log.user,
+                user_group: log.user_group,
+                camera: log.camera,
+                camera_group: log.camera_group,
+                created_at: new Date(log.created_at),
+              },
+            });
+            result.restored++;
+          } catch (rowError) {
+            result.failed++;
+            if (result.errors.length < 20) {
+              result.errors.push(`${log.id}: ${rowError?.message || rowError}`);
+            }
+          }
+        }
+      }
+    }
+
+    return result;
   }
 
   // ── LPR backup ──
@@ -787,6 +1136,14 @@ export class BackupRestoreService {
       await fsPromises.unlink(filePath);
     } catch {
       // ignore — temp file will be cleaned up eventually
+    }
+  }
+
+  private async cleanupTempDir(dirPath: string): Promise<void> {
+    try {
+      await fsPromises.rm(dirPath, { recursive: true, force: true });
+    } catch {
+      // ignore
     }
   }
 }
