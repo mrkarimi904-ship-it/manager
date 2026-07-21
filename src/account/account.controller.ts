@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Post, Put, Query, Req, Response, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Ip, Param, ParseUUIDPipe, Post, Put, Query, Req, Response, UseGuards } from '@nestjs/common';
 
 import { AccountService } from './account.service';
 
@@ -128,8 +128,8 @@ export class AccountController {
   }
 
   @Post('/access/login')
-  async signIn(@Headers() req, @Body() body: singInDto): Promise<generalResponse> {
-    return await this.accountService.signIn(req, body)
+  async signIn(@Headers() req, @Body() body: singInDto, @Ip() userIp): Promise<generalResponse> {
+    return await this.accountService.signIn(req, body, userIp)
   }
 
   @Post('/access/reset')

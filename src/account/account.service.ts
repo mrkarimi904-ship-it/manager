@@ -313,7 +313,7 @@ export class AccountService {
     }
   }
 
-  async signIn(req: any, body: singInDto): Promise<generalResponse> {
+  async signIn(req: any, body: singInDto, userIp: string): Promise<generalResponse> {
     try {
       body.username = body.username.toLowerCase()
       // check if user email is valid
@@ -339,7 +339,7 @@ export class AccountService {
       const login_scheduler = login_scheduler_result.status === true && login_scheduler_result.data['valid'] === true
       if (!login_scheduler) { throw { message: 'Invalid scheduler time' } }
       // check ip / mac
-      const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : body.ip ? body.ip : '-'
+      const ip = userIp ? userIp.replace('::ffff:', '') : req['x-forwarded-for'] ? req['x-forwarded-for'] : body.ip ? body.ip : '-'
       const mac = body.mac ? body.mac : '-'
       const ip_mac_scheduler_result = await this.scheduler.verify_ip_mac(user_id, ip, mac)
       const ip_mac_scheduler = ip_mac_scheduler_result.status === true && ip_mac_scheduler_result.data['valid'] === true
