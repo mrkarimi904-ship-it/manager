@@ -380,15 +380,19 @@ export class CameraService {
         const is_restart_required_live = streamServices.find(x => x.type === 'live')?.status;
         const is_restart_required_record = streamServices.find(x => x.type === 'record')?.status;
 
-        if (is_restart_required_live) {
-          await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
-          await new Promise(r => setTimeout(r, 1000));
-          await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
-        }
-        if (is_restart_required_record) {
-          await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
-          await new Promise(r => setTimeout(r, 1000));
-          await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
+        try {
+          if (is_restart_required_live) {
+            await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
+            await new Promise(r => setTimeout(r, 1000));
+            await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
+          }
+          if (is_restart_required_record) {
+            await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
+            await new Promise(r => setTimeout(r, 1000));
+            await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
+          }
+        } catch (streamError) {
+          this.loggerService.log(`Could not restart streams after camera edit — stream worker may be down`, 1, user, undefined, undefined, id, undefined);
         }
 
         // 2. Recorder services
@@ -419,15 +423,19 @@ export class CameraService {
         const temp2 = await this.db.camera_service_camera.findMany({ where: { camera: { some: { id: id } } } });
         const is_restart_required_live = temp2.find(x => x.type === 'live')?.status;
         const is_restart_required_record = temp2.find(x => x.type === 'record')?.status;
-        if (is_restart_required_live) {
-          await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
-          await new Promise(r => setTimeout(r, 1000));
-          await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
-        }
-        if (is_restart_required_record) {
-          await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
-          await new Promise(r => setTimeout(r, 1000));
-          await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
+        try {
+          if (is_restart_required_live) {
+            await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
+            await new Promise(r => setTimeout(r, 1000));
+            await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' });
+          }
+          if (is_restart_required_record) {
+            await this.streamService.force_stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
+            await new Promise(r => setTimeout(r, 1000));
+            await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' });
+          }
+        } catch (streamError) {
+          this.loggerService.log(`Could not restart streams after camera edit — stream worker may be down`, 1, user, undefined, undefined, id, undefined);
         }
       }
 
@@ -486,10 +494,14 @@ export class CameraService {
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_high' }, data: { value: body.profile_high } }),
             this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_record_rtsp' }, data: { value: high[0] } }),
           ])
-          if (is_restart_required_live || is_restart_required_record) {
-            // start stream
-            await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
-            await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
+          try {
+            if (is_restart_required_live || is_restart_required_record) {
+              // start stream
+              await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
+              await this.streamService.start({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
+            }
+          } catch (streamError) {
+            this.loggerService.log(`Could not restart streams after profile edit — stream worker may be down`, 1, user, undefined, undefined, id, undefined);
           }
           // reset cache
           const cacheKey = `camera_info_${id}`;

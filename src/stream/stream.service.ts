@@ -68,13 +68,21 @@ export class StreamService {
       const cameraServiceUrl = cameraService.url;
       const cameraServicePort = cameraService.port;
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service`
-      const results = await this.axios.axiosRef.get(uurl)
-      const workerItems = Array.isArray(results.data?.data) ? results.data.data : [];
-      const matching = workerItems.filter((item) =>
-        workerListItemMatchesDbRow(item as Record<string, unknown>, body.cameraId, cameraServiceInfo.kafka_topic),
-      );
-      const streamOnService = matching.length > 0 && isActiveStreamAssignment(cameraServiceInfo)
-      const subscribers = matching[0]?.subscribers ?? 0
+
+      let streamOnService = false;
+      let subscribers = 0;
+      try {
+        const results = await this.axios.axiosRef.get(uurl)
+        const workerItems = Array.isArray(results.data?.data) ? results.data.data : [];
+        const matching = workerItems.filter((item) =>
+          workerListItemMatchesDbRow(item as Record<string, unknown>, body.cameraId, cameraServiceInfo.kafka_topic),
+        );
+        streamOnService = matching.length > 0 && isActiveStreamAssignment(cameraServiceInfo)
+        subscribers = matching[0]?.subscribers ?? 0
+      } catch (workerError) {
+        this.loggerService.log(`Camera service worker unreachable during status: ${cameraServiceUrl}:${cameraServicePort}`, 1, undefined, undefined, undefined, body.cameraId, undefined);
+      }
+
       const response: generalResponse = {
         status: true,
         data: {
@@ -243,7 +251,11 @@ export class StreamService {
       const completeRTSP = cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", function() { return `rtsp://${cameraUsername}:${cameraPassword}@` })
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service/remove`
 
-      await this.axios.axiosRef.post(uurl, { url: completeRTSP, id: body.cameraId })
+      try {
+        await this.axios.axiosRef.post(uurl, { url: completeRTSP, id: body.cameraId })
+      } catch (workerError) {
+        this.loggerService.log(`Camera service worker unreachable during stop: ${cameraServiceUrl}:${cameraServicePort}`, 1, undefined, undefined, undefined, body.cameraId, undefined);
+      }
 
       this.loggerService.log(`Stream ${body.type} stopped`, 0, user, undefined, undefined, body.cameraId, undefined)
 
@@ -273,7 +285,11 @@ export class StreamService {
       const completeRTSP = cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", function() { return `rtsp://${cameraUsername}:${cameraPassword}@` })
 
       const uurl = `http://${cameraServiceUrl}:${cameraServicePort}/camera_service/remove`
-      await this.axios.axiosRef.post(uurl, { url: completeRTSP, id: body.cameraId })
+      try {
+        await this.axios.axiosRef.post(uurl, { url: completeRTSP, id: body.cameraId })
+      } catch (workerError) {
+        this.loggerService.log(`Camera service worker unreachable during force_stop: ${cameraServiceUrl}:${cameraServicePort}`, 1, undefined, undefined, undefined, body.cameraId, undefined);
+      }
 
       this.loggerService.log(`Stream ${body.type} force stopped`, 0, undefined, undefined, undefined, body.cameraId, undefined)
 
