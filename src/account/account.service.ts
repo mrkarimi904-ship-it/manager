@@ -182,7 +182,7 @@ export class AccountService {
     }
   }
 
-  async createServiceToken(user: any, id: string, req: any): Promise<generalResponse> {
+  async createServiceToken(user: any, id: string, req: any, userIp: string): Promise<generalResponse> {
     try {
       if (await this.licenseService.is_not_expired() === false) { throw { message: 'License error' } }
       let account = await this.db.user_accounts.findFirst({ where: { id: id, isActive: true } })
@@ -191,7 +191,7 @@ export class AccountService {
         account = await this.db.user_accounts.update({ where: { id: account.id }, data: { expired: true } })
       }
       if (account.expired === true) { throw { message: 'expired' } }
-      const ip = req?.headers?.['x-forwarded-for'] ? req.headers['x-forwarded-for'] : '-'
+      const ip = userIp ? userIp.replace('::ffff:', '') : req['x-forwarded-for'] ? req['x-forwarded-for'] : '-'
       const mac = '-'
       account.password = null;
       account.totp_secret = null;
@@ -408,7 +408,7 @@ export class AccountService {
     }
   }
 
-  async changePass(req: any, body: PasswordDto): Promise<generalResponse> {
+  async changePass(req: any, body: PasswordDto, userIp: string): Promise<generalResponse> {
     try {
       body.username = body.username.toLowerCase()
       // check if user email is valid
@@ -434,7 +434,7 @@ export class AccountService {
       const login_scheduler = login_scheduler_result.status === true && login_scheduler_result.data['valid'] === true
       if (!login_scheduler) { throw { message: 'Invalid scheduler time' } }
       // check ip / mac
-      const ip = req['x-forwarded-for'] ? req['x-forwarded-for'] : body.ip ? body.ip : '-'
+      const ip = userIp ? userIp.replace('::ffff:', '') : req['x-forwarded-for'] ? req['x-forwarded-for'] : body.ip ? body.ip : '-'
       const mac = body.mac ? body.mac : '-'
       const ip_mac_scheduler_result = await this.scheduler.verify_ip_mac(user_id, ip, mac)
       const ip_mac_scheduler = ip_mac_scheduler_result.status === true && ip_mac_scheduler_result.data['valid'] === true

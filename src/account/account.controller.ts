@@ -60,8 +60,8 @@ export class AccountController {
   @Post(':id/service_tokens')
   @AccountRoles('account_service_token')
   @UseGuards(AccountGuard)
-  async createServiceToken(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Req() req): Promise<generalResponse> {
-    return await this.accountService.createServiceToken(user, id, req);
+  async createServiceToken(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Req() req, @Ip() userIp): Promise<generalResponse> {
+    return await this.accountService.createServiceToken(user, id, req, userIp);
   }
 
   @Delete(':id/service_tokens/:token_id')
@@ -133,8 +133,8 @@ export class AccountController {
   }
 
   @Post('/access/reset')
-  async changePass(@Headers() req, @Body() body: PasswordDto): Promise<generalResponse> {
-    return await this.accountService.changePass(req, body)
+  async changePass(@Headers() req, @Body() body: PasswordDto, @Ip() userIp): Promise<generalResponse> {
+    return await this.accountService.changePass(req, body, userIp)
   }
 
   @Post('/access/logout')
