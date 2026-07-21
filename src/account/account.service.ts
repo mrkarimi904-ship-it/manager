@@ -383,7 +383,7 @@ export class AccountService {
       // reset cache
       await this.cacheManager.del(`user_token_${user_id}`)
       // send notif
-      this.loggerService.log('user sign in', 0, account)
+      this.loggerService.log(`user sign in from ${ip}/${mac}`, 0, account)
       // response
       const claims = (await this.getAccountRoles(user_id))
       const response: generalResponse = { status: true, data: { token: token, id: user_id, claims: claims.data }, error: null, msg: null };
