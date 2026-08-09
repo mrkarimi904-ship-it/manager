@@ -131,7 +131,7 @@ export class LprServiceService {
     }
   }
 
-  @Cron('0 */2 * * * *')
+  @Cron('*/2 * * * *')
   async handleCron() {
     if (process.env.NODE_ENV) { return true }
     try {

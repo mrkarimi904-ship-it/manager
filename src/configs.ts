@@ -15,4 +15,4 @@ const lpr = {
   swaggerServers: ['/', '/manager/', '/test_manager/'],
 };
 
-export default vms;
+export default lpr;

@@ -110,7 +110,7 @@ export class CameraRecorderService implements OnModuleInit {
     }
   }
 
-  @Cron('30 */5 * * * *')
+  @Cron('30 */2 * * * *')
   async handleCron() {
     if (process.env.NODE_ENV) { return true }
     try {

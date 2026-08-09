@@ -210,7 +210,7 @@ export class CameraServiceService {
     ]);
   }
 
-  @Cron('0 */5 * * * *')
+  @Cron('*/2 * * * *')
   async handleCron() {
     if (process.env.NODE_ENV) { return true }
     try {

@@ -160,7 +160,7 @@ export class BackupRestoreService {
 
   // ── logger backup cron (every 5 min, independent of disk space) ──
 
-  @Cron('0 */5 * * * *')
+  @Cron('20 */5 * * * *')
   async handleLoggerBackupCron() {
     if (this.isRestoring) return;
     try {

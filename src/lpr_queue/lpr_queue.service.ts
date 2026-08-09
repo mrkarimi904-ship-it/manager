@@ -75,7 +75,7 @@ export class LprQueueService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  @Cron('0 * * * * *')
+  @Cron('*/2 * * * *')
   async ensureRedisConnection() {
     if (process.env.NODE_ENV) { return; }
     if (!process.env.REDIS_URL) { return; }

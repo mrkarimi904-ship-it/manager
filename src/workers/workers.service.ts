@@ -82,7 +82,7 @@ export class WorkersService implements OnModuleInit {
     };
   }
 
-  @Cron('0/30 * * * * *')
+  @Cron('*/1 * * * *')
   async refreshIncidents() {
     if (this.incidentsRefreshing) return;
     this.incidentsRefreshing = true;

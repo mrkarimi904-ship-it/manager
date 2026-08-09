@@ -684,7 +684,7 @@ export class AccountService {
   }
 
   // Cleanup expired tokens every 5 minutes (instead of on every request)
-  @Cron('*/5 * * * *')
+  @Cron('10 * * * * *')
   async cleanupExpiredTokens() {
     try {
       const deleted = await this.db.user_tokens.deleteMany({

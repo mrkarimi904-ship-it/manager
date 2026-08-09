@@ -68,7 +68,7 @@ export class LoggerGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return data;
   }
 
-  @Cron('0 * * * * *')
+  @Cron('*/15 * * * * *')
   async handleCron() {
     await Promise.all(this.clients.map(async (client) => {
       const token = client.handshake?.headers?.authorization?.toString()
