@@ -350,17 +350,25 @@ export class AccountService {
       }
       if (account.expired === true) { throw { message: 'expired' } }
       // prepare service
-      const service = body.service === 'Configtool'? 'Configtool' : body.service === 'Client' ? 'Client' : 'Other'
+      const service = body.service === 'Configtool' ? 'Configtool' : body.service === 'Client_vms' ? 'Client_vms' : body.service === 'Client_lpr' ? 'Client_lpr' : body.service === 'Swagger' ? 'Swagger' : null
+      if (!service) { throw { message: 'Invalid service type' } }
+      // check role claims for Client_vms and Client_lpr (standard users only)
+      if ((service === 'Client_vms' || service === 'Client_lpr') && account.isSuperAdmin !== true) {
+        const requiredRole = service === 'Client_vms' ? 'client_vms_login' : 'client_lpr_login'
+        const hasRole = await this.db.user_roles.findFirst({ where: { name: requiredRole, user_accounts: { some: { id: user_id } } } })
+        const hasGroupRole = await this.db.user_groups.findFirst({ where: { user_accounts: { some: { id: user_id } }, user_roles: { some: { name: requiredRole } } } })
+        if (!hasRole && !hasGroupRole) { throw { message: `Missing required role: ${requiredRole}` } }
+      }
       // prepare token
       account.password = null;
       account.totp_secret = null;
       account.totp_url = null;
       let expiresIn = 0
-      if (service === 'Configtool' && account.isSuperAdmin === true)  { expiresIn = 8 * 60 * 60 }
-      if (service === 'Configtool' && account.isSuperAdmin === false)  { expiresIn = 1 * 60 * 60 }
-      if (service === 'Client' && account.isSuperAdmin === true)  { expiresIn = 24 * 60 * 60 * 365 }
-      if (service === 'Client' && account.isSuperAdmin === false)  { expiresIn = 24 * 60 * 60 }
-      if (service === 'Other')  { expiresIn = 10 * 60 }
+      if (service === 'Configtool' && account.isSuperAdmin === true)  { expiresIn = 24 * 60 * 60 }
+      if (service === 'Configtool' && account.isSuperAdmin === false)  { expiresIn = 2 * 60 * 60 }
+      if (service === 'Client_vms')  { expiresIn = 24 * 60 * 60 * 365 }
+      if (service === 'Client_lpr')  { expiresIn = 24 * 60 * 60 * 365 }
+      if (service === 'Swagger')  { expiresIn = 1 * 60 * 60 }
       // prepare for concurrent logins
       if (account.concurrent > 0)
       {
@@ -377,7 +385,7 @@ export class AccountService {
       // save token to db
       const token = jwt.sign(account, jwt_secret, { expiresIn: expiresIn });
       await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })
-      if (service.toLowerCase() === 'client') {
+      if (['Client_vms', 'Client_lpr'].includes(service)) {
         await this.db.user_accounts.update({ where: { id: account.id }, data: { online_at: new Date() } })
       }
       // reset cache
@@ -451,17 +459,18 @@ export class AccountService {
         account = await this.db.user_accounts.update({ where: { id : account.id}, data: { expire_at: new_expire_date } })
       }
       // prepare service
-      const service = body.service === 'Configtool'? 'Configtool' : body.service === 'Client' ? 'Client' : 'Other'
+      const service = body.service === 'Configtool' ? 'Configtool' : body.service === 'Client_vms' ? 'Client_vms' : body.service === 'Client_lpr' ? 'Client_lpr' : body.service === 'Swagger' ? 'Swagger' : null
+      if (!service) { throw { message: 'Invalid service type' } }
       // prepare token
       account.password = null;
       account.totp_secret = null;
       account.totp_url = null;
       let expiresIn = 0
-      if (service === 'Configtool' && account.isSuperAdmin === true)  { expiresIn = 8 * 60 * 60 }
-      if (service === 'Configtool' && account.isSuperAdmin === false)  { expiresIn = 1 * 60 * 60 }
-      if (service === 'Client' && account.isSuperAdmin === true)  { expiresIn = 24 * 60 * 60 * 365 }
-      if (service === 'Client' && account.isSuperAdmin === false)  { expiresIn = 24 * 60 * 60 }
-      if (service === 'Other')  { expiresIn = 10 * 60 }
+      if (service === 'Configtool' && account.isSuperAdmin === true)  { expiresIn = 24 * 60 * 60 }
+      if (service === 'Configtool' && account.isSuperAdmin === false)  { expiresIn = 2 * 60 * 60 }
+      if (service === 'Client_vms')  { expiresIn = 24 * 60 * 60 * 365 }
+      if (service === 'Client_lpr')  { expiresIn = 24 * 60 * 60 * 365 }
+      if (service === 'Swagger')  { expiresIn = 1 * 60 * 60 }
       const token = jwt.sign(account, jwt_secret, { expiresIn: expiresIn });
       // save token to db
       await this.db.user_tokens.create({ data: { token: token, expiration: new Date(Date.now() + expiresIn * 1000), service: service, ip: ip, mac: mac, user_accounts: { connect: { id: account.id } } } })

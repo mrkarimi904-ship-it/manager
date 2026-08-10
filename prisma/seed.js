@@ -50,6 +50,8 @@ const userRolesData = [
   { id: '423b4eb7-42cd-4e08-af58-1733619f5f87', name: 'client_whitelist_show', description: 'Client : show whitelist', default: true },
   { id: 'b707a824-2a3b-4dbd-85f5-5034c3d99f6e', name: 'client_manage_view', description: 'Client : Manage Views', default: true },
   { id: '32f70e39-b1c1-431a-a0ef-1c5b452096a6', name: 'client_manage_layout', description: 'Client : Manage Layouts', default: true },
+  { id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', name: 'client_vms_login', description: 'Client : VMS login', default: false },
+  { id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901', name: 'client_lpr_login', description: 'Client : LPR login', default: false },
 ]
 
 const userAccountsData = [

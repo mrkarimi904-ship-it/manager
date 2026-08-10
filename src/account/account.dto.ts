@@ -60,10 +60,10 @@ export class singInDto {
   @MinLength(4)
   password: string;
 
-  @ApiProperty()
+  @ApiProperty({ default: 'Swagger' })
   @IsString()
   @IsOptional()
-  service: string;
+  service: string = 'Swagger';
 
   @ApiProperty()
   @IsString()
@@ -155,10 +155,10 @@ export class PasswordDto {
   @MinLength(4)
   new_password: string;
 
-  @ApiProperty()
+  @ApiProperty({ default: 'Swagger' })
   @IsString()
   @IsOptional()
-  service: string;
+  service: string = 'Swagger';
 
   @ApiProperty()
   @IsString()
