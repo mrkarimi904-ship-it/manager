@@ -109,7 +109,7 @@ export class CameraController {
   @Delete(':id')
   @AccountRoles('camera_delete')
   @UseGuards(AccountGuard)
-  async deleteSingle(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
-    return this.cameraService.deleteSingle(user, id);
+  async deleteSingle(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string, @Query() query: dtos.cameraDeleteQuery): Promise<generalResponse> {
+    return this.cameraService.deleteSingle(user, id, query);
   }
 }

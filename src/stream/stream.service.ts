@@ -39,7 +39,7 @@ export class StreamService {
   async status(user, body: dtos.streamDto): Promise<generalResponse> {
     try {
       // check if camera available
-      const where = { id: body.cameraId, AND: [] }
+      const where: any = { id: body.cameraId, deleted: false, AND: [] }
       if (user && user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },

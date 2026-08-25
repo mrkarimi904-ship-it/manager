@@ -71,7 +71,7 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { throw { message: 'invalid action' }; }
       await runWithConcurrency(data.from, ASSIGN_CONCURRENCY, async (el_from) => {
         await Promise.all(data.to.map(async (el_to) => {
-          const u = await this.db.camera.findFirst({ where: { id: el_to } })
+          const u = await this.db.camera.findFirst({ where: { id: el_to, deleted: false } })
           if (u) {
             if (data.action === 'add') {
               await this.db.user_accounts.update({ where: { id: el_from, isSuperAdmin: false }, data: { camera: { connect: { id: el_to } } } })
@@ -94,7 +94,7 @@ export class AssignService {
   async user_to_camera_all(data: dtos.assignToAllDto, user: any): Promise<generalResponse> {
     try {
       if (data.action !== 'add' && data.action !== 'remove') { throw { message: 'invalid action' }; }
-      const cameras = (await this.db.camera.findMany()).map(x => { return x.id })
+      const cameras = (await this.db.camera.findMany({ where: { deleted: false } })).map(x => { return x.id })
       await runWithConcurrency(data.from, ASSIGN_CONCURRENCY, async (el_from) => {
         const c = await this.db.user_accounts.findFirst({ where: { id: el_from, isSuperAdmin: false } })
           if (c) {
@@ -224,7 +224,7 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { throw { message: 'invalid action' }; }
       await runWithConcurrency(data.from, ASSIGN_CONCURRENCY, async (el_from) => {
         await Promise.all(data.to.map(async (el_to) => {
-          const u = await this.db.camera.findFirst({ where: { id: el_to } })
+          const u = await this.db.camera.findFirst({ where: { id: el_to, deleted: false } })
           if (u) {
             if (data.action === 'add') {
               await this.db.user_groups.update({ where: { id: el_from }, data: { camera: { connect: { id: el_to } } } })
@@ -245,7 +245,7 @@ export class AssignService {
   async usergroup_to_camera_all(data: dtos.assignToAllDto, user: any): Promise<generalResponse> {
     try {
       if (data.action !== 'add' && data.action !== 'remove') { throw { message: 'invalid action' }; }
-      const cameras = (await this.db.camera.findMany()).map(x => { return x.id })
+      const cameras = (await this.db.camera.findMany({ where: { deleted: false } })).map(x => { return x.id })
       await runWithConcurrency(data.from, ASSIGN_CONCURRENCY, async (el_from) => {
         const c = await this.db.user_groups.findFirst({ where: { id: el_from } })
           if (c) {
@@ -323,11 +323,11 @@ export class AssignService {
           const u = await this.db.user_accounts.findFirst({ where: { id: el_to, isSuperAdmin: false } })
           if (u) {
             if (data.action === 'add') {
-              await this.db.camera.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { user_accounts: { connect: { id: el_to } } } })
               await this.cacheManager.del(`user_${el_to}`)
               this.loggerService.log('camera assigned to user', 0, user, el_to, undefined, el_from)
             } else {
-              await this.db.camera.update({ where: { id: el_from }, data: { user_accounts: { disconnect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { user_accounts: { disconnect: { id: el_to } } } })
               await this.cacheManager.del(`user_${el_to}`)
               this.loggerService.log('camera unassigned from user', 0, user, el_to, undefined, el_from)
             }
@@ -345,15 +345,15 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { throw { message: 'invalid action' }; }
       const users = (await this.db.user_accounts.findMany({ where: { isSuperAdmin: false } })).map(x => { return x.id })
       await runWithConcurrency(data.from, ASSIGN_CONCURRENCY, async (el_from) => {
-        const c = await this.db.camera.findFirst({ where: { id: el_from } })
+        const c = await this.db.camera.findFirst({ where: { id: el_from, deleted: false } })
         if (c) {
           await Promise.all(users.map(async (el_to) => {
             if (data.action === 'add') {
-              await this.db.camera.update({ where: { id: el_from }, data: { user_accounts: { connect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { user_accounts: { connect: { id: el_to } } } })
               await this.cacheManager.del(`user_${el_to}`)
               this.loggerService.log('camera assigned to user', 0, user, el_to, undefined, el_from)
             } else {
-              await this.db.camera.update({ where: { id: el_from }, data: { user_accounts: { disconnect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { user_accounts: { disconnect: { id: el_to } } } })
               await this.cacheManager.del(`user_${el_to}`)
               this.loggerService.log('camera unassigned from user', 0, user, el_to, undefined, el_from)
             }
@@ -374,10 +374,10 @@ export class AssignService {
           const u = await this.db.user_groups.findFirst({ where: { id: el_to } })
           if (u) {
             if (data.action === 'add') {
-              await this.db.camera.update({ where: { id: el_from }, data: { user_groups: { connect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { user_groups: { connect: { id: el_to } } } })
               this.loggerService.log('camera assigned to user group', 0, user, undefined, el_to, el_from)
             } else {
-              await this.db.camera.update({ where: { id: el_from }, data: { user_groups: { disconnect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { user_groups: { disconnect: { id: el_to } } } })
               this.loggerService.log('camera unassigned from user group', 0, user, undefined, el_to, el_from)
             }
           }
@@ -394,14 +394,14 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { throw { message: 'invalid action' }; }
       const usergroups = (await this.db.user_groups.findMany()).map(x => { return x.id })
       await runWithConcurrency(data.from, ASSIGN_CONCURRENCY, async (el_from) => {
-        const c = await this.db.camera.findFirst({ where: { id: el_from } })
+        const c = await this.db.camera.findFirst({ where: { id: el_from, deleted: false } })
         if (c) {
           await Promise.all(usergroups.map(async (el_to) => {
             if (data.action === 'add') {
-              await this.db.camera.update({ where: { id: el_from }, data: { user_groups: { connect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { user_groups: { connect: { id: el_to } } } })
               this.loggerService.log('camera assigned to user group', 0, user, undefined, el_to, el_from)
             } else {
-              await this.db.camera.update({ where: { id: el_from }, data: { user_groups: { disconnect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { user_groups: { disconnect: { id: el_to } } } })
               this.loggerService.log('camera unassigned from user group', 0, user, undefined, el_to, el_from)
             }
           }));
@@ -421,10 +421,10 @@ export class AssignService {
           const u = await this.db.camera_groups.findFirst({ where: { id: el_to } })
           if (u) {
             if (data.action === 'add') {
-              await this.db.camera.update({ where: { id: el_from }, data: { camera_groups: { connect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { camera_groups: { connect: { id: el_to } } } })
               this.loggerService.log('camera assigned to camera group', 0, user, undefined, undefined, el_from, el_to)
             } else {
-              await this.db.camera.update({ where: { id: el_from }, data: { camera_groups: { disconnect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { camera_groups: { disconnect: { id: el_to } } } })
               this.loggerService.log('camera unassigned from camera group', 0, user, undefined, undefined, el_from, el_to)
             }
           }
@@ -441,14 +441,14 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { throw { message: 'invalid action' }; }
       const cameragroups = (await this.db.camera_groups.findMany()).map(x => { return x.id })
       await runWithConcurrency(data.from, ASSIGN_CONCURRENCY, async (el_from) => {
-        const c = await this.db.camera.findFirst({ where: { id: el_from } })
+        const c = await this.db.camera.findFirst({ where: { id: el_from, deleted: false } })
         if (c) {
           await Promise.all(cameragroups.map(async (el_to) => {
             if (data.action === 'add') {
-              await this.db.camera.update({ where: { id: el_from }, data: { camera_groups: { connect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { camera_groups: { connect: { id: el_to } } } })
               this.loggerService.log('camera assigned to camera group', 0, user, undefined, undefined, el_from, el_to)
             } else {
-              await this.db.camera.update({ where: { id: el_from }, data: { camera_groups: { disconnect: { id: el_to } } } })
+              await this.db.camera.update({ where: { id: el_from, deleted: false }, data: { camera_groups: { disconnect: { id: el_to } } } })
               this.loggerService.log('camera unassigned from camera group', 0, user, undefined, undefined, el_from, el_to)
             }
           }));
@@ -565,7 +565,7 @@ export class AssignService {
       if (data.action !== 'add' && data.action !== 'remove') { throw { message: 'invalid action' }; }
       await runWithConcurrency(data.from, ASSIGN_CONCURRENCY, async (el_from) => {
         await Promise.all(data.to.map(async (el_to) => {
-          const u = await this.db.camera.findFirst({ where: { id: el_to } })
+          const u = await this.db.camera.findFirst({ where: { id: el_to, deleted: false } })
           if (u) {
             if (data.action === 'add') {
               await this.db.camera_groups.update({ where: { id: el_from }, data: { camera: { connect: { id: el_to } } } })
@@ -586,7 +586,7 @@ export class AssignService {
   async cameragroup_to_camera_all(data: dtos.assignToAllDto, user: any): Promise<generalResponse> {
     try {
       if (data.action !== 'add' && data.action !== 'remove') { throw { message: 'invalid action' }; }
-      const camera = (await this.db.camera.findMany()).map(x => { return x.id })
+      const camera = (await this.db.camera.findMany({ where: { deleted: false } })).map(x => { return x.id })
       await runWithConcurrency(data.from, ASSIGN_CONCURRENCY, async (el_from) => {
         const c = await this.db.camera_groups.findFirst({ where: { id: el_from } })
         if (c) {

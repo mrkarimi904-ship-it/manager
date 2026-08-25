@@ -209,6 +209,13 @@ export class cameraSearchQuery {
   lprStatus?: string;
 }
 
+export class cameraDeleteQuery {
+  @ApiProperty({ required: false, default: 'hard', description: 'soft | hard' })
+  @IsOptional()
+  @IsString()
+  mode?: string;
+}
+
 export class nameDto {
   @ApiProperty()
   @IsString()

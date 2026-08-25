@@ -10,7 +10,7 @@ export class BookmarkService {
 
   async get_list(user: any, camera_id: string, query: dtos.bookmarkSearchQuery): Promise<generalResponse> {
     try {
-      const where0 = { id: camera_id, AND: [] }
+      const where0: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where0['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
@@ -49,7 +49,7 @@ export class BookmarkService {
 
   async add_item(user: any, camera_id: string, body: dtos.bookmarkDto): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
@@ -71,7 +71,7 @@ export class BookmarkService {
 
   async get_item(user: any, camera_id: string, bookmark_id: string): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
@@ -92,7 +92,7 @@ export class BookmarkService {
 
   async delete_item(user: any, camera_id: string, bookmark_id: string): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },

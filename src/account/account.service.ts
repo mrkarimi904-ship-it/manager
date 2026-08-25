@@ -357,7 +357,7 @@ export class AccountService {
         const requiredRole = service === 'Client_vms' ? 'client_vms_login' : 'client_lpr_login'
         const hasRole = await this.db.user_roles.findFirst({ where: { name: requiredRole, user_accounts: { some: { id: user_id } } } })
         const hasGroupRole = await this.db.user_groups.findFirst({ where: { user_accounts: { some: { id: user_id } }, user_roles: { some: { name: requiredRole } } } })
-        if (!hasRole && !hasGroupRole) { throw { message: `Missing required role: ${requiredRole}` } }
+        if (!hasRole && !hasGroupRole) { throw { message: `Missing required role` } }
       }
       // prepare token
       account.password = null;

@@ -33,8 +33,9 @@ export class RecorderService {
 
   async get_list(user: any, camera_id: string): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, AND: [] }
       if (user.isSuperAdmin !== true) {
+        where.deleted = false
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
           { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
@@ -54,8 +55,9 @@ export class RecorderService {
 
   async check_storage(user: any, camera_id: string, body: dtos.recorderStorageCheckDto): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] };
+      const where: any = { id: camera_id, AND: [] };
       if (user.isSuperAdmin !== true) {
+        where.deleted = false
         where['AND'].push({
           OR: [
             { user_accounts: { some: { id: { equals: user.id } } } },
@@ -100,7 +102,7 @@ export class RecorderService {
 
   async add_item(user: any, camera_id: string, body: dtos.recorderPostDto): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
@@ -125,8 +127,9 @@ export class RecorderService {
 
   async get_item(user: any, camera_id: string, recorder_id: string): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, AND: [] }
       if (user.isSuperAdmin !== true) {
+        where.deleted = false
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
           { user_groups: { some: { user_accounts: { some: { id: { equals: user.id } } } } } },
@@ -162,7 +165,7 @@ export class RecorderService {
 
   async put_item(user: any, camera_id: string, recorder_id: string, body: dtos.recorderPutDto): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
@@ -192,7 +195,7 @@ export class RecorderService {
 
   async put_schedule(user: any, camera_id: string, recorder_id: string, body: dtos.recorderScheduleDto): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
@@ -229,7 +232,7 @@ export class RecorderService {
 
   async delete_item(user: any, camera_id: string, recorder_id: string): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
@@ -258,7 +261,7 @@ export class RecorderService {
 
   async start_item(user: any, camera_id: string, recorder_id: string, options?: { fromSchedule?: boolean }): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
@@ -331,7 +334,7 @@ export class RecorderService {
 
   async stop_item(user: any, camera_id: string, recorder_id: string, options?: { fromSchedule?: boolean }): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },
@@ -376,7 +379,7 @@ export class RecorderService {
 
   async clear_item(user: any, camera_id: string, recorder_id: string): Promise<generalResponse> {
     try {
-      const where = { id: camera_id, AND: [] }
+      const where: any = { id: camera_id, deleted: false, AND: [] }
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
           { user_accounts: { some: { id: { equals: user.id } } } },

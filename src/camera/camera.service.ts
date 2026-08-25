@@ -248,7 +248,7 @@ export class CameraService {
   async getSnapshot(user, id: string): Promise<generalResponse> {
     try {
       // prepare where
-      const where = { id: id, AND: [] }
+      const where: any = { id: id, deleted: false, AND: [] }
       // check if user is limited
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
@@ -851,10 +851,11 @@ export class CameraService {
     }
   }
 
-  async deleteSingle(user, id: string): Promise<generalResponse> {
+  async deleteSingle(user, id: string, query?: dtos.cameraDeleteQuery): Promise<generalResponse> {
     try {
+      const mode = query?.mode === 'soft' ? 'soft' : 'hard'
       // prepare where
-      const where = { id: id, AND: [] }
+      const where: any = { id: id, AND: [] }
       // check if user is limited
       if (user.isSuperAdmin !== true) {
         where['AND'].push({ OR: [
@@ -865,44 +866,79 @@ export class CameraService {
         ] })
       }
       // get results
-      const camOk: dtos.cameraDto = await this.db.camera.findUnique({ where });
+      const camOk: any = await this.db.camera.findUnique({ where });
       // check resuts
       if (!camOk) { throw { message: 'Camera not found' }; }
-      // stop live
-      await this.streamService.stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
-      // stop high
-      await this.streamService.stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
-      // stop recorder
-      await this.recorderservice.delete_all(user, id)
+      // check for double soft delete
+      if (mode === 'soft' && camOk.deleted === true) { throw { message: 'Camera already deleted' }; }
 
-      // LPR and mismatch reference this camera (FK RESTRICT); stop them then delete in transaction
-      const lprList = await this.db.camera_lpr_camera.findMany({
-        where: { camera: { some: { id } } },
-        select: { id: true, session: true }
-      })
-      for (const lpr of lprList) {
-        try {
-          await this.lprService.stop(superadminUser, id, lpr.id)
-        } catch {
-          // continue so we still remove DB rows
+      let lprSessionIds: string[] = []
+      // stop operational services only for cameras that are not yet soft-deleted
+      if (camOk.deleted !== true) {
+        // stop live
+        await this.streamService.stop({ isSuperAdmin: true }, { cameraId: id, type: 'LOW' })
+        // stop high
+        await this.streamService.stop({ isSuperAdmin: true }, { cameraId: id, type: 'HIGH' })
+        // stop recorder
+        await this.recorderservice.delete_all(user, id)
+
+        // LPR and mismatch reference this camera (FK RESTRICT); stop them then delete in transaction
+        const lprList = await this.db.camera_lpr_camera.findMany({
+          where: { camera: { some: { id } } },
+          select: { id: true, session: true }
+        })
+        for (const lpr of lprList) {
+          try {
+            await this.lprService.stop(superadminUser, id, lpr.id)
+          } catch {
+            // continue so we still remove DB rows
+          }
         }
+
+        const mismatchList = await this.db.mismatch.findMany({
+          where: { OR: [{ camera1_id: id }, { camera2_id: id }] },
+          select: { id: true }
+        })
+        for (const m of mismatchList) {
+          try {
+            await this.mismatchService.stop(superadminUser, m.id)
+          } catch {
+            // continue so we still remove DB rows
+          }
+        }
+
+        lprSessionIds = lprList.map((s) => s.session).filter(Boolean)
       }
 
-      const mismatchList = await this.db.mismatch.findMany({
-        where: { OR: [{ camera1_id: id }, { camera2_id: id }] },
-        select: { id: true }
-      })
-      for (const m of mismatchList) {
-        try {
-          await this.mismatchService.stop(superadminUser, m.id)
-        } catch {
-          // continue so we still remove DB rows
+      if (mode === 'soft') {
+        // soft delete: remove operational links but keep camera row, camera_info, bookmarks and lpr_result history
+        await this.db.$transaction([
+          this.db.camera_service_camera.deleteMany({ where: { camera: { some: { id } } } }),
+          this.db.camera_recorder_camera.deleteMany({ where: { camera: { some: { id } } } }),
+          this.db.mismatch.deleteMany({ where: { OR: [{ camera1_id: id }, { camera2_id: id }] } }),
+          this.db.camera_lpr_camera.deleteMany({ where: { camera: { some: { id } } } }),
+        ])
+        // soft delete camera: free the unique url for re-registration, blank credentials and drop all assignments
+        const temp: dtos.cameraDto = await this.db.camera.update({ where: { id }, data: {
+          deleted: true,
+          url: id,
+          username: '',
+          password: '',
+          user_accounts: { set: [] },
+          user_groups: { set: [] },
+          camera_groups: { set: [] },
+        } });
+        this.loggerService.log('camera soft deleted', 0, user, undefined, undefined, id)
+        // reset cache
+        await this.cacheManager.del(`camera_info_${id}`)
+        for (const sessionId of lprSessionIds) {
+          await this.cacheManager.del(`camera_lpr_session_${sessionId}`)
         }
+        const response: generalResponse = { status: true, data: temp, error: null, msg: null };
+        return response;
       }
 
-      const lprSessionIds = lprList.map((s) => s.session).filter(Boolean)
-
-      // delete related data from other tables (mismatch has RESTRICT, join tables CASCADE on camera)
+      // hard delete: remove all related data (mismatch has RESTRICT, join tables CASCADE on camera)
       await this.db.$transaction([
         this.db.camera_info.deleteMany({ where: { camera: { some: { id } } } }),
         this.db.camera_service_camera.deleteMany({ where: { camera: { some: { id } } } }),
@@ -932,8 +968,8 @@ export class CameraService {
     if (process.env.NODE_ENV) { return true }
     try {
       console.debug('scanning cameras ...', new Date().toString());
-      const cameras = await this.db.camera.findMany();
-      await this.db.camera.updateMany({ data: { status: 'loading' } })
+      const cameras = await this.db.camera.findMany({ where: { deleted: false } });
+      await this.db.camera.updateMany({ where: { deleted: false }, data: { status: 'loading' } })
       const concurrencyLimit = 15;
       await runWithConcurrency(cameras, concurrencyLimit, async (element: { id: string; url: string; username: string; password: string; status?: string }) => {
         try {
@@ -957,7 +993,7 @@ export class CameraService {
           if (e2 === 1) { console.log(true) }
         }
       });
-      await this.db.camera.updateMany({ where: { status: 'loading' },  data: { status: 'error' } })
+      await this.db.camera.updateMany({ where: { deleted: false, status: 'loading' },  data: { status: 'error' } })
     } catch (error) {
       console.log('error scanning cameras', error)
     }
