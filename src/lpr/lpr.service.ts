@@ -543,7 +543,7 @@ export class LprService {
         // normal camera (same path and payload structure as onvif.service proxy)
         try {
           const conn = { url: camera.url, username: camera.username, password: camera.password };
-          onvif_response = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn);
+          onvif_response = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn, { timeout: 60 * 1000 });
         } catch (error) {
           if (error.response && error.response.status >= 500) {
             throw new HttpException({ status: false, data: null, error: 'Camera service unavailable', msg: 'Camera service unavailable' }, 503)

@@ -8,6 +8,30 @@ import { buildUserPermissionWhere } from 'src/app.shared';
 export class OnvifService {
   constructor(private db: DbService, private readonly axios: HttpService) {}
 
+  // per-camera PTZ move rate limit so a stuck client cannot spam the camera
+  private ptzMoveLimits = new Map<string, { windowStart: number; count: number }>();
+  private readonly ptzMoveLimitWindowMs = 5 * 1000;
+  private readonly ptzMoveLimitMax = 10;
+
+  /** Check the per-camera PTZ move rate limit (10 commands per 5 seconds). */
+  checkPtzMoveLimit(cameraId: string): boolean {
+    const now = Date.now();
+    const entry = this.ptzMoveLimits.get(cameraId);
+    if (!entry || now - entry.windowStart >= this.ptzMoveLimitWindowMs) {
+      this.ptzMoveLimits.set(cameraId, { windowStart: now, count: 1 });
+      return true;
+    }
+    entry.count++;
+    return entry.count <= this.ptzMoveLimitMax;
+  }
+
+  /** Enforce the PTZ move rate limit, throwing 429 when exceeded. */
+  assertPtzMoveAllowed(cameraId: string): void {
+    if (!this.checkPtzMoveLimit(cameraId)) {
+      throw new HttpException({ status: false, data: null, error: 'PTZ rate limit exceeded', msg: 'PTZ rate limit exceeded' }, 429);
+    }
+  }
+
   private getBaseUrl(): string {
     const base = process.env.ONVIF_SERVICE;
     if (!base) {

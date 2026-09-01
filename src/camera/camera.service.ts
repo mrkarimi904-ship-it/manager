@@ -68,6 +68,15 @@ export class CameraService {
     return { url: camera.url, username: camera.username, password: camera.password };
   }
 
+  /** Build an HttpException that passes through the ONVIF/snapshot service's
+   * status code and error message so 401/502/504 reach the frontend as-is. */
+  private onvifErrorResponse(error: any): HttpException {
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    const msg = data && typeof data === 'object' && data.error ? data.error : error?.message;
+    return new HttpException({ status: false, data: null, error: data?.error ?? msg, msg }, status && status >= 400 && status <= 504 ? status : 406);
+  }
+
   async getAll(user, query: dtos.cameraSearchQuery): Promise<generalResponse> {
     try {
       // limit query if user is not superadmin
@@ -217,11 +226,11 @@ export class CameraService {
       // check for deleted
       if (temp.deleted === true) { return { status: true, data: { status: 'deleted' }, error: null, msg: null } }
       // get health (same path and payload structure as onvif.service proxy)
-      const health = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera', this.onvifConnection(temp));
+      const health = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera', this.onvifConnection(temp), { timeout: 60 * 1000 });
       const response: generalResponse = { status: true, data: health.data, error: null, msg: null };
       return response;
     } catch (error) {
-      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+      throw this.onvifErrorResponse(error);
     }
   }
 
@@ -241,7 +250,9 @@ export class CameraService {
       const response: generalResponse = await this.postPre(temp)
       return response;
     } catch (error) {
-      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+      // postPre already throws a proper HttpException (401/502/504 from the onvif service) — keep it
+      if (error instanceof HttpException) { throw error; }
+      throw this.onvifErrorResponse(error);
     }
   }
 
@@ -261,24 +272,44 @@ export class CameraService {
       // get results
       const temp = await this.db.camera.findUnique({ where });
       if (!temp) { throw { message: 'Camera not found' }; }
+      // serve a cached snapshot when one was captured recently (the frontend
+      // polls every 5 seconds per open modal, this keeps camera load flat)
+      const cacheKey = `camera_snapshot_${temp.id}`;
+      const cached = await this.cacheManager.get<{ ext: string; data: string }>(cacheKey);
+      if (cached && cached.data) {
+        const response: generalResponse = { status: true, data: cached, error: null, msg: null }
+        return response;
+      }
+      // prepare fallback RTSP url for the snapshot service
       const tempInfp = await this.db.camera_info.findMany({ where: { camera: { some: { id: temp.id } }, key: 'profile_live_rtsp' } })
       const cameraUsername = temp.username;
       const cameraPassword = temp.password;
       const cameraRTSPUrl = tempInfp[0]?.value;
-      const completeRTSP = cameraRTSPUrl && (cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", () => `rtsp://${cameraUsername}:${cameraPassword}@`));
+      if (!cameraRTSPUrl) { throw { message: 'Camera has no live RTSP profile configured' }; }
+      const completeRTSP = cameraRTSPUrl.includes('username') && cameraRTSPUrl.includes('password') ? cameraRTSPUrl : cameraRTSPUrl.replace("rtsp://", () => `rtsp://${cameraUsername}:${cameraPassword}@`);
       // get snapshot (ONVIF first, fallback to SNAPSHOT_SERVICE)
+      let snapshot: { ext: string; data: string } = null;
       try {
-        const onvif_response = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera/snapshot', this.onvifConnection(temp));
-        const response: generalResponse = { status: true, data: { data: onvif_response.data }, error: null, msg: null }
-        return response;
+        const onvif_response = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera/snapshot', this.onvifConnection(temp), { timeout: 60 * 1000 });
+        if (onvif_response.data && onvif_response.data.data) {
+          snapshot = { ext: onvif_response.data.ext ?? 'jpeg', data: onvif_response.data.data };
+        } else { throw { message: 'invalid snapshot data' } }
       } catch (error) {
-
-        const onvif_response = await this.axios.axiosRef.post(this.getSnapshotBase() + '/snapshot', { url: completeRTSP });
-        const response: generalResponse = { status: true, data: { data: onvif_response.data }, error: null, msg: null }
-        return response;
+        if (!this.getSnapshotBase()) { throw { message: 'Snapshot service is not configured' }; }
+        const snapshot_response = await this.axios.axiosRef.post(this.getSnapshotBase() + '/snapshot', { url: completeRTSP }, { timeout: 60 * 1000 });
+        if (snapshot_response.data && snapshot_response.data.data) {
+          snapshot = { ext: snapshot_response.data.ext ?? 'jpeg', data: snapshot_response.data.data };
+        } else { throw { message: 'invalid snapshot data' } }
       }
+      // cache briefly so repeated viewers share one capture
+      await this.cacheManager.set(cacheKey, snapshot, 4000);
+      const response: generalResponse = { status: true, data: snapshot, error: null, msg: null }
+      return response;
     } catch (error) {
-      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+      const status = error.response?.status;
+      const data = error.response?.data;
+      const msg = data && typeof data === 'object' && data.error ? data.error : error.message;
+      throw new HttpException({ status: false, data: null, error: data?.error ?? msg, msg }, status >= 400 && status <= 504 ? status : 406);
     }
   }
 
@@ -322,8 +353,8 @@ export class CameraService {
           // Get profiles from ONVIF service (same path and payload as onvif.service proxy)
           const conn = this.onvifConnection(updatedCamera);
           const [onvif_response, onvif_info] = await Promise.all([
-            this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn),
-            this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', conn)
+            this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn, { timeout: 60 * 1000 }),
+            this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', conn, { timeout: 60 * 1000 })
           ]);
           if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
             const profiles = [];
@@ -444,7 +475,7 @@ export class CameraService {
       this.loggerService.log('camera edited', 0, user, undefined, undefined, id)
       return { status: true, data: cam, error: null, msg: null };
     } catch (error) {
-      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+      throw this.onvifErrorResponse(error);
     }
   }
 
@@ -468,8 +499,8 @@ export class CameraService {
       // get profiles from onvif service (same path and payload as onvif.service proxy)
       const conn = this.onvifConnection(temp);
       const [ onvif_response, onvif_info ] = await Promise.all([
-        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn),
-        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', conn)
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn, { timeout: 60 * 1000 }),
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', conn, { timeout: 60 * 1000 })
       ]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
         // get profile rtsp data
@@ -518,7 +549,7 @@ export class CameraService {
         throw { message: 'invalid onvif data' }
       }
     } catch (error) {
-      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+      throw this.onvifErrorResponse(error);
     }
   }
 
@@ -536,7 +567,7 @@ export class CameraService {
   async postPre(body: dtos.postPreCameraDto): Promise<generalResponse> {
     try {
       // get profiles from onvif service (body has url, username, password; same path as onvif.service proxy)
-      const onvif_response = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', body);
+      const onvif_response = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', body, { timeout: 60 * 1000 });
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
         const profiles = [];
         onvif_response.data.forEach(element => {
@@ -579,8 +610,8 @@ export class CameraService {
       if (await this.licenseService.can_add_new_camera() === false) { throw { message: 'License limit' }; }
       // get profiles from onvif service (body has url, username, password; same path as onvif.service proxy)
       const [ onvif_response, onvif_info ] = await Promise.all([
-        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', body),
-        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', body)
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', body, { timeout: 60 * 1000 }),
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', body, { timeout: 60 * 1000 })
       ]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
         const profiles = [];
@@ -660,7 +691,7 @@ export class CameraService {
         throw { message: 'invalid onvif data' }
       }
     } catch (error) {
-      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+      throw this.onvifErrorResponse(error);
     }
   }
 
@@ -670,8 +701,8 @@ export class CameraService {
       if (await this.licenseService.can_add_new_camera() === false) { throw { message: 'License limit' }; }
       // get profiles from onvif service (body has url, username, password; same path as onvif.service proxy)
       const [ onvif_response, onvif_info ] = await Promise.all([
-        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', body),
-        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', body)
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', body, { timeout: 60 * 1000 }),
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', body, { timeout: 60 * 1000 })
       ]);
       if (onvif_response.data && onvif_response.data !== 'error' && onvif_response.data.length > 0) {
         const profiles = [];
@@ -748,7 +779,7 @@ export class CameraService {
         throw { message: 'invalid onfiv data' }
       }
     } catch (error) {
-      throw new HttpException({ status: false, data: null, error: error, msg: error.message }, 406);
+      throw this.onvifErrorResponse(error);
     }
   }
 
@@ -973,7 +1004,7 @@ export class CameraService {
       const concurrencyLimit = 15;
       await runWithConcurrency(cameras, concurrencyLimit, async (element: { id: string; url: string; username: string; password: string; status?: string }) => {
         try {
-          const health = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera', this.onvifConnection(element));
+          const health = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera', this.onvifConnection(element), { timeout: 60 * 1000 });
           if (health.data.status === 'up') {
             await this.db.camera.update({ where: { id: element.id }, data: { status: 'ok' } })
             if (element.status.includes('error')) {

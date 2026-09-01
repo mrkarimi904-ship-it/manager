@@ -169,6 +169,7 @@ export class OnvifController {
   @AccountRoles('camera_list')
   @UseGuards(AccountGuard)
   async ptzRelativeMove(@User() user, @Param('cameraId', new ParseUUIDPipe({ version: '4' })) cameraId: string, @Body() body: any): Promise<generalResponse> {
+    this.onvifService.assertPtzMoveAllowed(cameraId);
     return this.onvifService.proxy(user, cameraId, 'POST', 'ptz/move/relative', body);
   }
 
@@ -176,6 +177,7 @@ export class OnvifController {
   @AccountRoles('camera_list')
   @UseGuards(AccountGuard)
   async ptzAbsoluteMove(@User() user, @Param('cameraId', new ParseUUIDPipe({ version: '4' })) cameraId: string, @Body() body: any): Promise<generalResponse> {
+    this.onvifService.assertPtzMoveAllowed(cameraId);
     return this.onvifService.proxy(user, cameraId, 'POST', 'ptz/move/absolute', body);
   }
 
@@ -183,6 +185,7 @@ export class OnvifController {
   @AccountRoles('camera_list')
   @UseGuards(AccountGuard)
   async ptzContinuousMove(@User() user, @Param('cameraId', new ParseUUIDPipe({ version: '4' })) cameraId: string, @Body() body: any): Promise<generalResponse> {
+    this.onvifService.assertPtzMoveAllowed(cameraId);
     return this.onvifService.proxy(user, cameraId, 'POST', 'ptz/move/continuous', body);
   }
 
@@ -190,6 +193,7 @@ export class OnvifController {
   @AccountRoles('camera_list')
   @UseGuards(AccountGuard)
   async ptzStop(@User() user, @Param('cameraId', new ParseUUIDPipe({ version: '4' })) cameraId: string, @Body() body: any): Promise<generalResponse> {
+    this.onvifService.assertPtzMoveAllowed(cameraId);
     return this.onvifService.proxy(user, cameraId, 'POST', 'ptz/move/stop', body);
   }
 
