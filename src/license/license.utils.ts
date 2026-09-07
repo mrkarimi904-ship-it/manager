@@ -43,6 +43,8 @@ export async function openLicense({ licenseString, hwidHex, ed25519PublicKeyPem 
   const lic = JSON.parse(Buffer.from(licenseString, 'base64url').toString('utf8'));
   const { sig, ...noSig } = lic;
 
+  if (!lic.v || lic.v !== 2) throw new Error('Unsupported license version');
+
   const publicKey = crypto.createPublicKey({
     key: ed25519PublicKeyPem.replace(/\\n/g, '\n'),
     format: 'pem',
@@ -53,7 +55,7 @@ export async function openLicense({ licenseString, hwidHex, ed25519PublicKeyPem 
   if (!ok) throw new Error('Invalid license signature');
 
   const salt = Buffer.from(lic.salt, 'base64url');
-  const wrapKey = await hkdfSha256(Buffer.from(hwidHex, 'hex'), salt, 'myapp license wrapkey', 32);
+  const wrapKey = await hkdfSha256(Buffer.from(hwidHex, 'hex'), salt, 'vms license wrapkey v2', 32);
 
   const cekWrap = Buffer.from(lic.cekWrap, 'base64url');
   const cekNonce = cekWrap.subarray(0, 12);
@@ -77,7 +79,7 @@ export async function issueLicense({ payloadJson, hwidHex, ed25519PrivateKeyPem 
 }): Promise<string> {
   const cek = crypto.randomBytes(32);
   const salt = crypto.randomBytes(16);
-  const wrapKey = await hkdfSha256(Buffer.from(hwidHex, 'hex'), salt, 'myapp license wrapkey', 32);
+  const wrapKey = await hkdfSha256(Buffer.from(hwidHex, 'hex'), salt, 'vms license wrapkey v2', 32);
 
   const cekNonce = crypto.randomBytes(12);
   const { ct: cekCt, tag: cekTag } = aesGcmEncrypt(wrapKey, cekNonce, cek, null);
@@ -87,7 +89,7 @@ export async function issueLicense({ payloadJson, hwidHex, ed25519PrivateKeyPem 
   const { ct, tag } = aesGcmEncrypt(cek, nonce, Buffer.from(JSON.stringify(payloadJson)), null);
 
   const licNoSig = {
-    v: 1,
+    v: 2,
     alg: { sig: 'Ed25519', enc: 'AES-256-GCM', kdf: 'HKDF-SHA256' },
     salt: b64u.e(salt),
     nonce: b64u.e(nonce),

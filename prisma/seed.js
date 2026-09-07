@@ -93,7 +93,7 @@ const licenseData = {
 
 const licenseKeysData = {
   id: 'main',
-  public_key: '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAGM/UPzMpiQMei++xgPSheUuEHLAMh+0OvoI2/lvm/74=\n-----END PUBLIC KEY-----',
+  public_key: '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEATlGLPuEs8MTt5Fmfkd3ANWxNqQgAMgX8ysGfylXbwW0=\n-----END PUBLIC KEY-----',
 }
 
 // =============================================================================
@@ -130,7 +130,7 @@ async function main() {
   // 5. license_keys
   await prisma.license_keys.upsert({
     where: { id: licenseKeysData.id },
-    update: {},
+    update: { public_key: licenseKeysData.public_key },
     create: licenseKeysData,
   })
   console.log('Seeded license_keys')
