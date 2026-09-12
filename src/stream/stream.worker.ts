@@ -55,6 +55,16 @@ export function isActiveStreamAssignment(row: { kafka_topic?: string | null; zmq
   return isActiveKafkaTopic(row.kafka_topic) || isActiveZmqPort(row.zmq_port);
 }
 
+/** Remove a trailing zmq port suffix from a url/service_ip so the zmq port is only sent as its own field. */
+export function stripZmqPortFromUrl(url: string | null | undefined, zmqPort: number | null | undefined): string {
+  const s = (url ?? '').trim();
+  if (!s || !zmqPort) return s;
+  const suffix = String(zmqPort);
+  if (s.endsWith(':' + suffix)) return s.slice(0, -(suffix.length + 1));
+  if (s.endsWith(suffix)) return s.slice(0, -suffix.length);
+  return s;
+}
+
 export function parseWorkerStreamAssignment(response: { data?: unknown } | null | undefined): CameraStreamWorkerAssignment | null {
   const data = response?.data;
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
@@ -62,6 +72,7 @@ export function parseWorkerStreamAssignment(response: { data?: unknown } | null 
   const row = data as Record<string, unknown>;
   const kafkaTopic = row.kafka_topic != null ? String(row.kafka_topic) : '';
   const cameraId = row.camera_id != null ? String(row.camera_id) : '';
+  const zmqPort = Number(row.zmq_port) || IDLE_ZMQ_PORT;
 
   if (!kafkaTopic && !cameraId) return null;
 
@@ -69,8 +80,8 @@ export function parseWorkerStreamAssignment(response: { data?: unknown } | null 
     tcp: Boolean(row.tcp),
     use_kafka: Boolean(row.use_kafka),
     use_service_ip: Boolean(row.use_service_ip),
-    zmq_port: Number(row.zmq_port) || IDLE_ZMQ_PORT,
-    service_ip: row.service_ip != null ? String(row.service_ip) : '',
+    zmq_port: zmqPort,
+    service_ip: stripZmqPortFromUrl(row.service_ip != null ? String(row.service_ip) : '', zmqPort),
     kafka_server: row.kafka_server != null ? String(row.kafka_server) : '',
     kafka_topic: kafkaTopic || IDLE_KAFKA_TOPIC,
     rtsp_url: row.rtsp_url != null ? String(row.rtsp_url) : null,
@@ -165,7 +176,7 @@ export function toStreamConnectionFields(row: {
     use_kafka: row.use_kafka,
     use_service_ip: row.use_service_ip,
     zmq_port: row.zmq_port,
-    service_ip: row.service_ip ?? '',
+    service_ip: stripZmqPortFromUrl(row.service_ip, row.zmq_port),
     kafka_server: row.kafka_server ?? '',
     kafka_topic: row.kafka_topic,
   };
