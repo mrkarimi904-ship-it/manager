@@ -27,6 +27,10 @@ export class LprService {
     return (process.env.ONVIF_SERVICE || '').replace(/\/$/, '');
   }
 
+  private async markStopped(lprId: string) {
+    await this.db.camera_lpr_camera.update({ where: { id: lprId }, data: { status: 'STOPPED', isActive: false, session: '' } })
+  }
+
   async findAll(user: any, camera_id: string): Promise<generalResponse> {
     try {
       // check if camera available
@@ -377,15 +381,18 @@ export class LprService {
           try {
             const cr = await this.axios.axiosRef.post(prepare + '/stop', cdata)
             if (cr.data.status === 'ok' || cr.data.code === 201) {
-              await this.db.camera_lpr_camera.update({ where: { id: list.id }, data: { status: 'STOPPED', isActive: false, session: '' } })
+              await this.markStopped(list.id)
             } else {
               throw new HttpException({ status: false, data: null, error: 'Failed to stop LPR', msg: 'Failed to stop LPR' }, cr.data.code || 500)
             }
           } catch (error) {
-            if (error.response && error.response.data) {
+            // FAILED instances are already dead on the service; stop must still succeed locally
+            if (list.status === 'FAILED') {
+              await this.markStopped(list.id)
+            } else if (error.response && error.response.data) {
               const errorData = error.response.data
               if (errorData.code === 404) {
-                await this.db.camera_lpr_camera.update({ where: { id: list.id }, data: { status: 'STOPPED', isActive: false, session: '' } })
+                await this.markStopped(list.id)
               } else if (errorData.code === 409) {
                 throw new HttpException({ status: false, data: null, error: 'LPR instance is busy', msg: 'LPR instance is busy' }, 409)
               } else if (errorData.code >= 500 || error.response.status >= 500) {
@@ -400,13 +407,17 @@ export class LprService {
             }
           }
         } else {
-          await this.db.camera_lpr_camera.update({ where: { id: list.id }, data: { status: 'STOPPED', isActive: false, session: '' } })
+          await this.markStopped(list.id)
         }
       } catch (error) {
-        if (error.response && error.response.status >= 500) {
+        // even if the LPR service is unreachable, a FAILED lpr must be stoppable locally
+        if (list.status === 'FAILED') {
+          await this.markStopped(list.id)
+        } else if (error.response && error.response.status >= 500) {
           throw new HttpException({ status: false, data: null, error: 'LPR service unavailable', msg: 'LPR service unavailable' }, 503)
+        } else {
+          throw error
         }
-        throw error
       }
 
       return { status: true, data: null, error: null, msg: null };

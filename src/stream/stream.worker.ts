@@ -52,7 +52,7 @@ export function isActiveZmqPort(zmqPort: number | null | undefined): boolean {
 }
 
 export function isActiveStreamAssignment(row: { kafka_topic?: string | null; zmq_port?: number | null }): boolean {
-  return isActiveKafkaTopic(row.kafka_topic) && isActiveZmqPort(row.zmq_port);
+  return isActiveKafkaTopic(row.kafka_topic) || isActiveZmqPort(row.zmq_port);
 }
 
 export function parseWorkerStreamAssignment(response: { data?: unknown } | null | undefined): CameraStreamWorkerAssignment | null {

@@ -147,7 +147,8 @@ export class LprServiceService {
           await Promise.all(results.data.data.map(async (elm: any) => {
             const id = elm.lpr_id
             const externalStatus = elm.lpr_status
-            const t1 = await this.db.camera_lpr_camera.findFirst({ where: { id: id } })
+            // only sync active rows, so a locally stopped instance (e.g. FAILED) is not resurrected
+            const t1 = await this.db.camera_lpr_camera.findFirst({ where: { id: id, isActive: true } })
             if (t1) {
               await this.db.camera_lpr_camera.update({ where: { id: t1.id }, data: { status: externalStatus } })
             }
