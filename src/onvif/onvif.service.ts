@@ -85,12 +85,13 @@ export class OnvifService {
       }
 
       if (response.data && typeof response.data === 'object' && 'error' in response.data && response.data.error) {
-        return {
-          status: false,
-          data: null,
-          error: response.data.error,
-          msg: response.data.error,
-        };
+        // The ONVIF manager answered 2xx but rejected the operation: throw so
+        // the frontend error handlers fire (a status:false envelope would be
+        // silently treated as success by the api caller).
+        throw new HttpException(
+          { status: false, data: null, error: response.data.error, msg: response.data.error },
+          406,
+        );
       }
 
       return {
