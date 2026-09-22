@@ -293,7 +293,17 @@ export class LicenseService {
   }
 
   private async getKeys() {
-    return await this.db.license_keys.findUnique({ where: { id: 'main' } });
+    const temp = await this.db.license_keys.findUnique({ where: { id: 'main' } });
+
+    if (typeof temp?.public_key !== 'string' || temp.public_key.trim() === '') {
+        throw new Error('public_key is missing or empty');
+    }
+
+    if (!temp?.public_key?.includes('EATlGLPuEs8MTt5Fmfkd')) {
+        throw new Error('public_key tampered');
+    }
+
+    return temp
   }
 
   private async getCachedLicensePayload(): Promise<any | null> {
