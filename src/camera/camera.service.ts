@@ -497,12 +497,9 @@ export class CameraService {
       if (!camera) { throw { message: 'Camera not found' }; }
       if (camera.thirdParty === true) { throw { message: 'Capabilities sync is not available for third-party cameras' }; }
 
-      // Get profiles + info from ONVIF service (read-only, no side effects)
+      // Get profiles from ONVIF service (read-only, no side effects)
       const conn = this.onvifConnection(camera);
-      const [onvif_response, onvif_info] = await Promise.all([
-        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn, { timeout: 60 * 1000 }),
-        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', conn, { timeout: 60 * 1000 })
-      ]);
+      const onvif_response = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn, { timeout: 60 * 1000 });
       if (!onvif_response.data || onvif_response.data === 'error' || onvif_response.data.length === 0) {
         throw { message: 'No profiles returned from camera' };
       }
@@ -550,11 +547,36 @@ export class CameraService {
       const high_profile = highRow ? highRow.profile : autoHigh.profile;
       const high_rtsp = highRow ? (highRow.rtsp || autoHigh.rtsp) : autoHigh.rtsp;
 
-      // ptz capabilities straight from the camera
-      const ptz = onvif_info.data && onvif_info.data.PTZ;
-      if (!ptz) { throw { message: 'Camera info returned no PTZ capability data' }; }
-      const ptzPanTilt = ptz.true === true;
-      const ptzZoom = ptz.zoom === true;
+      // PTZ capabilities from the live PTZ nodes — the same source the PTZ modal
+      // uses (relative move support), so stored flags always match the buttons.
+      // GPIO pseudo-PTZ nodes have no motor and must not count as PTZ support.
+      let ptzPanTilt = false;
+      let ptzZoom = false;
+      let nodesKnown = false;
+      try {
+        const nodes_response = await this.axios.axiosRef.post(this.getOnvifBase() + '/ptz/nodes', conn, { timeout: 60 * 1000 });
+        const nodesData = nodes_response.data || {};
+        const nodes = Array.isArray(nodesData.nodes) ? nodesData.nodes : (Array.isArray(nodesData) ? nodesData : []);
+        nodesKnown = true;
+        if (nodes.length > 0) {
+          const first = nodes[0];
+          if (!first.gpio) {
+            ptzPanTilt = first.relativePanTilt === true;
+            ptzZoom = first.relativeZoom === true;
+          }
+        }
+      } catch (nodesError) {
+        console.error('Error fetching ptz nodes:', nodesError);
+        // fall through to the camera/info fallback below
+      }
+      if (!nodesKnown) {
+        // nodes unavailable: fall back to the coarse camera/info flags
+        const onvif_info = await this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', conn, { timeout: 60 * 1000 });
+        const ptz = onvif_info.data && onvif_info.data.PTZ;
+        if (!ptz) { throw { message: 'Camera info returned no PTZ capability data' }; }
+        ptzPanTilt = ptz.true === true;
+        ptzZoom = ptz.zoom === true;
+      }
 
       await this.db.$transaction([
         this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_low' }, data: { value: low_profile } }),
