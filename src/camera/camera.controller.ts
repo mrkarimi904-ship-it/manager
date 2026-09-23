@@ -71,6 +71,13 @@ export class CameraController {
     return this.cameraService.putCameraService(user, id, body);
   }
 
+  @Post(':id/sync-capabilities')
+  @AccountRoles('camera_edit')
+  @UseGuards(AccountGuard)
+  async syncCapabilities(@User() user, @Param('id', new ParseUUIDPipe({ version: "4" })) id: string): Promise<generalResponse> {
+    return this.cameraService.syncCapabilities(id, user);
+  }
+
   @Post('/pre_register')
   @AccountRoles('camera_add')
   @UseGuards(AccountGuard)

@@ -479,6 +479,115 @@ export class CameraService {
     }
   }
 
+  // POST /camera/:id/sync-capabilities - Re-read ONVIF capabilities and verify stored
+  // profile selections. PTZ flags are always refreshed; a stored profile is kept when it
+  // still exists on the camera, otherwise it is replaced with the auto (lowest/highest
+  // resolution) profile. Never touches the camera row, credentials or running services.
+  async syncCapabilities(id: string, user: any): Promise<generalResponse> {
+    try {
+      // prepare where
+      const where = { id: id, deleted: false, AND: [] }
+      // check if user is limited
+      if (user.isSuperAdmin !== true) {
+        buildUserPermissionWhere(user, where);
+      }
+      // get results
+      const camera: any = await this.db.camera.findUnique({ where });
+      // check resuts
+      if (!camera) { throw { message: 'Camera not found' }; }
+      if (camera.thirdParty === true) { throw { message: 'Capabilities sync is not available for third-party cameras' }; }
+
+      // Get profiles + info from ONVIF service (read-only, no side effects)
+      const conn = this.onvifConnection(camera);
+      const [onvif_response, onvif_info] = await Promise.all([
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/profiles', conn, { timeout: 60 * 1000 }),
+        this.axios.axiosRef.post(this.getOnvifBase() + '/camera/info', conn, { timeout: 60 * 1000 })
+      ]);
+      if (!onvif_response.data || onvif_response.data === 'error' || onvif_response.data.length === 0) {
+        throw { message: 'No profiles returned from camera' };
+      }
+
+      const profiles = [];
+      onvif_response.data.forEach(element => {
+        profiles.push({
+          profile: element.token,
+          rtsp: element.stream.rtsp,
+          video: element.video?.source ? true : false,
+          video_framerate: element.video?.encoder?.framerate,
+          video_bitrate: element.video?.encoder?.bitrate,
+          video_encoding: element.video?.encoder?.encoding,
+          video_width: element.video?.encoder?.resolution?.width,
+          video_height: element.video?.encoder?.resolution?.height,
+          audio: element.audio ? true : false,
+          audio_samplerate: element.audio?.encoder?.samplerate,
+          audio_bitrate: element.audio?.encoder?.bitrate,
+          audio_encoding: element.audio?.encoder?.encoding,
+          ptz: element.ptz ? true : false
+        });
+      });
+
+      // auto fallback values: lowest resolution = live/low, highest = record/high
+      const video_profiles = profiles.filter(x => { return x.video === true })
+      const sorted = video_profiles.sort((a, b) => { return a.video_width < b.video_width ? 1 : -1 })
+      if (sorted.length < 1) { throw { message: 'no profile found on camera' } }
+      const autoHigh = sorted[0]
+      const autoLow = sorted[sorted.length - 1]
+
+      // current stored selections
+      const infoRows = await this.db.camera_info.findMany({ where: { camera: { some: { id: id } } } });
+      const getInfo = (key: string) => infoRows.find(x => x.key === key)?.value || '';
+
+      // keep a stored profile only when it still exists on the camera
+      const storedLow = getInfo('profile_low');
+      const lowValid = storedLow !== '' && profiles.some(x => x.profile === storedLow);
+      const lowRow: any = lowValid ? profiles.find(x => x.profile === storedLow) : null;
+      const low_profile = lowRow ? lowRow.profile : autoLow.profile;
+      const low_rtsp = lowRow ? (lowRow.rtsp || autoLow.rtsp) : autoLow.rtsp;
+
+      const storedHigh = getInfo('profile_high');
+      const highValid = storedHigh !== '' && profiles.some(x => x.profile === storedHigh);
+      const highRow: any = highValid ? profiles.find(x => x.profile === storedHigh) : null;
+      const high_profile = highRow ? highRow.profile : autoHigh.profile;
+      const high_rtsp = highRow ? (highRow.rtsp || autoHigh.rtsp) : autoHigh.rtsp;
+
+      // ptz capabilities straight from the camera
+      const ptz = onvif_info.data && onvif_info.data.PTZ;
+      if (!ptz) { throw { message: 'Camera info returned no PTZ capability data' }; }
+      const ptzPanTilt = ptz.true === true;
+      const ptzZoom = ptz.zoom === true;
+
+      await this.db.$transaction([
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_low' }, data: { value: low_profile } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_live_rtsp' }, data: { value: low_rtsp } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_high' }, data: { value: high_profile } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'profile_record_rtsp' }, data: { value: high_rtsp } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_pan_tilt' }, data: { value: ptzPanTilt ? 'true' : 'false' } }),
+        this.db.camera_info.updateMany({ where: { camera: { some: { id: id } }, key: 'ptz_zoom' }, data: { value: ptzZoom ? 'true' : 'false' } }),
+      ])
+
+      // bust cached camera info so the UI reflects the fresh values
+      const cacheKey = `camera_info_${id}`;
+      await this.cacheManager.del(cacheKey)
+
+      this.loggerService.log('camera capabilities synced', 0, user, undefined, undefined, id)
+
+      return {
+        status: true,
+        data: {
+          ptz_pan_tilt: ptzPanTilt,
+          ptz_zoom: ptzZoom,
+          profile_low: low_profile,
+          profile_high: high_profile,
+          profiles_replaced: { low: !lowValid, high: !highValid },
+        },
+        error: null,
+        msg: null,
+      };
+    } catch (error) {
+      throw this.onvifErrorResponse(error);
+    }
+  }
+
   async putSingleProfile(id: string, body: dtos.editCameraProfileDto, user: any): Promise<generalResponse> {
     try {
       // prepare where
